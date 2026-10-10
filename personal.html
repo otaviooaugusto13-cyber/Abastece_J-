@@ -3,35 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TAPAGO - Painel do Personal</title>
+    <title>ABASTECE JÁ - Portal do Varejo / Supermercado</title>
     <link rel="stylesheet" href="style-personal.css">
 </head>
 <body>
 
-    <!-- TELA 1: Validação e Login -->
+    <!-- TELA 1: Validação e Login da Loja -->
     <div id="screen-login-personal" class="screen active">
         <div class="glass" style="padding: 35px 25px; max-width: 400px; width: 100%;">
             <div style="text-align: center; margin-bottom: 20px;">
-                <h1>TAPA<span class="highlight">GO</span></h1>
-                <p class="subtitle" style="color: var(--gold);">Portal do Profissional</p>
+                <h1>ABASTECE<span class="highlight">JÁ</span></h1>
+                <p class="subtitle" style="color: var(--gold);">Portal do Varejo & Supermercados</p>
             </div>
             
-            <input type="text" id="input-nome" placeholder="Seu Nome Profissional" required>
-            <input type="text" id="input-cpf" placeholder="CPF (Apenas números)" maxlength="11">
-            <input type="text" id="input-cref" placeholder="CREF (Ex: 123456-G/SP)">
+            <input type="text" id="input-nome" placeholder="Nome do Supermercado / Loja" required>
+            <input type="text" id="input-cpf" placeholder="CNPJ (Apenas números)" maxlength="14">
+            <input type="text" id="input-cref" placeholder="Código da Filial / Registro (Ex: 123456/SP)">
             
             <div class="remember-box">
                 <input type="checkbox" id="check-remember">
-                <label for="check-remember">Lembre-se de mim neste dispositivo</label>
+                <label for="check-remember">Lembrar dados da loja neste dispositivo</label>
             </div>
 
             <div id="login-loader" style="display: none; text-align: center; margin-top: 10px; color: var(--gold);">
-                <small>Consultando banco de dados...</small>
+                <small>Consultando base de dados do varejo...</small>
             </div>
 
-            <button id="btn-login" class="btn btn-primary ripple-btn" onclick="validarProfissional()" style="margin-top: 15px;">Validar e Entrar</button>
+            <button id="btn-login" class="btn btn-primary ripple-btn" onclick="validarProfissional()" style="margin-top: 15px;">Validar e Acessar Painel</button>
             
-            <!-- DIVISOR E BOTÃO DO GOOGLE -->
+            <!-- DIVISOR E BOTÃO GOOGLE -->
             <div style="display: flex; align-items: center; margin: 15px 0;">
                 <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
                 <span style="font-size: 11px; color: var(--text-muted); margin: 0 10px;">ou</span>
@@ -45,79 +45,79 @@
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
-                Entrar com Google
+                Entrar com Conta Google
             </button>
 
             <div style="text-align: center; margin-top: 20px;">
-                <a href="index.html" style="color: var(--text-muted); font-size: 13px; text-decoration: none;">Voltar para o App do Aluno</a>
+                <a href="index.html" style="color: var(--text-muted); font-size: 13px; text-decoration: none;">Voltar para o App do Promotor</a>
             </div>
         </div>
     </div>
 
-    <!-- TELA 2: Dashboard Principal -->
+    <!-- TELA 2: Dashboard da Loja -->
     <div id="screen-dashboard" class="screen main-app-screen">
         
-        <!-- ABA 1: AGENDA -->
+        <!-- ABA 1: AGENDA DE TURNOS -->
         <div id="tab-agenda" class="tab-content active" style="padding-bottom: 100px;">
             <div class="header-personal glass">
                 <div>
-                    <h2 style="margin: 0; font-size: 20px;">Olá, <span id="nome-exibicao" class="highlight">Professor</span></h2>
-                    <p style="margin: 0; font-size: 12px; color: var(--gold);">Profissional Verificado ✓</p>
+                    <h2 style="margin: 0; font-size: 20px;">Olá, <span id="nome-exibicao" class="highlight">Supermercado</span></h2>
+                    <p style="margin: 0; font-size: 12px; color: var(--gold);">Estabelecimento Verificado ✓</p>
                 </div>
                 <div class="avatar-header" id="avatar-header" onclick="switchTabPersonal('tab-perfil', document.querySelectorAll('.nav-item')[3])">
                     <img id="img-avatar-header" src="" alt="Foto" style="display:none; width:100%; height:100%; border-radius:50%; object-fit:cover;">
-                    <span id="initials-header">P</span>
+                    <span id="initials-header">S</span>
                 </div>
             </div>
 
-            <!-- PROJEÇÃO FINANCEIRA -->
+            <!-- PROJEÇÃO FINANCEIRA / ORÇAMENTO -->
             <div class="glass finance-card">
-                <div class="finance-header">Projeção Financeira Mensal</div>
+                <div class="finance-header">Resumo de Plantões Mensais</div>
                 <div class="finance-values">
                     <div class="finance-item">
-                        <span>Alunos Fixos</span>
+                        <span>Promotores Fixos</span>
                         <h3 id="valor-fixo">R$ 4.200</h3>
                     </div>
                     <div class="finance-item">
-                        <span>Ganhos Avulsos (Radar)</span>
+                        <span>Plantões Avulsos (Radar)</span>
                         <h3 id="valor-avulso" style="color: var(--neon-green);">R$ 450</h3>
                     </div>
                 </div>
                 <div class="finance-total">
-                    <span>Total Projetado:</span>
+                    <span>Investimento Total:</span>
                     <span id="valor-total" style="color: var(--gold); font-size: 18px; font-weight: bold;">R$ 4.650</span>
                 </div>
             </div>
 
-            <!-- AÇÕES RÁPIDAS & ALERTAS -->
+            <!-- AÇÕES RÁPIDAS -->
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button class="btn btn-outline" style="padding: 10px; font-size: 12px; border-color: var(--gold); color: var(--gold);" onclick="abrirModalCadastrarAluno()">+ Cadastrar Aluno</button>
+                <button class="btn btn-outline" style="padding: 10px; font-size: 12px; border-color: var(--gold); color: var(--gold);" onclick="abrirModalCadastrarAluno()">+ Cadastrar Promotor</button>
             </div>
 
-            <!-- AGENDA DO DIA -->
-            <div class="section-title">Sua Agenda (Hoje)</div>
+            <!-- TURNOS DE HOJE -->
+            <div class="section-title">Turnos de Reposição (Hoje)</div>
             <div id="lista-agenda" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;"></div>
         </div>
 
-        <!-- ABA 2: RADAR DE DEMANDA -->
+        <!-- ABA 2: RADAR DE PROMOTORES -->
         <div id="tab-heatmap" class="tab-content" style="padding-bottom: 100px;">
             <div class="header-personal glass">
-                <h2 style="margin: 0; font-size: 20px;">Radar de Demanda</h2>
+                <h2 style="margin: 0; font-size: 20px;">Radar de Promotores Disponíveis</h2>
             </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Buscas ativas na sua região em tempo real.</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Promotores ativos e qualificados na sua região em tempo real.</p>
             
             <div class="glass heatmap-container">
                 <div class="hotspot hotspot-high" style="top: 30%; left: 40%;">
-                    <span class="hotspot-label">Centro - Muito Alta</span>
+                    <span class="hotspot-label">Centro - Alta Demanda</span>
                 </div>
                 <div class="hotspot hotspot-medium" style="top: 60%; left: 70%;">
-                    <span class="hotspot-label">Bairro A - Média</span>
+                    <span class="hotspot-label">Setor Bebidas - Disponível</span>
                 </div>
                 <div class="hotspot hotspot-low" style="top: 20%; left: 80%;"></div>
             </div>
         </div>
 
-        <!-- ABA 3: CHAT COM ALUNOS -->
+        <!-- ABA 3: MENSAGENS COM PROMOTORES -->
         <div id="tab-chat" class="tab-content" style="padding-bottom: 100px;">
             <div class="header-personal glass">
                 <h2 style="margin: 0; font-size: 20px;">Mensagens</h2>
@@ -125,18 +125,18 @@
 
             <!-- LISTA DE CONVERSAS -->
             <div id="chat-list-view">
-                <div class="chat-item glass" onclick="abrirConversa('Carlos Andrade')">
-                    <div class="chat-avatar">C</div>
+                <div class="chat-item glass" onclick="abrirConversa('Carlos Silva (Repositor)')">
+                    <div class="chat-avatar">CS</div>
                     <div class="chat-info">
-                        <h4>Carlos Andrade <span class="chat-time">10:42</span></h4>
-                        <p>Professor, consigo mudar o treino de hoje pra 18h?</p>
+                        <h4>Carlos Silva <span class="chat-time">10:42</span></h4>
+                        <p>Chego na loja às 08h para a reposição de gôndola.</p>
                     </div>
                 </div>
-                <div class="chat-item glass" onclick="abrirConversa('Mariana Souza')">
-                    <div class="chat-avatar">M</div>
+                <div class="chat-item glass" onclick="abrirConversa('Mariana Lima (Merchandising)')">
+                    <div class="chat-avatar">ML</div>
                     <div class="chat-info">
-                        <h4>Mariana Souza <span class="chat-time">Ontem</span></h4>
-                        <p>Treino pago! Valeu pela força hoje 🔥</p>
+                        <h4>Mariana Lima <span class="chat-time">Ontem</span></h4>
+                        <p>Plantão concluído com sucesso! Check-in validado.</p>
                     </div>
                 </div>
             </div>
@@ -145,12 +145,12 @@
             <div id="chat-conversation-view" style="display: none;">
                 <div class="chat-header-active">
                     <button class="btn-back-chat" onclick="fecharConversa()">← Voltar</button>
-                    <h3 id="chat-active-name" style="font-size: 15px; margin: 0;">Aluno</h3>
+                    <h3 id="chat-active-name" style="font-size: 15px; margin: 0;">Promotor</h3>
                 </div>
                 
                 <div class="chat-messages-container" id="chat-box">
                     <div class="msg msg-received">
-                        <p>Olá professor! Tudo certo para a aula de hoje?</p>
+                        <p>Olá, tudo certo para o plantão de reposição?</p>
                         <span class="msg-time">08:00</span>
                     </div>
                 </div>
@@ -162,52 +162,49 @@
             </div>
         </div>
 
-        <!-- ABA 4: PERFIL E CONFIGURAÇÃO DE TARIFAS -->
+        <!-- ABA 4: PERFIL DA LOJA E TARIFAS DE PLANTÃO -->
         <div id="tab-perfil" class="tab-content" style="padding-bottom: 100px;">
             <div class="header-personal glass">
-                <h2 style="margin: 0; font-size: 20px;">Meu Perfil</h2>
+                <h2 style="margin: 0; font-size: 20px;">Perfil do Estabelecimento</h2>
             </div>
 
-            <!-- FOTO E INFOS BÁSICAS -->
             <div class="glass" style="padding: 20px; text-align: center; margin-bottom: 15px;">
                 <div class="profile-photo-container">
-                    <img id="img-perfil-preview" src="" alt="Foto de Perfil" style="display:none;">
-                    <span id="initials-perfil">P</span>
-                    <label for="input-foto" class="btn-change-photo">📷 Alterar</label>
+                    <img id="img-perfil-preview" src="" alt="Logo da Loja" style="display:none;">
+                    <span id="initials-perfil">S</span>
+                    <label for="input-foto" class="btn-change-photo">📷 Alterar Logo</label>
                     <input type="file" id="input-foto" accept="image/*" onchange="atualizarFotoPerfil(event)" style="display: none;">
                 </div>
-                <h3 id="perfil-nome-display" style="margin-top: 12px; font-size: 18px;">Professor</h3>
-                <p id="perfil-cref-display" style="font-size: 12px; color: var(--gold); margin-top: 2px;">CREF: --</p>
+                <h3 id="perfil-nome-display" style="margin-top: 12px; font-size: 18px;">Supermercado</h3>
+                <p id="perfil-cref-display" style="font-size: 12px; color: var(--gold); margin-top: 2px;">Filial: --</p>
             </div>
 
-            <!-- CONFIGURAÇÃO DE VALORES DA HORA/AULA -->
+            <!-- TABELA DE PREÇOS / PAGAMENTO DE PLANTÃO -->
             <div class="glass" style="padding: 15px; margin-bottom: 15px;">
-                <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--gold);">Minha Tabela de Preços (R$)</h4>
+                <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--gold);">Tabela de Remuneração por Turno (R$)</h4>
                 
                 <div class="price-input-group">
-                    <label>Hora/Aula Normal</label>
-                    <input type="number" id="rate-normal" value="60">
+                    <label>Turno Padrão (4h)</label>
+                    <input type="number" id="rate-normal" value="70">
                 </div>
                 <div class="price-input-group">
-                    <label>Alta Demanda (Surge Radar)</label>
-                    <input type="number" id="rate-surge" value="85">
+                    <label>Plantão Urgente (Surge)</label>
+                    <input type="number" id="rate-surge" value="100">
                 </div>
                 <div class="price-input-group">
-                    <label>Vaga Cancelada / Promoção</label>
-                    <input type="number" id="rate-discount" value="45">
+                    <label>Meio Turno / Auxiliar</label>
+                    <input type="number" id="rate-discount" value="50">
                 </div>
 
-                <button class="btn btn-primary" style="padding: 10px; font-size: 12px; margin-top: 5px;" onclick="salvarTarifas()">Salvar Preços</button>
+                <button class="btn btn-primary" style="padding: 10px; font-size: 12px; margin-top: 5px;" onclick="salvarTarifas()">Salvar Valores</button>
             </div>
 
-            <!-- APRESENTAÇÃO E BIO -->
             <div class="glass" style="padding: 15px; margin-bottom: 15px;">
-                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 8px;">Sobre Mim / Biografia</label>
-                <textarea id="input-bio" rows="3" placeholder="Escreva sobre sua experiência e metodologia..."></textarea>
-                <button class="btn btn-outline" style="padding: 10px; font-size: 12px; margin-top: 10px;" onclick="salvarBio()">Salvar Bio</button>
+                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 8px;">Informações da Loja / Setores</label>
+                <textarea id="input-bio" rows="3" placeholder="Descreva os setores de reposição e regras de acesso..."></textarea>
+                <button class="btn btn-outline" style="padding: 10px; font-size: 12px; margin-top: 10px;" onclick="salvarBio()">Salvar Informações</button>
             </div>
 
-            <!-- APARÊNCIA E SAIR -->
             <div class="glass" style="padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <h4 style="font-size: 14px; margin: 0;">Aparência</h4>
@@ -218,14 +215,14 @@
                 </button>
             </div>
 
-            <button class="btn btn-logout" onclick="sairModoPessoal()">Sair do Modo Pessoal</button>
+            <button class="btn btn-logout" onclick="sairModoPessoal()">Sair do Portal do Varejo</button>
         </div>
 
-        <!-- NAV INFERIOR COM 4 ABAS -->
+        <!-- NAV INFERIOR -->
         <div class="bottom-nav glass-nav" id="nav-personal">
             <div class="nav-item active" onclick="switchTabPersonal('tab-agenda', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                <span>Agenda</span>
+                <span>Turnos</span>
             </div>
             <div class="nav-item" onclick="switchTabPersonal('tab-heatmap', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"></circle><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"></path></svg>
@@ -237,60 +234,60 @@
             </div>
             <div class="nav-item" onclick="switchTabPersonal('tab-perfil', this)">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                <span>Perfil</span>
+                <span>Loja</span>
             </div>
         </div>
     </div>
 
-    <!-- MODAL: CADASTRO DE ALUNO POR CPF -->
+    <!-- MODAL: CADASTRAR PROMOTOR POR CPF -->
     <div id="modal-cadastrar-aluno" class="app-overlay">
         <div class="glass modal-box">
-            <h3 style="margin-bottom: 10px; color: var(--gold);">Cadastrar Aluno</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Digite o CPF para consultar o sistema e matricular o aluno.</p>
+            <h3 style="margin-bottom: 10px; color: var(--gold);">Cadastrar Promotor / Repositor</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Digite o CPF para vincular o profissional ao turno da loja.</p>
 
-            <input type="text" id="cad-aluno-cpf" placeholder="CPF do Aluno (apenas números)" maxlength="11" onblur="consultarCpfAluno()">
-            <input type="text" id="cad-aluno-nome" placeholder="Nome Completo do Aluno">
-            <input type="text" id="cad-aluno-objetivo" placeholder="Objetivo (ex: Hipertrofia, Emagrecimento)">
+            <input type="text" id="cad-aluno-cpf" placeholder="CPF do Promotor (apenas números)" maxlength="11" onblur="consultarCpfAluno()">
+            <input type="text" id="cad-aluno-nome" placeholder="Nome Completo do Promotor">
+            <input type="text" id="cad-aluno-objetivo" placeholder="Setor de Atuação (ex: Gôndolas, Hortifrúti, Caixa)">
 
             <div id="status-cpf-busca" style="font-size: 11px; margin-bottom: 10px; color: var(--neon-green); display:none;"></div>
 
-            <button class="btn btn-primary" onclick="confirmarCadastroAluno()">Confirmar Matrícula</button>
+            <button class="btn btn-primary" onclick="confirmarCadastroAluno()">Confirmar Vínculo</button>
             <button class="btn btn-outline" style="margin-top: 8px;" onclick="fecharModalCadastrarAluno()">Cancelar</button>
         </div>
     </div>
 
-    <!-- MODAL: SURGE PRICING COM VALORES CUSTOMIZADOS -->
+    <!-- MODAL: TARIFAS DE TURNOS -->
     <div id="modal-pricing" class="app-overlay">
         <div class="glass modal-box">
-            <h3 style="margin-bottom: 10px; color: var(--gold);">Liberar Vaga no Radar</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Selecione o valor configurado na sua tabela de preços:</p>
+            <h3 style="margin-bottom: 10px; color: var(--gold);">Abrir Turno no Radar</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Selecione o valor do plantão para preenchimento rápido:</p>
             
             <div class="pricing-option glass" onclick="confirmarVagaAvulsa('promocional')">
-                <h4 style="color: var(--neon-green);">Desconto Última Hora</h4>
-                <p>R$ <span id="display-rate-discount">45</span>,00 - Para preencher rápido.</p>
+                <h4 style="color: var(--neon-green);">Meio Turno</h4>
+                <p>R$ <span id="display-rate-discount">50</span>,00 - 2 horas de reposição.</p>
             </div>
             <div class="pricing-option glass" onclick="confirmarVagaAvulsa('normal')">
-                <h4>Preço Padrão</h4>
-                <p>R$ <span id="display-rate-normal">60</span>,00 - Seu valor regular.</p>
+                <h4>Turno Padrão</h4>
+                <p>R$ <span id="display-rate-normal">70</span>,00 - 4 horas de plantão regular.</p>
             </div>
             <div class="pricing-option glass" onclick="confirmarVagaAvulsa('premium')" style="border-color: rgba(255, 215, 0, 0.4);">
-                <h4 style="color: var(--gold);">Alta Demanda (Surge)</h4>
-                <p>R$ <span id="display-rate-surge">85</span>,00 - Região com alta procura no Radar.</p>
+                <h4 style="color: var(--gold);">Plantão Urgente (Surge)</h4>
+                <p>R$ <span id="display-rate-surge">100</span>,00 - Alta demanda de ruptura na loja.</p>
             </div>
             
             <button class="btn btn-outline" style="margin-top: 10px;" onclick="fecharModalPricing()">Cancelar</button>
         </div>
     </div>
 
-    <!-- MODAL: CHECK-IN QR CODE -->
+    <!-- MODAL: CHECK-IN QR CODE DA LOJA -->
     <div id="modal-qrcode" class="app-overlay">
         <div class="glass modal-box" style="text-align: center;">
-            <h3 style="margin-bottom: 5px;">Check-in da Aula</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Peça para o aluno escanear para liberar o pagamento.</p>
+            <h3 style="margin-bottom: 5px;">Check-in do Plantão</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Escaneie o crachá ou QR Code do promotor para liberar o pagamento.</p>
             <div class="qr-code-placeholder">
                 <svg viewBox="0 0 24 24" width="100" height="100" fill="var(--text-color)"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2z"/></svg>
             </div>
-            <button class="btn btn-primary" style="margin-top: 20px;" onclick="simularLeituraQRCode()">Simular Leitura (Teste)</button>
+            <button class="btn btn-primary" style="margin-top: 20px;" onclick="simularLeituraQRCode()">Validar Check-in</button>
             <button class="btn btn-outline" style="margin-top: 10px;" onclick="fecharModalQRCode()">Cancelar</button>
         </div>
     </div>
