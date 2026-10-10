@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>TAPAGO - App do Aluno</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Botão Flutuante de Suporte WhatsApp -->
+    <a href="https://wa.me/5511999999999" target="_blank" class="btn-whatsapp" title="Suporte via WhatsApp">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+        </svg>
+    </a>
+
+    <!-- TELA 1: Login do Aluno -->
+    <div id="screen-login" class="screen active">
+        <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1>TAPA<span class="highlight">GO</span></h1>
+                <p class="subtitle">Encontre o seu Personal Ideal</p>
+            </div>
+            
+            <input type="text" id="input-name" placeholder="Seu Nome ou E-mail">
+            <input type="password" id="input-senha" placeholder="Sua Senha">
+            
+            <button class="btn btn-primary ripple-btn" onclick="simulateLogin()">Entrar como Aluno</button>
+            
+            <a href="personal.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
+                Eu sou Personal / Acessar Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- TELA PRINCIPAL (App do Aluno) -->
+    <div id="screen-main" class="screen main-app-screen">
+        
+        <!-- ABA: HOME -->
+        <div id="tab-home" class="tab-content active">
+            <div class="header-glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h2>Olá, <span id="display-name-home" class="highlight">Aluno</span>!</h2>
+                    <p id="welcome-subtitle" style="font-size: 13px; color: var(--text-muted);">Pronto para o treino de hoje?</p>
+                </div>
+                <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--neon-green);">A</div>
+            </div>
+
+            <!-- Container do Google Maps (Radar em Tempo Real) -->
+            <div class="section-title">Radar de Profissionais em Tempo Real</div>
+            <div id="mapa-quadrado" class="glass" style="height: 230px; width: 100%; border-radius: 16px; border: 1px solid var(--neon-green); overflow: hidden; margin-bottom: 25px; z-index: 1;"></div>
+
+            <!-- Skeleton Loading de Exemplo -->
+            <div id="skeleton-area" class="skeleton-container" style="display: none;">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+            </div>
+
+            <!-- Conteúdo Dinâmico com Cards dos Personais -->
+            <div id="home-content">
+                <div class="section-title">Recomendados para Você</div>
+                
+                <!-- Personal 1 -->
+                <div class="trainer-card glass card-gold">
+                    <div class="trainer-header">
+                        <div class="avatar-container story-ring">
+                            <div class="avatar">R</div>
+                        </div>
+                        <div class="trainer-info">
+                            <h4>Prof. Roberto <span class="badge badge-gold">Top Personal</span></h4>
+                            <p>Especialidade: Hipertrofia & Definição</p>
+                            <div class="trainer-status status-online">
+                                <span class="dot"></span> Online • <span id="dist-roberto">Calculando distância...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trainer-actions">
+                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Prof. Roberto')">Ver Perfil</button>
+                        <button class="btn-action btn-fill" onclick="openActiveChat('Prof. Roberto')">Conversar</button>
+                    </div>
+                </div>
+
+                <!-- Personal 2 -->
+                <div class="trainer-card glass card-silver">
+                    <div class="trainer-header">
+                        <div class="avatar-container">
+                            <div class="avatar">L</div>
+                        </div>
+                        <div class="trainer-info">
+                            <h4>Lívia <span class="badge badge-silver">Verificado</span></h4>
+                            <p>Especialidade: Emagrecimento & Funcional</p>
+                            <div class="trainer-status status-online">
+                                <span class="dot"></span> Online • <span id="dist-livia">Calculando distância...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trainer-actions">
+                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Lívia')">Ver Perfil</button>
+                        <button class="btn-action btn-fill" onclick="openActiveChat('Lívia')">Conversar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA: MENSAGENS -->
+        <div id="tab-mensagens" class="tab-content">
+            <div class="header-glass" style="margin-bottom: 20px;">
+                <h2>Suas Conversas</h2>
+            </div>
+            <div id="lista-conversas">
+                <div class="chat-item glass" onclick="openActiveChat('Prof. Roberto')">
+                    <div class="avatar" style="border-color: var(--gold); width: 45px; height: 45px;">R</div>
+                    <div class="chat-info">
+                        <div class="chat-header">
+                            <h4>Prof. Roberto</h4>
+                            <span class="chat-time">10:42</span>
+                        </div>
+                        <p>Te vejo no treino amanhã!</p>
+                    </div>
+                </div>
+                <div class="chat-item glass" onclick="openActiveChat('Lívia')">
+                    <div class="avatar" style="border-color: var(--silver); width: 45px; height: 45px;">L</div>
+                    <div class="chat-info">
+                        <div class="chat-header">
+                            <h4>Lívia</h4>
+                            <span class="chat-time">Ontem</span>
+                        </div>
+                        <p>Oi! Vi que quer agendar um treino...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA: PERFIL -->
+        <div id="tab-perfil" class="tab-content">
+            <div class="profile-header">
+                <div class="avatar" id="display-avatar-profile" style="width: 80px; height: 80px; font-size: 32px; border-color: var(--neon-green); margin-bottom: 10px;">A</div>
+                <h3 id="display-name-profile">Nome do Aluno</h3>
+                <span id="profile-role-badge" style="font-size: 13px; color: var(--text-muted); font-weight: bold;">Membro TAPAGO</span>
+            </div>
+
+            <div class="settings-item glass">
+                <span>Modo Claro / Escuro</span>
+                <label class="theme-switch">
+                    <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="settings-item glass" onclick="navTo('screen-login')">
+                <span style="color: #ff3333;">Sair da Conta</span>
+            </div>
+        </div>
+
+        <!-- MENU INFERIOR FIXO -->
+        <div class="bottom-nav glass-nav" id="bottom-nav">
+            <div class="nav-item active" onclick="switchTab('tab-home', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>Início</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('tab-mensagens', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <span>Chat</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('tab-perfil', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Perfil</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY 1: TELA DE CHAT ATIVO -->
+    <div id="active-chat-screen" class="app-overlay">
+        <div class="chat-header-bar">
+            <button class="btn-icon text-btn" onclick="closeActiveChat()">
+                &#8592; Voltar
+            </button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">P</div>
+                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Profissional</h3>
+            </div>
+            <div style="width: 50px;"></div>
+        </div>
+
+        <div id="chat-messages" class="chat-messages-area">
+            <!-- As mensagens aparecem dinamicamente via JS -->
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." onkeypress="handleEnter(event)">
+            <button class="btn-send" onclick="sendMessage()">&#10148;</button>
+        </div>
+    </div>
+
+    <!-- OVERLAY 2: PERFIL DO PERSONAL & AVALIAÇÕES -->
+    <div id="trainer-profile-overlay" class="app-overlay">
+        <div class="chat-header-bar">
+            <button class="btn-icon text-btn" onclick="closeTrainerProfile()">
+                &#8592; Voltar
+            </button>
+            <h3 style="font-size: 16px; margin: 0;">Perfil do Personal</h3>
+            <div style="width: 50px;"></div>
+        </div>
+
+        <div class="profile-scroll-area">
+            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
+                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">P</div>
+                <h2 id="tp-name" style="margin-bottom: 4px;">Nome do Personal</h2>
+                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Especialidade</p>
+                <div class="star-rating">⭐⭐⭐⭐⭐ (5.0)</div>
+            </div>
+
+            <div class="section-title">Avaliações dos Alunos</div>
+            <div id="reviews-list">
+                <!-- Avaliações renderizadas via JS -->
+            </div>
+
+            <div class="glass" style="padding: 15px; margin-top: 20px;">
+                <h4 style="margin-bottom: 10px; font-size: 14px;">Deixe sua Avaliação</h4>
+                <textarea id="new-review-text" rows="3" placeholder="Como foi sua experiência com este personal?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
+                <button class="btn btn-primary" style="padding: 10px; font-size: 13px;" onclick="submitReview()">Publicar Avaliação</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API do Google Maps com Geometry Library para Cálculo Real de Distância -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=SUA_CHAVE_AQUI&libraries=geometry&callback=initMap" async defer></script>
+    <script src="script.js"></script>
+</body>
+</html>
