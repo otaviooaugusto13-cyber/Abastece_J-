@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Abastece Já - Frelancer</title>
+    <title>ABASTECE JÁ - App do Promotor</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,89 +15,89 @@
         </svg>
     </a>
 
-    <!-- TELA 1: Login do Aluno -->
+    <!-- TELA 1: Login do Promotor -->
     <div id="screen-login" class="screen active">
         <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
             <div style="text-align: center; margin-bottom: 30px;">
-                <h1>TAPA<span class="highlight">GO</span></h1>
-                <p class="subtitle">Varejo</p>
+                <h1>ABASTECE<span class="highlight">JÁ</span></h1>
+                <p class="subtitle">Faça Renda Extra no Varejo</p>
             </div>
             
             <input type="text" id="input-name" placeholder="Seu Nome ou E-mail">
             <input type="password" id="input-senha" placeholder="Sua Senha">
             
-            <button class="btn btn-primary ripple-btn" onclick="simulateLogin()">Entrar como Aluno</button>
+            <button class="btn btn-primary ripple-btn" onclick="simulateLogin()">Entrar como Promotor</button>
             
             <a href="personal.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
-                Eu sou Personal / Acessar Portal
+                Sou Supermercado / Acessar Portal
             </a>
         </div>
     </div>
 
-    <!-- TELA PRINCIPAL (App do Aluno) -->
+    <!-- TELA PRINCIPAL (App do Promotor) -->
     <div id="screen-main" class="screen main-app-screen">
         
         <!-- ABA: HOME -->
         <div id="tab-home" class="tab-content active">
             <div class="header-glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <div>
-                    <h2>Olá, <span id="display-name-home" class="highlight">Aluno</span>!</h2>
-                    <p id="welcome-subtitle" style="font-size: 13px; color: var(--text-muted);">Pronto para o treino de hoje?</p>
+                    <h2>Olá, <span id="display-name-home" class="highlight">Promotor</span>!</h2>
+                    <p id="welcome-subtitle" style="font-size: 13px; color: var(--text-muted);">Pronto para o plantão de reposição?</p>
                 </div>
-                <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--neon-green);">A</div>
+                <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--neon-green);">P</div>
             </div>
 
-            <!-- Container do Google Maps (Radar em Tempo Real) -->
-            <div class="section-title">Radar de Profissionais em Tempo Real</div>
+            <!-- Radar em Tempo Real de Lojas -->
+            <div class="section-title">Radar de Lojas e Supermercados Próximos</div>
             <div id="mapa-quadrado" class="glass" style="height: 230px; width: 100%; border-radius: 16px; border: 1px solid var(--neon-green); overflow: hidden; margin-bottom: 25px; z-index: 1;"></div>
 
-            <!-- Skeleton Loading de Exemplo -->
+            <!-- Skeleton Loading -->
             <div id="skeleton-area" class="skeleton-container" style="display: none;">
                 <div class="skeleton"></div>
                 <div class="skeleton"></div>
             </div>
 
-            <!-- Conteúdo Dinâmico com Cards dos Personais -->
+            <!-- Conteúdo Dinâmico com Lojas / Supermercados -->
             <div id="home-content">
-                <div class="section-title">Recomendados para Você</div>
+                <div class="section-title">Vagas Urgentes na Região</div>
                 
-                <!-- Personal 1 -->
+                <!-- Loja 1 -->
                 <div class="trainer-card glass card-gold">
                     <div class="trainer-header">
                         <div class="avatar-container story-ring">
-                            <div class="avatar">R</div>
+                            <div class="avatar">SC</div>
                         </div>
                         <div class="trainer-info">
-                            <h4>Prof. Roberto <span class="badge badge-gold">Top Personal</span></h4>
-                            <p>Especialidade: Hipertrofia & Definição</p>
+                            <h4>Supermercado Central <span class="badge badge-gold">Alta Demanda</span></h4>
+                            <p>Demanda: Reposição de Gôndolas & Limpeza</p>
                             <div class="trainer-status status-online">
-                                <span class="dot"></span> Online • <span id="dist-roberto">Calculando distância...</span>
+                                <span class="dot"></span> Turno Aberto • <span id="dist-roberto">Calculando distância...</span>
                             </div>
                         </div>
                     </div>
                     <div class="trainer-actions">
-                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Prof. Roberto')">Ver Perfil</button>
-                        <button class="btn-action btn-fill" onclick="openActiveChat('Prof. Roberto')">Conversar</button>
+                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Supermercado Central')">Ver Detalhes</button>
+                        <button class="btn-action btn-fill" onclick="openActiveChat('Supermercado Central')">Aceitar Turno</button>
                     </div>
                 </div>
 
-                <!-- Personal 2 -->
+                <!-- Loja 2 -->
                 <div class="trainer-card glass card-silver">
                     <div class="trainer-header">
                         <div class="avatar-container">
-                            <div class="avatar">L</div>
+                            <div class="avatar">AB</div>
                         </div>
                         <div class="trainer-info">
-                            <h4>Lívia <span class="badge badge-silver">Verificado</span></h4>
-                            <p>Especialidade: Emagrecimento & Funcional</p>
+                            <h4>Atacadão Bom Preço <span class="badge badge-silver">Verificado</span></h4>
+                            <p>Demanda: Organização de Hortifrúti & Estoque</p>
                             <div class="trainer-status status-online">
-                                <span class="dot"></span> Online • <span id="dist-livia">Calculando distância...</span>
+                                <span class="dot"></span> Vagas Disponíveis • <span id="dist-livia">Calculando distância...</span>
                             </div>
                         </div>
                     </div>
                     <div class="trainer-actions">
-                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Lívia')">Ver Perfil</button>
-                        <button class="btn-action btn-fill" onclick="openActiveChat('Lívia')">Conversar</button>
+                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Atacadão Bom Preço')">Ver Detalhes</button>
+                        <button class="btn-action btn-fill" onclick="openActiveChat('Atacadão Bom Preço')">Aceitar Turno</button>
                     </div>
                 </div>
             </div>
@@ -106,27 +106,27 @@
         <!-- ABA: MENSAGENS -->
         <div id="tab-mensagens" class="tab-content">
             <div class="header-glass" style="margin-bottom: 20px;">
-                <h2>Suas Conversas</h2>
+                <h2>Conversas com Lojas</h2>
             </div>
             <div id="lista-conversas">
-                <div class="chat-item glass" onclick="openActiveChat('Prof. Roberto')">
-                    <div class="avatar" style="border-color: var(--gold); width: 45px; height: 45px;">R</div>
+                <div class="chat-item glass" onclick="openActiveChat('Supermercado Central')">
+                    <div class="avatar" style="border-color: var(--gold); width: 45px; height: 45px;">SC</div>
                     <div class="chat-info">
                         <div class="chat-header">
-                            <h4>Prof. Roberto</h4>
+                            <h4>Supermercado Central</h4>
                             <span class="chat-time">10:42</span>
                         </div>
-                        <p>Te vejo no treino amanhã!</p>
+                        <p>Turno confirmado para amanhã às 08h!</p>
                     </div>
                 </div>
-                <div class="chat-item glass" onclick="openActiveChat('Lívia')">
-                    <div class="avatar" style="border-color: var(--silver); width: 45px; height: 45px;">L</div>
+                <div class="chat-item glass" onclick="openActiveChat('Atacadão Bom Preço')">
+                    <div class="avatar" style="border-color: var(--silver); width: 45px; height: 45px;">AB</div>
                     <div class="chat-info">
                         <div class="chat-header">
-                            <h4>Lívia</h4>
+                            <h4>Atacadão Bom Preço</h4>
                             <span class="chat-time">Ontem</span>
                         </div>
-                        <p>Oi! Vi que quer agendar um treino...</p>
+                        <p>Olá! Precisamos de reforço na reposição...</p>
                     </div>
                 </div>
             </div>
@@ -135,9 +135,9 @@
         <!-- ABA: PERFIL -->
         <div id="tab-perfil" class="tab-content">
             <div class="profile-header">
-                <div class="avatar" id="display-avatar-profile" style="width: 80px; height: 80px; font-size: 32px; border-color: var(--neon-green); margin-bottom: 10px;">A</div>
-                <h3 id="display-name-profile">Nome do Aluno</h3>
-                <span id="profile-role-badge" style="font-size: 13px; color: var(--text-muted); font-weight: bold;">Membro TAPAGO</span>
+                <div class="avatar" id="display-avatar-profile" style="width: 80px; height: 80px; font-size: 32px; border-color: var(--neon-green); margin-bottom: 10px;">P</div>
+                <h3 id="display-name-profile">Nome do Promotor</h3>
+                <span id="profile-role-badge" style="font-size: 13px; color: var(--text-muted); font-weight: bold;">Promotor Verificado ABASTECE JÁ</span>
             </div>
 
             <div class="settings-item glass">
@@ -169,22 +169,20 @@
         </div>
     </div>
 
-    <!-- OVERLAY 1: TELA DE CHAT ATIVO -->
+    <!-- OVERLAY: TELA DE CHAT ATIVO -->
     <div id="active-chat-screen" class="app-overlay">
         <div class="chat-header-bar">
             <button class="btn-icon text-btn" onclick="closeActiveChat()">
                 &#8592; Voltar
             </button>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">P</div>
-                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Profissional</h3>
+                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">L</div>
+                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Loja / Gerente</h3>
             </div>
             <div style="width: 50px;"></div>
         </div>
 
-        <div id="chat-messages" class="chat-messages-area">
-            <!-- As mensagens aparecem dinamicamente via JS -->
-        </div>
+        <div id="chat-messages" class="chat-messages-area"></div>
 
         <div class="chat-input-area">
             <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." onkeypress="handleEnter(event)">
@@ -192,38 +190,36 @@
         </div>
     </div>
 
-    <!-- OVERLAY 2: PERFIL DO PERSONAL & AVALIAÇÕES -->
+    <!-- OVERLAY: DETALHES DA LOJA & AVALIAÇÕES -->
     <div id="trainer-profile-overlay" class="app-overlay">
         <div class="chat-header-bar">
             <button class="btn-icon text-btn" onclick="closeTrainerProfile()">
                 &#8592; Voltar
             </button>
-            <h3 style="font-size: 16px; margin: 0;">Perfil do Personal</h3>
+            <h3 style="font-size: 16px; margin: 0;">Detalhes da Loja</h3>
             <div style="width: 50px;"></div>
         </div>
 
         <div class="profile-scroll-area">
             <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
-                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">P</div>
-                <h2 id="tp-name" style="margin-bottom: 4px;">Nome do Personal</h2>
-                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Especialidade</p>
-                <div class="star-rating">⭐⭐⭐⭐⭐ (5.0)</div>
+                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">L</div>
+                <h2 id="tp-name" style="margin-bottom: 4px;">Nome da Loja</h2>
+                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Setor / Demanda</p>
+                <div class="star-rating">⭐⭐⭐⭐⭐ (4.9 Avaliação de Promotores)</div>
             </div>
 
-            <div class="section-title">Avaliações dos Alunos</div>
-            <div id="reviews-list">
-                <!-- Avaliações renderizadas via JS -->
-            </div>
+            <div class="section-title">Avaliações de Outros Promotores</div>
+            <div id="reviews-list"></div>
 
             <div class="glass" style="padding: 15px; margin-top: 20px;">
-                <h4 style="margin-bottom: 10px; font-size: 14px;">Deixe sua Avaliação</h4>
-                <textarea id="new-review-text" rows="3" placeholder="Como foi sua experiência com este personal?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
+                <h4 style="margin-bottom: 10px; font-size: 14px;">Avaliar Estabelecimento</h4>
+                <textarea id="new-review-text" rows="3" placeholder="Como foi o plantão de reposição nesta loja?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
                 <button class="btn btn-primary" style="padding: 10px; font-size: 13px;" onclick="submitReview()">Publicar Avaliação</button>
             </div>
         </div>
     </div>
 
-    <!-- API do Google Maps com Geometry Library para Cálculo Real de Distância -->
+    <!-- API do Google Maps com Geometry Library -->
     <script src="https://maps.googleapis.com/maps/api/js?key=SUA_CHAVE_AQUI&libraries=geometry&callback=initMap" async defer></script>
     <script src="script.js"></script>
 </body>
