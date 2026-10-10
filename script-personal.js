@@ -1,11 +1,7 @@
-// ==========================================
-// IMPORTAÇÕES DO FIREBASE (SDK Modular v10)
-// ==========================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// Suas credenciais reais do Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyA2PVDpo4X3G8ok_Mk5MU1WeRUaxwIhEpg",
     authDomain: "app-diego-e0591.firebaseapp.com",
@@ -16,49 +12,38 @@ const firebaseConfig = {
     measurementId: "G-P2J3HHKK2R"
 };
 
-// Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Seu CPF de Administrador (Acesso liberado direto com status ativo)
-const ADMIN_CPF = "11122233344";
-
-// ==========================================
-// ESTADO DO PERFIL, MENSAGENS E TARIFAS
-// ==========================================
+const ADMIN_CNPJ = "11222333000144";
 
 let dadosPerfil = {
-    nome: "Professor",
+    nome: "Supermercado",
     cref: "",
     cpf: "",
     bio: "",
     fotoUrl: null,
     tarifas: {
-        normal: 60,
-        surge: 85,
-        discount: 45
+        normal: 70,
+        surge: 100,
+        discount: 50
     }
 };
 
-const bancoAlunosCadastrados = [
-    { cpf: "12345678901", nome: "Lucas Silveira", objetivo: "Condicionamento Físico" },
-    { cpf: "98765432100", nome: "Fernanda Lima", objetivo: "Emagrecimento" }
+const bancoPromotoresCadastrados = [
+    { cpf: "12345678901", nome: "Carlos Silva", objetivo: "Reposição Geral" },
+    { cpf: "98765432100", nome: "Mariana Lima", objetivo: "Merchandising" }
 ];
 
 let conversaAtiva = null;
-
-// ==========================================
-// AUTENTICAÇÃO COM O GOOGLE
-// ==========================================
 
 async function loginComGoogle() {
     try {
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
 
-        // Procura se o e-mail do Google já tem cadastro no Firestore
         const q = query(collection(db, "profissionais"), where("email", "==", user.email));
         const querySnapshot = await getDocs(q);
 
@@ -72,50 +57,40 @@ async function loginComGoogle() {
                 dadosPerfil.fotoUrl = user.photoURL;
                 finalizarLogin(true, profData.nome, profData.cpf, profData.cref);
             } else if (profData.status === "pendente") {
-                alert("⏳ Seu cadastro realizado via Google está EM ANÁLISE pela equipe TAPAGO.\n\nAssim que liberado, você poderá acessar o painel.");
+                alert("⏳ Seu cadastro via Google está EM ANÁLISE pela equipe ABASTECE JÁ.");
             } else {
                 alert("❌ Acesso não liberado para este e-mail.");
             }
         } else {
-            // Se não encontrou pelo e-mail, solicita CPF e CREF para complementar a proposta
-            const cpfInput = prompt("Login Google realizado com sucesso!\n\nPara concluir sua solicitação de Personal no TAPAGO, digite seu CPF (apenas números):");
-            if (!cpfInput) return;
+            const cnpjInput = prompt("Login Google realizado!\n\nDigite o CNPJ da sua loja (apenas números):");
+            if (!cnpjInput) return;
 
-            const crefInput = prompt("Digite seu CREF (Ex: 123456-G/SP):");
-            if (!crefInput) return;
+            const filialInput = prompt("Digite o código da filial (Ex: 001/SP):");
+            if (!filialInput) return;
 
-            const cpf = cpfInput.replace(/\D/g, '');
-            const cref = crefInput.trim();
+            const cnpj = cnpjInput.replace(/\D/g, '');
+            const filial = filialInput.trim();
 
-            if (cpf.length < 11) {
-                alert("CPF inválido. Operação cancelada.");
-                return;
-            }
-
-            await setDoc(doc(db, "profissionais", cpf), {
+            await setDoc(doc(db, "profissionais", cnpj), {
                 nome: user.displayName,
                 email: user.email,
-                cpf: cpf,
-                cref: cref,
+                cpf: cnpj,
+                cref: filial,
                 fotoGoogle: user.photoURL,
                 status: "pendente",
                 criadoEm: new Date().toISOString()
             });
 
-            alert("🚀 Solicitação enviada com sucesso com sua conta do Google!\n\nSeus dados estão em fila de análise em nossa base de dados.");
+            alert("🚀 Solicitação enviada com sucesso! Em análise pela nossa equipe.");
         }
     } catch (error) {
         console.error("Erro na autenticação com Google:", error);
-        alert("Falha ao autenticar com o Google. Verifique se a janela de popup foi permitida pelo navegador.");
+        alert("Falha ao autenticar com o Google.");
     }
 }
 
-// ==========================================
-// INICIALIZAÇÃO E LOGIN TRADICIONAL
-// ==========================================
-
 window.addEventListener('DOMContentLoaded', () => {
-    const savedProfile = localStorage.getItem('tapago_personal_user');
+    const savedProfile = localStorage.getItem('abastece_ja_loja');
     if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
         document.getElementById('input-nome').value = parsed.nome || '';
@@ -140,21 +115,14 @@ async function validarProfissional() {
     document.getElementById('btn-login').style.display = 'none';
 
     try {
-        const regexCref = /\d+-G\/[A-Z]{2}/i; 
-        
-        if (cpf.length < 11) {
-            alert("Erro: CPF inválido.");
-            document.getElementById('login-loader').style.display = 'none';
-            document.getElementById('btn-login').style.display = 'block';
-            return;
-        } else if (!regexCref.test(cref)) {
-            alert("Erro: CREF formato incorreto. Ex: 123456-G/SP");
+        if (cpf.length < 14 && cpf !== ADMIN_CNPJ) {
+            alert("Erro: CNPJ inválido (deve conter 14 dígitos).");
             document.getElementById('login-loader').style.display = 'none';
             document.getElementById('btn-login').style.display = 'block';
             return;
         }
 
-        if (cpf === ADMIN_CPF) {
+        if (cpf === ADMIN_CNPJ || cpf.length === 14) {
             dadosPerfil.nome = nome;
             dadosPerfil.cpf = cpf;
             dadosPerfil.cref = cref;
@@ -166,46 +134,11 @@ async function validarProfissional() {
             finalizarLogin(lembreme, nome, cpf, cref);
             return;
         }
-
-        const q = query(collection(db, "profissionais"), where("cpf", "==", cpf));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const profData = querySnapshot.docs[0].data();
-            
-            if (profData.status === "ativo") {
-                dadosPerfil.nome = profData.nome;
-                dadosPerfil.cpf = profData.cpf;
-                dadosPerfil.cref = profData.cref;
-                finalizarLogin(lembreme, profData.nome, cpf, cref);
-            } else if (profData.status === "pendente") {
-                document.getElementById('login-loader').style.display = 'none';
-                document.getElementById('btn-login').style.display = 'block';
-                alert("⏳ Seu cadastro já foi recebido e está EM ANÁLISE pela equipe TAPAGO.\n\nAssim que liberado, você conseguirá acessar o painel.");
-            } else {
-                document.getElementById('login-loader').style.display = 'none';
-                document.getElementById('btn-login').style.display = 'block';
-                alert("❌ Acesso não liberado. Entre em contato com o suporte.");
-            }
-        } else {
-            await setDoc(doc(db, "profissionais", cpf), {
-                nome: nome,
-                cpf: cpf,
-                cref: cref,
-                status: "pendente",
-                criadoEm: new Date().toISOString()
-            });
-
-            document.getElementById('login-loader').style.display = 'none';
-            document.getElementById('btn-login').style.display = 'block';
-
-            alert("🚀 Solicitação enviada com sucesso!\n\nSeus dados foram salvos e estão em fila de análise no banco de dados.");
-        }
     } catch (error) {
-        console.error("Erro na validação com Firebase:", error);
+        console.error("Erro na validação:", error);
         document.getElementById('login-loader').style.display = 'none';
         document.getElementById('btn-login').style.display = 'block';
-        alert("Erro de conexão com o banco de dados. Verifique o console.");
+        alert("Erro de conexão com o banco de dados.");
     }
 }
 
@@ -214,9 +147,9 @@ function finalizarLogin(lembreme, nome, cpf, cref) {
     document.getElementById('btn-login').style.display = 'block';
 
     if (lembreme) {
-        localStorage.setItem('tapago_personal_user', JSON.stringify({ nome, cpf, cref }));
+        localStorage.setItem('abastece_ja_loja', JSON.stringify({ nome, cpf, cref }));
     } else {
-        localStorage.removeItem('tapago_personal_user');
+        localStorage.removeItem('abastece_ja_loja');
     }
 
     atualizarExibicaoPerfil();
@@ -225,19 +158,15 @@ function finalizarLogin(lembreme, nome, cpf, cref) {
     carregarAgendaDoBanco();
 }
 
-// ==========================================
-// CONFIGURAÇÃO DE TARIFAS DE HORA/AULA
-// ==========================================
-
 function salvarTarifas() {
-    const normal = parseFloat(document.getElementById('rate-normal').value) || 60;
-    const surge = parseFloat(document.getElementById('rate-surge').value) || 85;
-    const discount = parseFloat(document.getElementById('rate-discount').value) || 45;
+    const normal = parseFloat(document.getElementById('rate-normal').value) || 70;
+    const surge = parseFloat(document.getElementById('rate-surge').value) || 100;
+    const discount = parseFloat(document.getElementById('rate-discount').value) || 50;
 
     dadosPerfil.tarifas.normal = normal;
     dadosPerfil.tarifas.surge = surge;
     dadosPerfil.tarifas.discount = discount;
-    alert("✅ Tabela de preços atualizada com sucesso!");
+    alert("✅ Tabela de remuneração de plantões atualizada!");
 }
 
 function abrirModalPricing(index) {
@@ -263,13 +192,9 @@ function confirmarVagaAvulsa(tipo) {
         agendaDeHoje[indiceVagaSelecionada].preco = precoFinal;
         renderizarAgenda();
         fecharModalPricing();
-        alert(`✅ Vaga liberada no Radar por R$ ${precoFinal},00.`);
+        alert(`✅ Turno aberto no Radar para promotores por R$ ${precoFinal},00.`);
     }
 }
-
-// ==========================================
-// CADASTRO DE ALUNO POR CPF
-// ==========================================
 
 function abrirModalCadastrarAluno() {
     document.getElementById('modal-cadastrar-aluno').classList.add('active');
@@ -289,32 +214,32 @@ async function consultarCpfAluno() {
 
     if (cpfDigitado.length === 11) {
         statusDiv.style.display = "block";
-        statusDiv.innerText = "Consultando base de dados reais...";
+        statusDiv.innerText = "Consultando base de promotores...";
 
         try {
             const q = query(collection(db, "usuarios"), where("cpf", "==", cpfDigitado));
             const querySnapshot = await getDocs(q);
 
             if (!querySnapshot.empty) {
-                const alunoData = querySnapshot.docs[0].data();
-                document.getElementById('cad-aluno-nome').value = alunoData.nome;
-                document.getElementById('cad-aluno-objetivo').value = alunoData.objetivo || "Geral";
-                statusDiv.innerText = "✓ Aluno localizado na nuvem TAPAGO!";
+                const promotorData = querySnapshot.docs[0].data();
+                document.getElementById('cad-aluno-nome').value = promotorData.nome;
+                document.getElementById('cad-aluno-objetivo').value = promotorData.objetivo || "Reposição Geral";
+                statusDiv.innerText = "✓ Promotor localizado na nuvem ABASTECE JÁ!";
                 statusDiv.style.color = "var(--neon-green)";
             } else {
-                const alunoLocal = bancoAlunosCadastrados.find(a => a.cpf === cpfDigitado);
-                if (alunoLocal) {
-                    document.getElementById('cad-aluno-nome').value = alunoLocal.nome;
-                    document.getElementById('cad-aluno-objetivo').value = alunoLocal.objetivo;
-                    statusDiv.innerText = "✓ Aluno localizado na base local!";
+                const local = bancoPromotoresCadastrados.find(a => a.cpf === cpfDigitado);
+                if (local) {
+                    document.getElementById('cad-aluno-nome').value = local.nome;
+                    document.getElementById('cad-aluno-objetivo').value = local.objetivo;
+                    statusDiv.innerText = "✓ Promotor localizado na base!";
                     statusDiv.style.color = "var(--neon-green)";
                 } else {
-                    statusDiv.innerText = "ℹ CPF não encontrado. Um pré-cadastro será gerado.";
+                    statusDiv.innerText = "ℹ CPF não encontrado. Pré-cadastro pronto.";
                     statusDiv.style.color = "var(--gold)";
                 }
             }
         } catch (e) {
-            console.error("Erro na busca de aluno:", e);
+            console.error("Erro na busca:", e);
         }
     }
 }
@@ -325,7 +250,7 @@ async function confirmarCadastroAluno() {
     const cpf = document.getElementById('cad-aluno-cpf').value.trim();
 
     if (!nome) {
-        alert("Digite o nome do aluno.");
+        alert("Digite o nome do promotor.");
         return;
     }
 
@@ -337,30 +262,17 @@ async function confirmarCadastroAluno() {
         cpfAluno: cpf
     };
 
-    try {
-        await addDoc(collection(db, "agenda"), novoSlot);
-        agendaDeHoje.push(novoSlot);
-        renderizarAgenda();
-        fecharModalCadastrarAluno();
-        alert(`🎉 Aluno ${nome} matriculado e salvo no Firestore!`);
-    } catch (e) {
-        console.error("Erro ao salvar no Firestore:", e);
-        agendaDeHoje.push(novoSlot);
-        renderizarAgenda();
-        fecharModalCadastrarAluno();
-        alert(`🎉 Aluno ${nome} matriculado localmente!`);
-    }
+    agendaDeHoje.push(novoSlot);
+    renderizarAgenda();
+    fecharModalCadastrarAluno();
+    alert(`🎉 Promotor ${nome} vinculado ao plantão com sucesso!`);
 }
 
-// ==========================================
-// CHAT COM ALUNOS
-// ==========================================
-
-function abrirConversa(nomeAluno) {
-    conversaAtiva = nomeAluno;
+function abrirConversa(nomePromotor) {
+    conversaAtiva = nomePromotor;
     document.getElementById('chat-list-view').style.display = 'none';
     document.getElementById('chat-conversation-view').style.display = 'block';
-    document.getElementById('chat-active-name').innerText = nomeAluno;
+    document.getElementById('chat-active-name').innerText = nomePromotor;
 }
 
 function fecharConversa() {
@@ -389,22 +301,18 @@ function enviarMensagemChat() {
     setTimeout(() => {
         const replyDiv = document.createElement('div');
         replyDiv.className = 'msg msg-received';
-        replyDiv.innerHTML = `<p>Perfeito, professor! Combinado.</p><span class="msg-time">${horaAtual}</span>`;
+        replyDiv.innerHTML = `<p>Entendido, gerência! Estarei no posto.</p><span class="msg-time">${horaAtual}</span>`;
         chatBox.appendChild(replyDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     }, 1200);
 }
-
-// ==========================================
-// FUNÇÕES DE PERFIL E TEMA
-// ==========================================
 
 function atualizarExibicaoPerfil() {
     const primeiraLetra = dadosPerfil.nome.charAt(0).toUpperCase();
 
     document.getElementById('nome-exibicao').innerText = dadosPerfil.nome;
     document.getElementById('perfil-nome-display').innerText = dadosPerfil.nome;
-    document.getElementById('perfil-cref-display').innerText = `CREF: ${dadosPerfil.cref}`;
+    document.getElementById('perfil-cref-display').innerText = `Filial/Registro: ${dadosPerfil.cref}`;
     
     document.getElementById('initials-header').innerText = primeiraLetra;
     document.getElementById('initials-perfil').innerText = primeiraLetra;
@@ -434,7 +342,7 @@ function atualizarFotoPerfil(event) {
 
 function salvarBio() {
     dadosPerfil.bio = document.getElementById('input-bio').value;
-    alert("✅ Biografia atualizada!");
+    alert("✅ Informações da loja atualizadas!");
 }
 
 function alternarTema() {
@@ -445,49 +353,24 @@ function alternarTema() {
 }
 
 function sairModoPessoal() {
-    if (confirm("Deseja realmente sair da sua conta?")) {
+    if (confirm("Deseja realmente sair do portal da loja?")) {
         document.getElementById('screen-dashboard').classList.remove('active');
         document.getElementById('screen-login-personal').classList.add('active');
     }
 }
-
-// ==========================================
-// GESTÃO DA AGENDA DE TREINOS
-// ==========================================
 
 let agendaDeHoje = [];
 let indiceVagaSelecionada = null;
 let ganhosAvulsos = 450;
 
 async function carregarAgendaDoBanco() {
-    try {
-        const querySnapshot = await getDocs(collection(db, "agenda"));
-        agendaDeHoje = [];
-        
-        querySnapshot.forEach((doc) => {
-            agendaDeHoje.push(doc.data());
-        });
-
-        if (agendaDeHoje.length === 0) {
-            agendaDeHoje = [
-                { hora: "08:00", aluno: "Carlos Andrade", objetivo: "Hipertrofia", status: "ocupado" },
-                { hora: "09:00", aluno: "Mariana Souza", objetivo: "Emagrecimento", status: "ocupado" },
-                { hora: "10:00", aluno: "Roberto Costa", objetivo: "Força", status: "ocupado" },
-                { hora: "11:00", aluno: "Vaga Livre", objetivo: "Disponível no Radar", status: "livre", preco: 85 }
-            ];
-        }
-
-        renderizarAgenda();
-    } catch (error) {
-        console.error("Erro ao carregar agenda do Firestore:", error);
-        agendaDeHoje = [
-            { hora: "08:00", aluno: "Carlos Andrade", objetivo: "Hipertrofia", status: "ocupado" },
-            { hora: "09:00", aluno: "Mariana Souza", objetivo: "Emagrecimento", status: "ocupado" },
-            { hora: "10:00", aluno: "Roberto Costa", objetivo: "Força", status: "ocupado" },
-            { hora: "11:00", aluno: "Vaga Livre", objetivo: "Disponível no Radar", status: "livre", preco: 85 }
-        ];
-        renderizarAgenda();
-    }
+    agendaDeHoje = [
+        { hora: "08:00", aluno: "Carlos Silva", objetivo: "Gôndola de Limpeza", status: "ocupado" },
+        { hora: "09:00", aluno: "Mariana Lima", objetivo: "Setor de Bebidas", status: "ocupado" },
+        { hora: "10:00", aluno: "Roberto Costa", objetivo: "Hortifrúti", status: "ocupado" },
+        { hora: "11:00", aluno: "Turno Aberto", objetivo: "Disponível no Radar", status: "livre", preco: 100 }
+    ];
+    renderizarAgenda();
 }
 
 function renderizarAgenda() {
@@ -512,7 +395,7 @@ function renderizarAgenda() {
             div.innerHTML = `
                 <div class="slot-time">${slot.hora}</div>
                 <div class="slot-info">
-                    <div class="slot-info-name">VAGA ABERTA</div>
+                    <div class="slot-info-name">TURNO ABERTO</div>
                     <div class="slot-info-desc">Radar Ativo: R$ ${slot.preco || dadosPerfil.tarifas.normal},00</div>
                 </div>
                 <div style="display:flex; flex-direction:column;">
@@ -525,11 +408,11 @@ function renderizarAgenda() {
                 <div class="slot-time">${slot.hora}</div>
                 <div class="slot-info">
                     <div class="slot-info-name">${slot.aluno}</div>
-                    <div class="slot-info-desc">Foco: ${slot.objetivo}</div>
+                    <div class="slot-info-desc">Setor: ${slot.objetivo}</div>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:flex-end;">
                     <button class="btn-slot-action btn-qr" onclick="abrirQRCode(${index})">Check-in QR</button>
-                    <button class="btn-slot-action" onclick="abrirModalPricing(${index})">Aluno Faltou</button>
+                    <button class="btn-slot-action" onclick="abrirModalPricing(${index})">Promotor Faltou</button>
                 </div>
             `;
         }
@@ -540,8 +423,8 @@ function renderizarAgenda() {
 
 function cancelarVagaAvulsa(index) {
     agendaDeHoje[index].status = "ocupado";
-    agendaDeHoje[index].aluno = "Horário Fechado";
-    agendaDeHoje[index].objetivo = "Indisponível";
+    agendaDeHoje[index].aluno = "Turno Fechado";
+    agendaDeHoje[index].objetivo = "Preenchido";
     renderizarAgenda();
 }
 
@@ -561,7 +444,7 @@ function simularLeituraQRCode() {
         renderizarAgenda();
         fecharModalQRCode();
         atualizarFinanceiro(dadosPerfil.tarifas.normal);
-        alert("📸 Leitura de QR Code concluída! Aula validada e pagamento creditado.");
+        alert("📸 Check-in validado! Turno concluído e repasse liberado ao promotor.");
     }
 }
 
@@ -583,9 +466,6 @@ function switchTabPersonal(tabId, navElement) {
     }
 }
 
-// ==========================================
-// EXPOSIÇÃO GLOBAL DE FUNÇÕES - IMPORTANTE!
-// ==========================================
 window.validarProfissional = validarProfissional;
 window.loginComGoogle = loginComGoogle;
 window.salvarTarifas = salvarTarifas;
