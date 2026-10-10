@@ -1,20 +1,20 @@
 // Variáveis Globais
-let userNameLogado = 'Aluno';
+let userNameLogado = 'Promotor';
 let mapRadar;
 let userMarker;
 
-// Dados dos Personais Cadastrados (com coordenadas base na região)
-const personaisDB = [
+// Banco de Lojas e Supermercados na Região
+const lojasDB = [
     {
-        nome: "Prof. Roberto",
-        especialidade: "Hipertrofia & Definição",
+        nome: "Supermercado Central",
+        especialidade: "Reposição de Gôndolas & Limpeza",
         lat: -22.4350,
         lng: -46.8220,
         elementId: "dist-roberto"
     },
     {
-        nome: "Lívia",
-        especialidade: "Emagrecimento & Funcional",
+        nome: "Atacadão Bom Preço",
+        especialidade: "Organização de Hortifrúti & Estoque",
         lat: -22.4430,
         lng: -46.8310,
         elementId: "dist-livia"
@@ -22,16 +22,15 @@ const personaisDB = [
 ];
 
 // ==========================================
-// INTEGRAÇÃO GOOGLE MAPS & CÁLCULO DE DISTÂNCIA
+// GOOGLE MAPS & CÁLCULO DE DISTÂNCIA
 // ==========================================
 
 function initMap() {
     const mapaElemento = document.getElementById("mapa-quadrado");
     if (!mapaElemento) return;
 
-    const pontoInicial = { lat: -22.4389, lng: -46.8258 }; // Coordenadas base (Itapira)
+    const pontoInicial = { lat: -22.4389, lng: -46.8258 }; // Itapira/SP
 
-    // Inicializa o Google Maps em Dark Mode
     mapRadar = new google.maps.Map(mapaElemento, {
         zoom: 14,
         center: pontoInicial,
@@ -46,7 +45,6 @@ function initMap() {
         ]
     });
 
-    // Pega a geolocalização REAL do dispositivo do Aluno
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (posicao) => {
@@ -57,7 +55,6 @@ function initMap() {
 
                 mapRadar.setCenter(localAluno);
 
-                // Marcador do Aluno
                 userMarker = new google.maps.Marker({
                     position: localAluno,
                     map: mapRadar,
@@ -72,13 +69,11 @@ function initMap() {
                     }
                 });
 
-                // Calcula a distância real para cada personal usando google.maps.geometry
-                personaisDB.forEach(personal => {
-                    const localPersonal = new google.maps.LatLng(personal.lat, personal.lng);
+                lojasDB.forEach(loja => {
+                    const localLoja = new google.maps.LatLng(loja.lat, loja.lng);
                     const posAluno = new google.maps.LatLng(localAluno.lat, localAluno.lng);
 
-                    // Cálculo matemático feito diretamente pela API do Google
-                    const metros = google.maps.geometry.spherical.computeDistanceBetween(posAluno, localPersonal);
+                    const metros = google.maps.geometry.spherical.computeDistanceBetween(posAluno, localLoja);
                     
                     let textoFormatado = "";
                     if (metros < 1000) {
@@ -87,23 +82,21 @@ function initMap() {
                         textoFormatado = `${(metros / 1000).toFixed(1)}km de você`;
                     }
 
-                    // Adiciona pino do Personal no mapa
                     const pMarker = new google.maps.Marker({
-                        position: { lat: personal.lat, lng: personal.lng },
+                        position: { lat: loja.lat, lng: loja.lng },
                         map: mapRadar,
-                        title: personal.nome
+                        title: loja.nome
                     });
 
                     const infoWindow = new google.maps.InfoWindow({
-                        content: `<div style="color:#000; font-weight:bold; padding:2px;">${personal.nome}<br><span style="font-weight:normal; font-size:11px;">📍 ${textoFormatado}</span></div>`
+                        content: `<div style="color:#000; font-weight:bold; padding:2px;">${loja.nome}<br><span style="font-weight:normal; font-size:11px;">📍 ${textoFormatado}</span></div>`
                     });
 
                     pMarker.addListener("click", () => {
                         infoWindow.open(mapRadar, pMarker);
                     });
 
-                    // Atualiza o texto dinamicamente no card do HTML
-                    const elem = document.getElementById(personal.elementId);
+                    const elem = document.getElementById(loja.elementId);
                     if (elem) elem.innerText = textoFormatado;
                 });
             },
@@ -117,19 +110,19 @@ function initMap() {
 }
 
 function carregarMarcadoresPadrao(pontoInicial) {
-    personaisDB.forEach(p => {
+    lojasDB.forEach(l => {
         new google.maps.Marker({
-            position: { lat: p.lat, lng: p.lng },
+            position: { lat: l.lat, lng: l.lng },
             map: mapRadar,
-            title: p.nome
+            title: l.nome
         });
-        const elem = document.getElementById(p.elementId);
+        const elem = document.getElementById(l.elementId);
         if (elem) elem.innerText = "Aprox. 1.2km de você";
     });
 }
 
 // ==========================================
-// LOGICA DE LOGIN E NAVEGACÃO
+// LOGIN E NAVEGAÇÃO
 // ==========================================
 
 function simulateLogin() {
@@ -145,7 +138,6 @@ function simulateLogin() {
 
     navTo('screen-main');
 
-    // Efeito de Skeleton Loading ao entrar
     document.getElementById('skeleton-area').style.display = 'flex';
     document.getElementById('home-content').style.display = 'none';
     setTimeout(() => {
@@ -176,26 +168,26 @@ function toggleTheme() {
 }
 
 // ==========================================
-// AVALIAÇÕES DO PROFISSIONAL
+// AVALIAÇÕES DAS LOJAS
 // ==========================================
 
 let dbAvaliacoes = {
-    "Prof. Roberto": [
-        { autor: "Carlos A.", data: "2 dias atrás", texto: "Treino excelente! Foco em hipertrofia total." }
+    "Supermercado Central": [
+        { autor: "Carlos S.", data: "2 dias atrás", texto: "Supermercado organizado, pagamento liberado logo após o check-out." }
     ],
-    "Lívia": [
-        { autor: "Mariana S.", data: "Semana passada", texto: "Super atenciosa, montou meu plano de emagrecimento perfeitamente." }
+    "Atacadão Bom Preço": [
+        { autor: "Mariana R.", data: "Semana passada", texto: "Equipe da loja muito prestativa, excelente para tirar renda extra." }
     ]
 };
 
 let currentViewingTrainer = "";
 
-function openTrainerProfile(nomeProfessor) {
-    currentViewingTrainer = nomeProfessor;
+function openTrainerProfile(nomeLoja) {
+    currentViewingTrainer = nomeLoja;
     
-    document.getElementById('tp-name').innerText = nomeProfessor;
-    document.getElementById('tp-avatar').innerText = nomeProfessor.charAt(0);
-    document.getElementById('tp-spec').innerText = nomeProfessor === "Lívia" ? "Emagrecimento & Funcional" : "Hipertrofia & Definição";
+    document.getElementById('tp-name').innerText = nomeLoja;
+    document.getElementById('tp-avatar').innerText = nomeLoja === "Atacadão Bom Preço" ? "AB" : "SC";
+    document.getElementById('tp-spec').innerText = nomeLoja === "Atacadão Bom Preço" ? "Organização de Hortifrúti & Estoque" : "Reposição de Gôndolas & Limpeza";
     
     renderReviews();
     document.getElementById('trainer-profile-overlay').classList.add('active');
@@ -255,21 +247,21 @@ function submitReview() {
 }
 
 // ==========================================
-// CHAT EM TEMPO REAL (SIMULADO)
+// CHAT EM TEMPO REAL
 // ==========================================
 
-function openActiveChat(nomeProfessor) {
-    document.getElementById('active-chat-name').innerText = nomeProfessor;
-    document.getElementById('active-chat-avatar').innerText = nomeProfessor.charAt(0);
+function openActiveChat(nomeLoja) {
+    document.getElementById('active-chat-name').innerText = nomeLoja;
+    document.getElementById('active-chat-avatar').innerText = nomeLoja === "Atacadão Bom Preço" ? "AB" : "SC";
     document.getElementById('active-chat-screen').classList.add('active');
     
     const msgsArea = document.getElementById('chat-messages');
     msgsArea.innerHTML = ''; 
     
     setTimeout(() => {
-        const mensagemInicial = nomeProfessor === 'Lívia' 
-            ? "Oi! Que ótimo te ver por aqui. Bora agendar seu treino?" 
-            : "Fala campeão! Preparado para o treino de hoje?";
+        const mensagemInicial = nomeLoja === 'Atacadão Bom Preço' 
+            ? "Olá! Precisamos de reforço na reposição de hortifrúti hoje. Confirma presença?" 
+            : "Fala promotor! Seu turno de reposição está confirmado para amanhã.";
         appendMessage(mensagemInicial, 'trainer');
     }, 400);
 }
@@ -292,9 +284,9 @@ function sendMessage() {
     
     setTimeout(() => {
         const respostas = [
-            "Fechado! Vou organizar aqui na minha agenda.",
-            "Perfeito, te aguardo no horário combinado!",
-            "Show! Qualquer dúvida é só me chamar aqui."
+            "Combinado! Te aguardo na entrada de funcionários.",
+            "Perfeito, plantão aceito com sucesso!",
+            "Show! Qualquer dúvida é só chamar no rádio da loja."
         ];
         const sorteada = respostas[Math.floor(Math.random() * respostas.length)];
         appendMessage(sorteada, 'trainer');
