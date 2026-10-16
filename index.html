@@ -42,36 +42,38 @@
                 <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--gold);">A</div>
             </div>
 
-            <!-- MODO UBER: CHAMAR PROMOTOR AGORA -->
-            <div class="glass" style="padding: 15px; margin-bottom: 20px; border: 1px solid var(--gold); border-left: 4px solid var(--gold);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0; font-size: 15px; color: var(--gold); display: flex; align-items: center; gap: 6px;">🛒 Solicitar Promotor em Tempo Real</h3>
-                    <span style="font-size: 10px; background: rgba(212,175,55,0.2); color: var(--gold); padding: 2px 8px; border-radius: 10px; font-weight: bold;">Rápido & Direto</span>
-                </div>
-                
-                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                    <input type="date" id="solicitacao-data" class="mini-in" aria-label="Dia">
-
-                    <select id="solicitacao-foco" style="flex: 1; padding: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px;">
-                        <option value="Mercearia">🛒 Mercearia</option>
-                        <option value="Hortifruti / FLV">🍎 Hortifruti / FLV</option>
-                        <option value="Frios & Laticínios">🧀 Frios & Laticínios</option>
-                        <option value="Bebidas">🍾 Bebidas</option>
-                        <option value="Auditoria / Inventário">🔍 Inventário</option>
-                    </select>
+            <!-- PEDIR PROMOTOR -->
+            <div class="glass pedido-card" style="margin-bottom: 20px; border: 1px solid var(--gold);">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap:8px;">
+                    <h3 style="margin: 0; color: var(--gold);">🛒 Solicitar promotor</h3>
+                    <span style="font-size: 10px; background: rgba(212,175,55,0.2); color: var(--gold); padding: 3px 10px; border-radius: 999px; font-weight: bold; white-space:nowrap;">Rápido e direto</span>
                 </div>
 
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
-                    <div class="mini-f"><label>Entrada</label><input type="time" id="solicitacao-entrada" class="mini-in" value="08:00"></div>
-                    <div class="mini-f"><label>Saída</label><input type="time" id="solicitacao-saida" class="mini-in" value="12:00"></div>
-                    <div class="mini-f"><label>Valor (R$)</label><input type="number" id="solicitacao-valor" class="mini-in" min="1" step="1" placeholder="100" inputmode="decimal"></div>
+                <span class="pedido-label">1. Qual setor você precisa?</span>
+                <div class="setor-grid" id="setor-grid" role="radiogroup" aria-label="Setor">
+                    <button type="button" class="setor-chip sel" data-v="Mercearia" role="radio" aria-checked="true"><span class="ico">🛒</span>Mercearia</button>
+                    <button type="button" class="setor-chip" data-v="Hortifruti / FLV" role="radio" aria-checked="false"><span class="ico">🍎</span>Hortifruti</button>
+                    <button type="button" class="setor-chip" data-v="Frios & Laticínios" role="radio" aria-checked="false"><span class="ico">🧀</span>Frios e laticínios</button>
+                    <button type="button" class="setor-chip" data-v="Bebidas" role="radio" aria-checked="false"><span class="ico">🍾</span>Bebidas</button>
+                    <button type="button" class="setor-chip" data-v="Auditoria / Inventário" role="radio" aria-checked="false"><span class="ico">🔍</span>Inventário</button>
+                    <button type="button" class="setor-chip" data-v="Montagem de ilhas" role="radio" aria-checked="false"><span class="ico">📦</span>Ilhas e displays</button>
                 </div>
-                <input type="text" id="solicitacao-local" placeholder="Nome do Supermercado / Endereço da Loja" style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px; margin-bottom: 10px;">
+                <input type="hidden" id="solicitacao-foco" value="Mercearia">
 
-                <button class="btn btn-primary" style="padding: 10px; font-size: 13px; font-weight: bold;" onclick="solicitarTreinoModoUber()">
-                    🚀 Solicitar Promotores na Região
-                </button>
-                <p class="muted-line" style="margin-top:8px;text-align:center;">O promotor recebe 85% do valor. A plataforma retém 15%.</p>
+                <span class="pedido-label">2. Onde e quando?</span>
+                <div class="pedido-grid">
+                    <div class="full"><input type="text" id="solicitacao-local" placeholder="Nome do mercado / endereço da loja" autocomplete="street-address"></div>
+                    <div class="mini-f full"><label for="solicitacao-data">Dia do serviço</label><input type="date" id="solicitacao-data"></div>
+                    <div class="mini-f"><label for="solicitacao-entrada">Entrada</label><input type="time" id="solicitacao-entrada" value="08:00"></div>
+                    <div class="mini-f"><label for="solicitacao-saida">Saída</label><input type="time" id="solicitacao-saida" value="12:00"></div>
+                </div>
+
+                <span class="pedido-label">3. Quanto você quer pagar? <small>(valor do turno)</small></span>
+                <div class="pedido-grid"><div class="full"><input type="number" id="solicitacao-valor" min="1" step="1" placeholder="Ex: 100" inputmode="decimal"></div></div>
+                <div class="resumo-valor" id="resumo-valor"><span>Promotor recebe (85%): <strong id="rv-prom">R$ 0,00</strong></span><span>Plataforma (15%): <strong id="rv-taxa">R$ 0,00</strong></span></div>
+
+                <button class="btn btn-primary" style="margin-top:16px;" onclick="solicitarTreinoModoUber()">🚀 Solicitar promotores na região</button>
+                <p class="muted-line" style="margin-top:10px;text-align:center;">Você só paga depois do serviço, escaneando o QR Code do promotor.</p>
             </div>
 
             <div class="section-title">Radar de Promotores e Freelancers na Região</div>
@@ -302,6 +304,25 @@
             }
             document.getElementById('modal-termos-aluno').classList.remove('active');
         }
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.getElementById('setor-grid');
+            if (grid) grid.addEventListener('click', (e) => {
+                const b = e.target.closest('.setor-chip'); if (!b) return;
+                grid.querySelectorAll('.setor-chip').forEach(c => { c.classList.remove('sel'); c.setAttribute('aria-checked', 'false'); });
+                b.classList.add('sel'); b.setAttribute('aria-checked', 'true');
+                document.getElementById('solicitacao-foco').value = b.dataset.v;
+            });
+            const v = document.getElementById('solicitacao-valor');
+            const brl = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (v) v.addEventListener('input', () => {
+                const n = parseFloat(v.value) || 0;
+                document.getElementById('rv-prom').textContent = brl(n * 0.85);
+                document.getElementById('rv-taxa').textContent = brl(n * 0.15);
+            });
+        });
     </script>
 
     <!-- O módulo precisa carregar ANTES do Maps, pois o Maps chama window.initMap -->
