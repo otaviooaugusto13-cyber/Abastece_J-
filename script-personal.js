@@ -488,3 +488,5 @@ window.abrirQRCode = abrirQRCode;
 window.fecharModalQRCode = fecharModalQRCode;
 window.simularLeituraQRCode = simularLeituraQRCode;
 window.switchTabPersonal = switchTabPersonal;
+// No final de script-personal.js:
+window.loginComGoogle = loginComGoogle;
