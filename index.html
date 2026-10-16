@@ -6,9 +6,9 @@
     <title>ABASTECE JÁ - Painel do Contratante</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0a0f1d">
+    <meta name="theme-color" content="#d4af37">
 </head>
-<body class="auth-body">
+<body>
 
     <!-- Botão Flutuante de Suporte WhatsApp -->
     <a href="https://wa.me/5519999999999" target="_blank" id="btn-whatsapp-suporte" class="btn-whatsapp" title="Suporte via WhatsApp">
@@ -18,36 +18,36 @@
     </a>
 
     <!-- TELA DE LOGIN DO CONTRATANTE -->
-    <div id="screen-login" class="screen active" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%;">
-        <div class="auth-wrapper">
-            <div class="auth-card">
-                <h1 class="auth-logo">ABASTECE<span>JÁ</span></h1>
-                <p class="auth-subtitle">Painel do Contratante • Varejo</p>
-
-                <!-- CHECKBOX DE TERMOS -->
-                <div class="terms-box">
-                    <input type="checkbox" id="check-termos-aluno">
-                    <label for="check-termos-aluno">
-                        Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;">Termos de Uso e Regras da Plataforma</a>.
-                    </label>
-                </div>
-                
-                <button id="btn-login-aluno" class="btn btn-primary ripple-btn btn-auth-primary" disabled>
-                    <svg width="18" height="18" viewBox="0 0 24 24">
-                        <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    </svg>
-                    Entrar com Google (Contratante)
-                </button>
-                
-                <a href="promotor.html" class="btn-auth-secondary">
-                    Sou Freelancer / Promotor
-                </a>
-
-                <a href="landing.html" class="btn-auth-link">
-                    ← Ver Página de Apresentação
-                </a>
+    <div id="screen-login" class="screen active" style="display: flex; background: #0f172a; justify-content: center; align-items: center; min-height: 100vh;">
+        <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%; border-radius: 24px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(212, 175, 55, 0.3); box-sizing: border-box;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="letter-spacing: 1px; color: #fff;">ABASTECE<span class="highlight" style="color: #d97706;">JÁ</span></h1>
+                <p class="subtitle" style="font-size: 13px; color: #94a3b8;">Painel do Contratante • Varejo</p>
             </div>
+
+            <!-- CHECKBOX DE TERMOS -->
+            <div class="remember-box" style="margin-bottom: 20px; background: rgba(217, 119, 6, 0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(217, 119, 6, 0.3); text-align: left;">
+                <input type="checkbox" id="check-termos-aluno">
+                <label for="check-termos-aluno" style="font-size: 11px; color: #ffffff;">
+                    Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;" style="color: #f59e0b; text-decoration: underline; font-weight: bold;">Termos de Uso e Regras da Plataforma</a>.
+                </label>
+            </div>
+            
+            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: linear-gradient(135deg, #f59e0b, #d97706); color: #ffffff; border: none; opacity: 0.5; cursor: not-allowed; margin-bottom: 15px; padding: 14px; border-radius: 12px; font-weight: bold;">
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                </svg>
+                Entrar com Google (Contratante)
+            </button>
+            
+            <a href="promotor.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 10px; color: #f59e0b; border: 1px solid #f59e0b; text-decoration: none; padding: 12px; border-radius: 12px; font-weight: bold;">
+                Sou Freelancer / Promotor
+            </a>
+
+            <a href="landing.html" class="btn btn-outline" style="border: 1px solid rgba(255,255,255,0.2); color: #94a3b8; display: block; text-align: center; width: 100%; box-sizing: border-box; margin-top: 15px; padding: 10px; border-radius: 12px; text-decoration: none;">
+                ← Ver Página de Apresentação
+            </a>
         </div>
     </div>
 
@@ -202,7 +202,15 @@
 
             if (checkTermos && btnLogin) {
                 checkTermos.addEventListener('change', () => {
-                    btnLogin.disabled = !checkTermos.checked;
+                    if (checkTermos.checked) {
+                        btnLogin.disabled = false;
+                        btnLogin.style.opacity = '1';
+                        btnLogin.style.cursor = 'pointer';
+                    } else {
+                        btnLogin.disabled = true;
+                        btnLogin.style.opacity = '0.5';
+                        btnLogin.style.cursor = 'not-allowed';
+                    }
                 });
             }
         });
@@ -215,15 +223,16 @@
             const checkTermos = document.getElementById('check-termos-aluno');
             const btnLogin = document.getElementById('btn-login-aluno');
             if (checkTermos) checkTermos.checked = true;
-            if (btnLogin) btnLogin.disabled = false;
+            if (btnLogin) {
+                btnLogin.disabled = false;
+                btnLogin.style.opacity = '1';
+                btnLogin.style.cursor = 'pointer';
+            }
             document.getElementById('modal-termos-aluno').classList.remove('active');
         }
     </script>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCYuhjdqUwLqt1wBkq4SkkUcC3FDaPXspU&libraries=geometry&callback=initMap" async defer></script>
     <script type="module" src="script.js"></script>
-</body>
-</html>
-    </script>
 </body>
 </html>
