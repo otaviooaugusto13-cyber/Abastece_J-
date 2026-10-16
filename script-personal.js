@@ -2,14 +2,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyA2PVDpo4X3G8ok_Mk5MU1WeRUaxwIhEpg",
-    authDomain: "app-diego-e0591.firebaseapp.com",
-    projectId: "app-diego-e0591",
-    storageBucket: "app-diego-e0591.firebasestorage.app",
-    messagingSenderId: "69109305372",
-    appId: "1:69109305372:web:5139a52f1342671c520fd9",
-    measurementId: "G-P2J3HHKK2R"
+const firebaseConfig = {   
+  apiKey: "AIzaSyA0Z1SEkqrtXuAjtFntv1WRvkKIuY1zilY",
+  authDomain: "abastece-ja-240d5.firebaseapp.com",
+  projectId: "abastece-ja-240d5",
+  storageBucket: "abastece-ja-240d5.firebasestorage.app",
+  messagingSenderId: "1061248119348",
+  appId: "1:1061248119348:web:90d82ea266683086a39061",
+  measurementId: "G-8XFZ5ZGK4L"
 };
 
 const app = initializeApp(firebaseConfig);
