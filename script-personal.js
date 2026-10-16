@@ -20,6 +20,15 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const $ = (id) => document.getElementById(id);
 
+// ==========================================
+// INDICAÇÃO: guarda ?ref= do link que o amigo abriu
+// ==========================================
+try { const r = new URLSearchParams(location.search).get("ref"); if (r) localStorage.setItem("abastece_ref", r.replace(/[^\w-]/g, "").slice(0, 40)); } catch (e) {}
+const refRecebido = () => { try { return localStorage.getItem("abastece_ref") || ""; } catch (e) { return ""; } };
+const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
+const novoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+
+
 let dadosPerfil = { nome: "Promotor", cpf: "", cref: "", uid: "", status: "pendente", fotoUrl: null };
 let agendaDeHoje = [];
 let ganhosAvulsos = 0;
@@ -106,7 +115,7 @@ async function validarProfissional() {
             status = snap.data().status || "pendente";
             if (status === "bloqueado") { toast("❌ Acesso não liberado para este CPF."); setLoading(false); return; }
         } else {
-            await setDoc(ref, { nome, cpf, cref, status: "pendente", criadoEm: serverTimestamp() });
+            await setDoc(ref, { nome, cpf, cref, status: "pendente", indicadoPor: refRecebido(), criadoEm: serverTimestamp() });
         }
     } catch (e) {
         console.error("Firestore:", e);
@@ -163,7 +172,7 @@ async function processarUsuarioGoogle(user, interativo) {
         try {
             await setDoc(doc(db, "profissionais", user.uid), {
                 nome: user.displayName || "", email: user.email, uid: user.uid, cpf: "", cref: "",
-                fotoGoogle: user.photoURL || "", status: "pendente", criadoEm: serverTimestamp()
+                fotoGoogle: user.photoURL || "", status: "pendente", indicadoPor: refRecebido(), criadoEm: serverTimestamp()
             });
         } catch (e) {
             erroBanco = true;
@@ -183,6 +192,7 @@ getRedirectResult(auth).then((r) => { if (r && r.user) processarUsuarioGoogle(r.
 // SESSÃO / DASHBOARD
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
+    if (refRecebido() && $("login-sub")) $("login-sub").textContent = "🎁 Você foi convidado por um promotor. Cadastre-se e faça seu primeiro turno!";
     try {
         const salvo = JSON.parse(localStorage.getItem("abastece_ja_promotor") || "null");
         if (salvo) { $("input-nome").value = salvo.nome || ""; $("check-remember").checked = true; }
@@ -199,6 +209,7 @@ function finalizarLogin({ lembreme, nome, cpf, cref, status }) {
     } catch (e) {}
 
     atualizarExibicaoPerfil();
+    garantirLinkIndicacao();
     const aprovado = status === "ativo";
     $("card-status-analise").style.display = aprovado ? "none" : "block";
     const aviso = document.querySelector("#tab-agenda .glass[style*='border-left']");
@@ -209,6 +220,19 @@ function finalizarLogin({ lembreme, nome, cpf, cref, status }) {
     carregarAgendaDoBanco();
     renderizarCalendario();
     renderizarOfertas();
+}
+
+async function garantirLinkIndicacao() {
+    const input = $("input-link-indicacao");
+    const chave = dadosPerfil.cpf || dadosPerfil.uid;
+    if (!input || !chave) return;
+    try {
+        const ref = doc(db, "profissionais", chave);
+        const snap = await getDoc(ref);
+        let codigo = snap.exists() ? snap.data().refCode : "";
+        if (!codigo) { codigo = novoCodigo(); await setDoc(ref, { refCode: codigo }, { merge: true }); }
+        input.value = `${baseSite()}promotor.html?ref=${codigo}`;
+    } catch (e) { console.warn("Link de indicação:", e.code); input.value = `${baseSite()}promotor.html`; }
 }
 
 async function sairModoPessoal() {
