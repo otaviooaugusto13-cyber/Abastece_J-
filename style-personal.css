@@ -22,10 +22,10 @@ body.light-theme {
     --status-green-bg: rgba(212, 175, 55, 0.2);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; transition: background-color 0.3s, color 0.3s; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', -apple-system, Roboto, sans-serif; transition: background-color 0.3s, color 0.3s; }
 body { background-color: var(--bg-color); color: var(--text-color); overflow-x: hidden; }
 
-.glass { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2); }
+.glass { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2); }
 
 h1 { font-size: 2.3rem; margin-bottom: 10px; font-weight: 800; }
 .highlight { color: var(--gold); font-weight: bold; }
@@ -38,19 +38,19 @@ h1 { font-size: 2.3rem; margin-bottom: 10px; font-weight: 800; }
 .tab-content { display: none; width: 100%; max-width: 500px; margin: 0 auto; padding: 0 20px; flex-direction: column; }
 .tab-content.active { display: block; animation: fadeIn 0.3s ease-out; }
 
-input, textarea, select { width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-color); outline: none; font-size: 14px; }
+input, textarea, select { width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-color); outline: none; font-size: 14px; }
 input:focus, textarea:focus, select:focus { border-color: var(--gold) !important; }
 
 .remember-box { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; color: var(--text-muted); }
 .remember-box input { width: auto; margin: 0; }
 
-.btn { background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-color); padding: 14px; border-radius: 12px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; transition: transform 0.1s; }
+.btn { background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-color); padding: 14px; border-radius: 999px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; transition: transform 0.1s; }
 .btn:active { transform: scale(0.97); }
 .btn-primary { background: linear-gradient(135deg, #d4af37, #ffd700); border: none; color: #000; }
 .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text-color); }
 
 /* Header e Perfil */
-.header-personal { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; margin: 20px 0; border-radius: 16px; }
+.header-personal { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; margin: 20px 0; border-radius: 20px; }
 
 .section-title { font-size: 12px; color: var(--gold); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
 
@@ -66,7 +66,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .menu-shortcut-card {
     min-width: 95px;
     padding: 12px 8px;
-    border-radius: 12px;
+    border-radius: 18px;
     text-align: center;
     cursor: pointer;
     flex-shrink: 0;
@@ -80,7 +80,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .glass-list {
     background: rgba(15, 22, 36, 0.4);
     border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    border-radius: 18px;
     overflow: hidden;
 }
 
@@ -97,8 +97,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .option-arrow { font-size: 16px; color: var(--text-muted); font-weight: bold; }
 
 /* Navegação Inferior */
-.glass-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 80px; display: flex; justify-content: space-around; align-items: center; background: var(--glass-nav); border-top: 1px solid var(--glass-border); z-index: 50; padding-bottom: 10px; }
+.glass-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 80px; display: flex; justify-content: space-around; align-items: center; background: var(--glass-nav); border-top: 1px solid var(--glass-border); z-index: 500; padding-bottom: calc(8px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; }
 .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 60px; cursor: pointer; color: var(--text-muted); transition: 0.3s; }
 .nav-icon { width: 22px; height: 22px; margin-bottom: 4px; }
 .nav-item span { font-size: 11px; font-weight: 500; }
 .nav-item.active { color: var(--gold); transform: translateY(-3px); }
+
+
+/* Campos de data/hora */
+input[type=date], input[type=time] { color-scheme: dark; min-width: 0; }
+body.light-theme input[type=date], body.light-theme input[type=time] { color-scheme: light; }
