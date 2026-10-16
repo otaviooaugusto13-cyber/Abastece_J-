@@ -7,6 +7,29 @@
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#d4af37">
+    <style>
+        /* Garante que o container da landing fique visível no topo */
+        #landing-page-container {
+            display: block;
+            width: 100%;
+            overflow-x: hidden;
+            background-color: var(--bg-color, #07090e);
+            color: var(--text-color, #ffffff);
+            position: relative;
+            z-index: 10;
+        }
+
+        .landing-section {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-8px); }
+            60% { transform: translateY(-4px); }
+        }
+    </style>
 </head>
 <body>
 
@@ -17,47 +40,51 @@
         </svg>
     </a>
 
-    <!-- CONTAINER DA LANDING PAGE DE APRESENTAÇÃO -->
-    <div id="landing-page-container" style="width: 100%; overflow-x: hidden;">
+    <!-- LANDING PAGE DE APRESENTAÇÃO INICIAL -->
+    <div id="landing-page-container">
         
-        <!-- SEÇÃO 1: HERO / APRESENTAÇÃO PRINCIPAL -->
-        <section class="landing-section" style="min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; text-align: center; position: relative;">
+        <!-- SEÇÃO 1: HERO / BANNER PRINCIPAL -->
+        <section class="landing-section" style="min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; text-align: center; box-sizing: border-box;">
             <div>
-                <h1 style="font-size: 2.3rem; letter-spacing: 2px;">ABASTECE<span class="highlight">JÁ</span></h1>
+                <h1 style="font-size: 2.3rem; letter-spacing: 2px; margin-top: 20px;">ABASTECE<span class="highlight">JÁ</span></h1>
                 <p class="subtitle" style="font-size: 14px;">Conectando Oportunidades • Movimentando o Varejo</p>
             </div>
 
-            <div class="glass" style="padding: 30px 20px; max-width: 400px; width: 100%; border: 1px solid var(--gold);">
-                <h3 style="font-size: 17px; color: var(--gold); margin-bottom: 10px;">Promotores e Lojas sob Demanda</h3>
-                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">A plataforma digital que une supermercados e profissionais qualificados com agilidade.</p>
+            <div class="glass" style="padding: 30px 20px; max-width: 400px; width: 100%; border: 1px solid var(--gold, #d4af37);">
+                <h3 style="font-size: 17px; color: var(--gold, #d4af37); margin-bottom: 10px;">Promotores e Lojas sob Demanda</h3>
+                <p style="font-size: 13px; color: var(--text-muted, #aaaaaa); margin-bottom: 20px;">A plataforma digital que conecta supermercados e profissionais qualificados com agilidade.</p>
                 
-                <div style="display: flex; gap: 10px; flex-direction: column;">
-                    <a href="promotor.html" class="btn" style="background: var(--gold); color: #000; text-decoration: none; text-align: center; font-weight: bold; padding: 14px;">Cadastro Promotor / Freelancer</a>
-                    <button onclick="abrirTelaLoginApp()" class="btn btn-outline" style="border-color: var(--gold); color: var(--gold); padding: 14px;">Acessar Painel / Entrar</button>
+                <div style="display: flex; gap: 12px; flex-direction: column;">
+                    <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="background: var(--gold, #d4af37); color: #000; font-weight: bold; border: none; padding: 14px; border-radius: 12px; cursor: pointer;">
+                        Sou Contratante / Acessar Painel
+                    </button>
+                    <a href="promotor.html" class="btn btn-outline" style="border: 1px solid var(--gold, #d4af37); color: var(--gold, #d4af37); text-decoration: none; text-align: center; font-weight: bold; padding: 14px; border-radius: 12px;">
+                        Sou Promotor / Freelancer
+                    </a>
                 </div>
             </div>
 
-            <!-- Seta indicativa para baixo -->
-            <div style="animation: bounce 2s infinite; cursor: pointer; margin-top: 10px;" onclick="rolarParaProximaSecao()">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+            <!-- Seta animada indicativa para rolar -->
+            <div style="animation: bounce 2s infinite; cursor: pointer; margin-bottom: 10px;" onclick="rolarParaProximaSecao()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #d4af37)" stroke-width="2.5"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
             </div>
         </section>
 
         <!-- SEÇÃO 2: NÚMEROS DA PLATAFORMA -->
         <section class="landing-section" style="padding: 60px 20px; text-align: center;">
-            <h2 style="color: var(--gold); margin-bottom: 30px; font-size: 1.8rem;">Números do Abastece Já</h2>
+            <h2 style="color: var(--gold, #d4af37); margin-bottom: 30px; font-size: 1.8rem;">Números do Abastece Já</h2>
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 480px; margin: 0 auto;">
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">4,9</h3><p style="font-size: 12px; color: var(--text-muted);">Avaliação média</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+2.000</h3><p style="font-size: 12px; color: var(--text-muted);">Lojas atendidas</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+450K</h3><p style="font-size: 12px; color: var(--text-muted);">Atendimentos</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+3M</h3><p style="font-size: 12px; color: var(--text-muted);">Horas realizadas</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">4,9</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Avaliação média</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+2.000</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Lojas atendidas</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+450K</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Atendimentos</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+3M</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Horas realizadas</p></div>
             </div>
         </section>
 
-        <!-- SEÇÃO 3: SERVIÇOS QUE ATENDEMOS -->
+        <!-- SEÇÃO 3: SERVIÇOS ATENDIDOS -->
         <section class="landing-section" style="padding: 60px 20px; text-align: center;">
-            <h2 style="color: var(--gold); margin-bottom: 30px; font-size: 1.8rem;">Servícios que Atendemos</h2>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 480px; margin: 0 auto;">
+            <h2 style="color: var(--gold, #d4af37); margin-bottom: 30px; font-size: 1.8rem;">Servícios que Atendemos</h2>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 480px; margin: 0 auto;">
                 <div class="glass" style="padding: 15px; font-size: 12px;">🛒<br><strong>Mercearia</strong></div>
                 <div class="glass" style="padding: 15px; font-size: 12px;">🍎<br><strong>Hortifruti</strong></div>
                 <div class="glass" style="padding: 15px; font-size: 12px;">🧀<br><strong>Frios</strong></div>
@@ -68,23 +95,25 @@
         </section>
 
         <!-- SEÇÃO 4: MARCAS PARCEIRAS -->
-        <section class="landing-section" style="padding: 60px 20px; text-align: center;">
-            <h2 style="color: var(--gold); margin-bottom: 20px; font-size: 1.8rem;">Marcas Parceiras</h2>
-            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 25px;">Grandes redes do varejo que confiam em nossa tecnologia.</p>
+        <section class="landing-section" style="padding: 60px 20px 80px 20px; text-align: center;">
+            <h2 style="color: var(--gold, #d4af37); margin-bottom: 15px; font-size: 1.8rem;">Marcas Parceiras</h2>
+            <p style="color: var(--text-muted, #aaaaaa); font-size: 13px; margin-bottom: 25px;">Grandes redes do varejo que confiam em nossa tecnologia.</p>
             <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 480px; margin: 0 auto;">
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Supermercados</div>
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Atacarejos</div>
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Distribuidoras</div>
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Supermercados</div>
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Atacarejos</div>
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Distribuidoras</div>
             </div>
             
             <div style="margin-top: 40px;">
-                <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="max-width: 300px; margin: 0 auto;">Quero Acessar o Sistema</button>
+                <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="max-width: 300px; margin: 0 auto; padding: 16px; background: var(--gold, #d4af37); color: #000; border: none; font-weight: bold; border-radius: 12px; cursor: pointer;">
+                    Entrar no Sistema
+                </button>
             </div>
         </section>
 
     </div>
 
-    <!-- TELA 1: Login do Contratante -->
+    <!-- TELA DE LOGIN DO CONTRATANTE (Inicia Oculta) -->
     <div id="screen-login" class="screen" style="display: none;">
         <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
             <div style="text-align: center; margin-bottom: 25px;">
@@ -92,15 +121,15 @@
                 <p class="subtitle">Conectando Oportunidades • Movimentando o Varejo</p>
             </div>
 
-            <!-- CHECKBOX OBRIGATÓRIO DOS TERMOS -->
+            <!-- CHECKBOX DE TERMOS -->
             <div class="remember-box" style="margin-bottom: 20px; background: rgba(212, 175, 55, 0.08); padding: 10px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.2); text-align: left;">
-                <input type="checkbox" id="check-termos-aluno" onchange="validarCheckTermosAluno()">
-                <label for="check-termos-aluno" style="font-size: 11px; color: var(--text-color);">
-                    Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;" style="color: var(--gold); text-decoration: underline; font-weight: bold;">Termos de Uso e Regras da Plataforma</a>.
+                <input type="checkbox" id="check-termos-aluno">
+                <label for="check-termos-aluno" style="font-size: 11px; color: var(--text-color, #ffffff);">
+                    Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;" style="color: var(--gold, #d4af37); text-decoration: underline; font-weight: bold;">Termos de Uso e Regras da Plataforma</a>.
                 </label>
             </div>
             
-            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" onclick="loginGoogleAluno()" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border-color: var(--gold); color: var(--text-color); opacity: 0.5; cursor: not-allowed; margin-bottom: 15px;">
+            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border-color: var(--gold, #d4af37); color: var(--text-color, #ffffff); opacity: 0.5; cursor: not-allowed; margin-bottom: 15px; padding: 14px; border-radius: 12px; font-weight: bold;">
                 <svg width="18" height="18" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -110,11 +139,11 @@
                 Entrar com Google (Contratante)
             </button>
             
-            <a href="promotor.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
-                Sou Freelancer / Contratante
+            <a href="promotor.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 10px; color: var(--gold, #d4af37); border: 1px solid var(--gold, #d4af37); text-decoration: none; padding: 12px; border-radius: 12px; font-weight: bold;">
+                Sou Freelancer / Promotor
             </a>
 
-            <button onclick="voltarParaApresentacao()" class="btn btn-outline" style="border-color: rgba(255,255,255,0.2); color: var(--text-muted); width: 100%; margin-top: 10px;">
+            <button onclick="voltarParaApresentacao()" class="btn btn-outline" style="border: 1px solid rgba(255,255,255,0.2); color: var(--text-muted, #aaaaaa); width: 100%; margin-top: 15px; padding: 10px; border-radius: 12px; cursor: pointer;">
                 ← Voltar para Apresentação
             </button>
         </div>
@@ -183,7 +212,7 @@
             <div id="lista-conversas"></div>
         </div>
 
-        <!-- ABA: PERFIL PROFISSIONAL DO ALUNO -->
+        <!-- ABA: PERFIL PROFISSIONAL -->
         <div id="tab-perfil" class="tab-content" style="padding-bottom: 110px;">
             <div class="profile-header" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;">
                 <div class="profile-photo-container" style="width: 80px; height: 80px; border-radius: 50%; background: var(--gold); color: #000; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; position: relative; overflow: hidden; border: 2px solid var(--gold); margin-bottom: 10px;">
@@ -198,7 +227,7 @@
                 </span>
             </div>
 
-            <!-- CARD DE PRÓXIMO AGENDAMENTO / ABASTECIMENTO -->
+            <!-- CARD DE PRÓXIMO AGENDAMENTO -->
             <div class="glass" style="padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--gold);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <h4 style="font-size: 13px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin: 0;">📦 Próximo Abastecimento Agendado</h4>
@@ -322,43 +351,67 @@
         </div>
     </div>
 
+    <!-- SCRIPTS E INTEGRAÇÕES DE EVENTOS -->
     <script>
-        function rolarParaProximaSecao() {
+        window.rolarParaProximaSecao = function() {
             window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
         }
 
-        function abrirTelaLoginApp() {
-            document.getElementById('landing-page-container').style.display = 'none';
-            document.getElementById('screen-login').style.display = 'flex';
-            document.getElementById('screen-login').classList.add('active');
+        window.abrirTelaLoginApp = function() {
+            const landing = document.getElementById('landing-page-container');
+            const login = document.getElementById('screen-login');
+            if (landing) landing.style.display = 'none';
+            if (login) {
+                login.style.display = 'flex';
+                login.classList.add('active');
+            }
         }
 
-        function voltarParaApresentacao() {
-            document.getElementById('screen-login').style.display = 'none';
-            document.getElementById('screen-main').classList.remove('active');
-            document.getElementById('landing-page-container').style.display = 'block';
+        window.voltarParaApresentacao = function() {
+            const landing = document.getElementById('landing-page-container');
+            const login = document.getElementById('screen-login');
+            const main = document.getElementById('screen-main');
+            if (login) {
+                login.style.display = 'none';
+                login.classList.remove('active');
+            }
+            if (main) main.classList.remove('active');
+            if (landing) landing.style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function validarCheckTermosAluno() {
-            const checkbox = document.getElementById('check-termos-aluno');
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkTermos = document.getElementById('check-termos-aluno');
             const btnLogin = document.getElementById('btn-login-aluno');
-            if (checkbox.checked) {
+
+            if (checkTermos && btnLogin) {
+                checkTermos.addEventListener('change', () => {
+                    if (checkTermos.checked) {
+                        btnLogin.disabled = false;
+                        btnLogin.style.opacity = '1';
+                        btnLogin.style.cursor = 'pointer';
+                    } else {
+                        btnLogin.disabled = true;
+                        btnLogin.style.opacity = '0.5';
+                        btnLogin.style.cursor = 'not-allowed';
+                    }
+                });
+            }
+        });
+
+        window.abrirModalTermosAluno = function() {
+            document.getElementById('modal-termos-aluno').classList.add('active');
+        }
+
+        window.aceitarTermosAlunoModal = function() {
+            const checkTermos = document.getElementById('check-termos-aluno');
+            const btnLogin = document.getElementById('btn-login-aluno');
+            if (checkTermos) checkTermos.checked = true;
+            if (btnLogin) {
                 btnLogin.disabled = false;
                 btnLogin.style.opacity = '1';
                 btnLogin.style.cursor = 'pointer';
-            } else {
-                btnLogin.disabled = true;
-                btnLogin.style.opacity = '0.5';
-                btnLogin.style.cursor = 'not-allowed';
             }
-        }
-        function abrirModalTermosAluno() {
-            document.getElementById('modal-termos-aluno').classList.add('active');
-        }
-        function aceitarTermosAlunoModal() {
-            document.getElementById('check-termos-aluno').checked = true;
-            validarCheckTermosAluno();
             document.getElementById('modal-termos-aluno').classList.remove('active');
         }
     </script>
