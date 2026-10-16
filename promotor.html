@@ -7,227 +7,619 @@
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a0f1d">
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #0a0f1d 0%, #162032 50%, #0a0f1d 100%);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .auth-wrapper {
-            width: 100%;
-            max-width: 420px;
-            padding: 24px 20px;
-            box-sizing: border-box;
-        }
-
-        .auth-card {
-            background: rgba(22, 32, 50, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(245, 158, 11, 0.25);
-            border-radius: 24px;
-            padding: 32px 24px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-            text-align: center;
-        }
-
-        .auth-logo {
-            font-size: 26px;
-            font-weight: 900;
-            letter-spacing: -0.5px;
-            margin: 0 0 4px 0;
-            color: #ffffff;
-        }
-
-        .auth-logo span {
-            color: #f59e0b;
-        }
-
-        .auth-subtitle {
-            font-size: 12px;
-            font-weight: 700;
-            color: #f59e0b;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 24px;
-        }
-
-        .form-group {
-            margin-bottom: 14px;
-            text-align: left;
-        }
-
-        .input-field {
-            width: 100%;
-            padding: 14px 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 12px;
-            color: #ffffff;
-            font-size: 13px;
-            box-sizing: border-box;
-            outline: none;
-            transition: border-color 0.2s ease, background 0.2s ease;
-        }
-
-        .input-field:focus {
-            border-color: #f59e0b;
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .input-field::placeholder {
-            color: #64748b;
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            text-align: left;
-        }
-
-        .checkbox-group input {
-            accent-color: #f59e0b;
-            width: 15px;
-            height: 15px;
-            cursor: pointer;
-        }
-
-        .checkbox-group label {
-            font-size: 11px;
-            color: #cbd5e1;
-            cursor: pointer;
-        }
-
-        .btn-auth-primary {
-            width: 100%;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: #ffffff;
-            font-weight: 700;
-            font-size: 14px;
-            padding: 14px;
-            border-radius: 12px;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 6px 18px rgba(217, 119, 6, 0.3);
-            margin-top: 8px;
-            transition: transform 0.2s ease;
-        }
-
-        .btn-auth-primary:active {
-            transform: scale(0.98);
-        }
-
-        .divider {
-            display: flex;
-            align-items: center;
-            margin: 20px 0;
-            color: #64748b;
-            font-size: 11px;
-        }
-
-        .divider::before, .divider::after {
-            content: "";
-            flex: 1;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .divider span {
-            padding: 0 10px;
-        }
-
-        .btn-auth-google {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.06);
-            color: #ffffff;
-            font-weight: 600;
-            font-size: 13px;
-            padding: 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: background 0.2s ease;
-        }
-
-        .btn-auth-google:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-auth-link {
-            display: inline-block;
-            color: #94a3b8;
-            font-size: 12px;
-            text-decoration: none;
-            margin-top: 22px;
-            transition: color 0.2s ease;
-        }
-
-        .btn-auth-link:hover {
-            color: #ffffff;
-        }
-    </style>
+    <!-- SDK do Mercado Pago -->
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
 </head>
 <body>
 
-    <div class="auth-wrapper">
-        <div class="auth-card">
-            <h1 class="auth-logo">ABASTECE<span>JÁ</span></h1>
-            <p class="auth-subtitle">Portal do Promotor & Freelancer</p>
-
-            <form onsubmit="return false;">
+    <!-- TELA 1: Validação e Login -->
+    <div id="screen-login-personal" class="screen active" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%;">
+        <div class="auth-wrapper">
+            <div class="auth-card">
+                <h1 class="auth-logo">ABASTECE<span>JÁ</span></h1>
+                <p class="auth-subtitle">Portal do Promotor & Freelancer</p>
+                
                 <div class="form-group">
-                    <input type="text" class="input-field" placeholder="Seu Nome Profissional">
-                </div>
-                <div class="form-group">
-                    <input type="text" class="input-field" placeholder="CPF (Apenas números)">
+                    <input type="text" id="input-nome" class="input-field" placeholder="Seu Nome Profissional" required>
                 </div>
                 <div class="form-group">
-                    <input type="text" class="input-field" placeholder="MEI / Registro ou Experiência (Opcional)">
+                    <input type="text" id="input-cpf" class="input-field" placeholder="CPF (Apenas números)" maxlength="11">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="input-cref" class="input-field" placeholder="MEI / Registro ou Experiência (Opcional)">
+                </div>
+                
+                <div class="checkbox-group" style="margin-bottom: 8px;">
+                    <input type="checkbox" id="check-remember">
+                    <label for="check-remember">Lembre-se de mim neste dispositivo</label>
                 </div>
 
-                <div class="checkbox-group">
-                    <input type="checkbox" id="remember-me">
-                    <label for="remember-me">Lembre-se de mim neste dispositivo</label>
+                <div class="terms-box" style="margin-bottom: 15px;">
+                    <input type="checkbox" id="check-termos" onchange="validarCheckTermos()">
+                    <label for="check-termos">
+                        Li e concordo com os <a href="#" onclick="abrirModalTermos(); return false;">Termos de Uso e Taxas da Plataforma</a>.
+                    </label>
                 </div>
 
-                <div class="checkbox-group">
-                    <input type="checkbox" id="accept-terms">
-                    <label for="accept-terms">Li e concordo com os <a href="#" style="color: #f59e0b;">Termos e Taxas da Plataforma</a></label>
+                <div id="login-loader" style="display: none; text-align: center; margin-top: 10px; color: var(--gold);">
+                    <small>Consultando banco de dados...</small>
                 </div>
 
-                <button type="submit" class="btn-auth-primary">Validar e Entrar</button>
-            </form>
+                <button id="btn-login" class="btn btn-primary ripple-btn btn-auth-primary" onclick="validarProfissional()" disabled style="opacity: 0.5; cursor: not-allowed; margin-top: 5px;">Validar e Entrar</button>
+                
+                <div class="divider">
+                    <span>ou</span>
+                </div>
 
-            <div class="divider">
-                <span>ou</span>
+                <button id="btn-google" class="btn btn-outline ripple-btn btn-auth-google">
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    Entrar com Google
+                </button>
+
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="index.html" class="btn-auth-link">Voltar para o App do Contratante</a>
+                </div>
             </div>
-
-            <button class="btn-auth-google">
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                    <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                </svg>
-                Entrar com Google
-            </button>
-
-            <a href="index.html" class="btn-auth-link">
-                ← Voltar para o App do Contratante
-            </a>
         </div>
     </div>
+
+    <!-- TELA 2: Dashboard Principal -->
+    <div id="screen-dashboard" class="screen main-app-screen">
+
+        <!-- ABA 1: INÍCIO -->
+        <div id="tab-inicio" class="tab-content active" style="padding-bottom: 120px;">
+            
+            <div id="card-status-analise" class="glass" style="padding: 20px; border-radius: 16px; margin: 15px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span style="font-size: 11px; font-weight: bold; color: var(--gold); background: rgba(212, 175, 55, 0.15); padding: 4px 10px; border-radius: 12px;">• EM ANÁLISE</span>
+                </div>
+                
+                <h3 style="font-size: 18px; margin: 0 0 5px 0; color: var(--text-color);">Estamos analisando seu perfil profissional</h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 20px 0;">Avisaremos por aqui assim que você puder pegar demandas de abastecimento.</p>
+
+                <div class="section-title" style="margin-bottom: 15px;">O QUE ACONTECE AGORA</div>
+
+                <div style="display: flex; flex-direction: column; gap: 15px; position: relative;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 24px; height: 24px; border-radius: 50%; background: #28a745; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">✓</div>
+                        <span style="font-size: 13px; color: var(--text-color); font-weight: 500;">Cadastro recebido</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--gold); color: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">🔍</div>
+                        <span style="font-size: 13px; color: var(--text-color); font-weight: 500;">Análise em andamento</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: 12px;">🔔</div>
+                        <span style="font-size: 13px; color: var(--text-muted);">Avisaremos quando houver ofertas na região</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass" style="padding: 20px; border-radius: 16px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 16px;">Ajuda</h3>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-muted);">Ficou com alguma dúvida sobre reposições?<br>Estamos aqui para te ajudar!</p>
+                    <a href="#" onclick="abrirOpcaoMenu('Ajuda'); return false;" style="color: var(--gold); font-size: 12px; font-weight: bold; text-decoration: none;">Saber mais ›</a>
+                </div>
+                <div style="font-size: 40px; line-height: 1;">❓</div>
+            </div>
+
+            <div class="glass finance-card">
+                <div class="finance-header">Projeção Financeira Real (Líquido Promotor)</div>
+                <div class="finance-values">
+                    <div class="finance-item">
+                        <span>Lojas Fixas</span>
+                        <h3 id="valor-fixo">R$ 0,00</h3>
+                    </div>
+                    <div class="finance-item">
+                        <span>Freelas Avulsos</span>
+                        <h3 id="valor-avulso" style="color: var(--gold);">R$ 0,00</h3>
+                    </div>
+                </div>
+                <div class="finance-total">
+                    <span>Total Líquido Projetado:</span>
+                    <span id="valor-total" style="color: var(--gold); font-size: 18px; font-weight: bold;">R$ 0,00</span>
+                </div>
+            </div>
+
+            <div class="section-title">Resumo de Atendimentos & Reposições de Hoje</div>
+            <div id="lista-agenda-resumo" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;"></div>
+        </div>
+
+        <!-- ABA 2: OFERTAS (RADAR) -->
+        <div id="tab-ofertas" class="tab-content" style="padding-bottom: 120px;">
+            <div class="header-personal glass">
+                <h2 style="margin: 0; font-size: 20px;">Demandas e Vagas de Reposição</h2>
+            </div>
+            <div id="painel-chamadas-uber" style="margin-bottom: 15px;"></div>
+            <div id="mapa-alunos" class="glass" style="height: 250px; width: 100%; border-radius: 16px; border: 1px solid var(--gold); overflow: hidden; margin-bottom: 20px;"></div>
+            <div class="section-title">Lojas & Mercados Buscando Promotores na Região</div>
+            <div id="lista-demandas-cards" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;"></div>
+        </div>
+
+        <!-- ABA 3: AGENDA -->
+        <div id="tab-agenda" class="tab-content" style="padding-bottom: 120px;">
+            <div class="header-personal glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0; font-size: 20px;">Escala de Trabalho</h2>
+                <button class="btn btn-outline" style="padding: 6px 12px; font-size: 11px; border-color: var(--gold); color: var(--gold);" onclick="abrirModalCadastrarAluno()">+ Agendar Cliente</button>
+            </div>
+
+            <div class="glass" style="padding: 12px 15px; background: rgba(212, 175, 55, 0.08); border-left: 4px solid var(--gold); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">⏳</span>
+                <p style="margin: 0; font-size: 11px; color: var(--text-muted); line-height: 1.3;">
+                    <strong>Aguarde! Estamos validando o seu cadastro.</strong><br>Para começar a aceitar demandas de reposição é necessário a aprovação do perfil.
+                </p>
+            </div>
+
+            <div class="glass" style="padding: 15px; border-radius: 16px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <button onclick="mudarMesCalendario(-1)" style="background: transparent; border: none; color: var(--gold); font-size: 16px; cursor: pointer;">◀</button>
+                    <h3 id="calendar-month-year" style="margin: 0; font-size: 15px; font-weight: bold; color: var(--text-color);">Outubro 2026</h3>
+                    <button onclick="mudarMesCalendario(1)" style="background: transparent; border: none; color: var(--gold); font-size: 16px; cursor: pointer;">▶</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: bold; color: var(--text-muted); margin-bottom: 10px;">
+                    <div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div><div>D</div>
+                </div>
+
+                <div id="calendar-days-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center;"></div>
+            </div>
+
+            <div style="text-align: center; color: var(--text-muted); font-size: 12px; margin-bottom: 15px;" id="selected-date-label">
+                Escolha uma data para conferir os turnos de reposição agendados.
+            </div>
+
+            <div id="lista-agenda" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+
+        <!-- ABA 4: CARTEIRA -->
+        <div id="tab-carteira" class="tab-content" style="padding-bottom: 120px;">
+            <div class="header-personal glass" style="margin-bottom: 15px;">
+                <h2 style="margin: 0; font-size: 20px;">Carteira</h2>
+            </div>
+
+            <div class="glass" style="padding: 25px 20px; text-align: center; margin-bottom: 15px;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: #28a745; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 15px auto;">
+                    $
+                </div>
+                <h3 style="margin: 0 0 8px 0; font-size: 16px; color: var(--text-color);">Seus ganhos de abastecimento aparecerão aqui</h3>
+                <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                    Os valores recebidos pelos seus serviços prestados ficam registrados neste espaço.
+                </p>
+            </div>
+
+            <div class="glass" style="padding: 20px; text-align: center; margin-bottom: 15px; border-left: 4px solid #ff3b30;">
+                <div style="margin-bottom: 10px;">
+                    <span style="font-size: 32px;">💳</span>
+                </div>
+                <h3 style="margin: 0 0 8px 0; font-size: 15px; color: var(--text-color);">Você já cadastrou seus dados bancários?</h3>
+                <p style="margin: 0 0 15px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                    Cadastre seus dados bancários para receber seus pagamentos de diárias na data programada.
+                </p>
+                <button class="btn" style="background: #e60000; color: #fff; border: none; width: 100%; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer;" onclick="abrirOpcaoMenu('Dados bancários')">
+                    Cadastrar
+                </button>
+            </div>
+        </div>
+
+        <!-- ABA 5: MENU -->
+        <div id="tab-menu" class="tab-content" style="padding-bottom: 120px;">
+            <div class="header-personal glass" style="margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: bold; color: #000; font-size: 20px;">
+                        <img id="img-perfil-preview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                        <span id="initials-perfil">P</span>
+                    </div>
+                    <div>
+                        <h3 id="perfil-nome-display" style="margin: 0; font-size: 17px;">Promotor</h3>
+                        <p id="perfil-cref-display" style="margin: 2px 0 0 0; font-size: 11px; color: var(--gold);">Status: Ativo</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass" style="padding: 15px; margin-bottom: 15px; text-align: center;">
+                <div style="display: flex; justify-content: space-around; margin-bottom: 10px;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; color: var(--gold);">0</h3>
+                        <span style="font-size: 11px; color: var(--text-muted);">Avaliação</span>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; color: var(--gold);">0</h3>
+                        <span style="font-size: 11px; color: var(--text-muted);">Lojas Atendidas</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="padding: 10px; font-size: 12px; width: 100%;">Meu desempenho</button>
+            </div>
+
+            <div class="section-title">Mais visitados</div>
+            <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px;">
+                <div class="glass menu-shortcut-card" onclick="abrirOpcaoMenu('Perfil')">
+                    <div class="shortcut-icon">👤</div>
+                    <span>Perfil</span>
+                </div>
+                <div class="glass menu-shortcut-card" onclick="abrirOpcaoMenu('Dados bancários')">
+                    <div class="shortcut-icon">💳</div>
+                    <span>Dados bancários</span>
+                </div>
+                <div class="glass menu-shortcut-card" onclick="abrirOpcaoMenu('Preferências de Atendimento')">
+                    <div class="shortcut-icon">💼</div>
+                    <span>Preferências</span>
+                </div>
+            </div>
+
+            <div class="glass-list">
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Perfil')">
+                    <div class="option-left"><span>👤</span><span>Perfil</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Dados bancários')">
+                    <div class="option-left"><span>💳</span><span>Dados bancários</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Preferências de Atendimento')">
+                    <div class="option-left"><span>💼</span><span>Preferências e Categorias</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Convidar Amigos')">
+                    <div class="option-left"><span>🎁</span><span>Convidar promotores</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Ajuda')">
+                    <div class="option-left"><span>🌐</span><span>Ajuda e Suporte</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('Notificações')">
+                    <div class="option-left"><span>🔔</span><span>Notificações</span></div>
+                    <span class="option-arrow">›</span>
+                </div>
+                <div class="menu-option-item" onclick="sairModoPessoal()" style="border-bottom: none;">
+                    <div class="option-left"><span>🚪</span><span style="color: #ff3333; font-weight: bold;">Sair</span></div>
+                    <span class="option-arrow" style="color: #ff3333;">›</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- NAV INFERIOR FIXA COM 5 ABAS -->
+        <div class="bottom-nav glass-nav" id="nav-personal" style="position: fixed; bottom: 0; left: 0; width: 100%; z-index: 99999; display: flex; justify-content: space-around; background: rgba(10,15,29,0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255,255,255,0.1); padding: 8px 0;">
+            <div class="nav-item active" onclick="switchTabPersonal('tab-inicio', this)" style="cursor: pointer; text-align: center; flex: 1;">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span style="display: block; font-size: 10px;">Início</span>
+            </div>
+            <div class="nav-item" onclick="switchTabPersonal('tab-ofertas', this)" style="cursor: pointer; text-align: center; flex: 1;">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="10" r="3"></circle><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"></path></svg>
+                <span style="display: block; font-size: 10px;">Ofertas</span>
+            </div>
+            <div class="nav-item" onclick="switchTabPersonal('tab-agenda', this)" style="cursor: pointer; text-align: center; flex: 1;">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span style="display: block; font-size: 10px;">Agenda</span>
+            </div>
+            <div class="nav-item" onclick="switchTabPersonal('tab-carteira', this)" style="cursor: pointer; text-align: center; flex: 1;">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                <span style="display: block; font-size: 10px;">Carteira</span>
+            </div>
+            <div class="nav-item" onclick="switchTabPersonal('tab-menu', this)" style="cursor: pointer; text-align: center; flex: 1;">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                <span style="display: block; font-size: 10px;">Menu</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 1: PERFIL E VERIFICAÇÃO -->
+    <div id="subscreen-perfil-detalhes" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-perfil-detalhes')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer; padding: 0;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">Perfil e Verificação</h2>
+            </div>
+            
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Nome Completo</label>
+            <input type="text" id="perfil-input-nome" placeholder="Seu nome completo" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">CPF</label>
+                    <input type="text" id="perfil-input-cpf" placeholder="000.000.000-00" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; outline: none; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Nascimento</label>
+                    <input type="date" id="perfil-input-nascimento" style="width: 100%; padding: 11px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; outline: none; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Cidade de Atuação (UF)</label>
+            <input type="text" id="perfil-input-naturalidade" placeholder="Ex: Itapira - SP" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Apresentação / Experiência em Varejo</label>
+            <textarea id="personal-input-bio" rows="3" placeholder="Conte suas experiências em supermercados, marcas atendidas..." style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #ffffff; background: #162032; font-size: 13px; margin-bottom: 20px; outline: none; box-sizing: border-box;"></textarea>
+
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-bottom: 25px;">
+                <h3 style="font-size: 15px; color: var(--gold, #f59e0b); margin-bottom: 8px;">🔐 Verificação de Identidade</h3>
+                <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Foto do Documento (RG ou CNH)</label>
+                <input type="file" id="perfil-doc-file" accept="image/*" style="width: 100%; padding: 10px; border: 1px dashed rgba(255,255,255,0.3); border-radius: 10px; font-size: 12px; color: #a1a1aa; background: #162032; margin-bottom: 12px; box-sizing: border-box;">
+
+                <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Selfie com o Documento</label>
+                <input type="file" id="perfil-selfie-file" accept="image/*" style="width: 100%; padding: 10px; border: 1px dashed rgba(255,255,255,0.3); border-radius: 10px; font-size: 12px; color: #a1a1aa; background: #162032; margin-bottom: 15px; box-sizing: border-box;">
+            </div>
+
+            <button class="btn" onclick="salvarPerfilProfissionalCompleto()" style="width: 100%; background: var(--gold, #f59e0b); color: #000000; font-weight: bold; padding: 14px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; margin-bottom: 30px;">Salvar Alterações</button>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 2: DADOS BANCÁRIOS -->
+    <div id="subscreen-dados-bancarios" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-dados-bancarios')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer; padding: 0;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">Dados Bancários</h2>
+            </div>
+            
+            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: var(--gold, #f59e0b); font-weight: bold;">Configure seu recebimento</h3>
+            <p style="font-size: 12px; color: #a1a1aa; line-height: 1.4; margin-bottom: 20px;">
+                Atualize seus dados para garantir os pagamentos de diárias e freelas.
+            </p>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Banco</label>
+            <select id="bank-select-banco" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+                <option value="237 BANCO BRADESCO S.A.">237 BANCO BRADESCO S.A.</option>
+                <option value="001 BANCO DO BRASIL S.A.">001 BANCO DO BRASIL S.A.</option>
+                <option value="104 CAIXA ECONOMICA FEDERAL">104 CAIXA ECONOMICA FEDERAL</option>
+                <option value="341 ITAU UNIBANCO S.A.">341 ITAU UNIBANCO S.A.</option>
+                <option value="033 BANCO SANTANDER (BRASIL) S.A.">033 BANCO SANTANDER (BRASIL) S.A.</option>
+                <option value="260 NUBANK - NU PAGAMENTOS S.A.">260 NUBANK - NU PAGAMENTOS S.A.</option>
+                <option value="077 BANCO INTER S.A.">077 BANCO INTER S.A.</option>
+            </select>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Tipo de conta</label>
+            <select id="bank-select-tipo-conta" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+                <option value="Conta corrente">Conta corrente</option>
+                <option value="Conta poupança">Conta poupança</option>
+                <option value="Conta pagamento">Conta pagamento</option>
+            </select>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Agência</label>
+            <input type="text" id="bank-input-agencia" placeholder="Ex: 0001" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+
+            <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 20px;">
+                <div style="flex: 3;">
+                    <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Número da conta</label>
+                    <input type="text" id="bank-input-conta" placeholder="Ex: 123456" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; outline: none; box-sizing: border-box;">
+                </div>
+                <span style="font-size: 18px; color: #71717a; padding-bottom: 10px;">-</span>
+                <div style="flex: 1;">
+                    <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Dígito</label>
+                    <input type="text" id="bank-input-digito" placeholder="7" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; text-align: center; outline: none; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <h3 style="margin: 0 0 5px 0; font-size: 16px; font-weight: bold; color: var(--gold, #f59e0b);">PIX</h3>
+            </div>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Tipo de Chave</label>
+            <select id="bank-select-tipo-pix" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 15px; outline: none; box-sizing: border-box;">
+                <option value="Celular">Celular</option>
+                <option value="CPF">CPF</option>
+                <option value="E-mail">E-mail</option>
+                <option value="Chave Aleatória">Chave Aleatória</option>
+            </select>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Chave PIX</label>
+            <input type="text" id="bank-input-chave-pix" placeholder="Sua chave PIX" style="width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 13px; color: #ffffff; background: #162032; margin-bottom: 25px; outline: none; box-sizing: border-box;">
+
+            <button class="btn" onclick="salvarDadosBancarios()" style="width: 100%; background: var(--gold, #f59e0b); color: #000000; font-weight: bold; padding: 14px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; margin-bottom: 30px;">Salvar Dados Bancários</button>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 3: PREFERÊNCIAS DE ATENDIMENTO E HORÁRIOS -->
+    <div id="subscreen-preferencias-atendimento" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-preferencias-atendimento')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer; padding: 0;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">Especialidades & Horários</h2>
+            </div>
+            
+            <label style="font-size: 12px; font-weight: bold; color: var(--gold); display: block; margin-bottom: 10px;">🛒 Setor / Especialidade Principal</label>
+            <select id="pref-estilo" style="width: 100%; padding: 12px; background: #162032; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; margin-bottom: 20px; box-sizing: border-box;">
+                <option value="mercearia">Mercearia & Abastecimento Geral</option>
+                <option value="hortifruti">Hortifruti / FLV</option>
+                <option value="frios">Frios & Laticínios</option>
+                <option value="bebidas">Bebidas & Pontas de Gôndola</option>
+                <option value="inventario">Auditoria & Prevenção de Perdas</option>
+            </select>
+
+            <label style="font-size: 12px; font-weight: bold; color: var(--gold); display: block; margin-bottom: 10px;">⏰ Disponibilidade (Início e Fim)</label>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="time" id="pref-hora-inicio" value="06:00" style="flex: 1; padding: 12px; background: #162032; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; box-sizing: border-box;">
+                <span style="color: #fff; align-self: center;">até</span>
+                <input type="time" id="pref-hora-fim" value="22:00" style="flex: 1; padding: 12px; background: #162032; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; box-sizing: border-box;">
+            </div>
+
+            <label style="font-size: 12px; font-weight: bold; color: var(--gold); display: block; margin-bottom: 10px;">📅 Dias Disponíveis</label>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 25px;">
+                <button type="button" class="btn-dia active" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: rgba(245,158,11,0.2); border: 1px solid var(--gold); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer;">Seg</button>
+                <button type="button" class="btn-dia active" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: rgba(245,158,11,0.2); border: 1px solid var(--gold); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer;">Ter</button>
+                <button type="button" class="btn-dia active" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: rgba(245,158,11,0.2); border: 1px solid var(--gold); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer;">Qua</button>
+                <button type="button" class="btn-dia active" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: rgba(245,158,11,0.2); border: 1px solid var(--gold); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer;">Qui</button>
+                <button type="button" class="btn-dia active" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: rgba(245,158,11,0.2); border: 1px solid var(--gold); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer;">Sex</button>
+                <button type="button" class="btn-dia" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: #162032; border: 1px solid rgba(255,255,255,0.15); color: #888; border-radius: 8px; font-size: 12px; cursor: pointer;">Sáb (Folga)</button>
+                <button type="button" class="btn-dia" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: #162032; border: 1px solid rgba(255,255,255,0.15); color: #888; border-radius: 8px; font-size: 12px; cursor: pointer;">Dom (Folga)</button>
+            </div>
+
+            <button class="btn" onclick="salvarPreferenciasAtendimento()" style="width: 100%; background: var(--gold, #f59e0b); color: #000000; font-weight: bold; padding: 14px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; margin-bottom: 30px;">Salvar Preferências e Disponibilidade</button>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 4: INDICAR AMIGOS -->
+    <div id="subscreen-indicar-amigo" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-indicar-amigo')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer; padding: 0;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">Indique Promotores e Ganhe</h2>
+            </div>
+
+            <div class="glass" style="padding: 20px; border-radius: 16px; margin-bottom: 20px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.3);">
+                <h3 style="color: var(--gold, #f59e0b); font-size: 16px; margin: 0 0 10px 0;">🎁 Como funciona?</h3>
+                <p style="font-size: 13px; color: #e4e4e7; line-height: 1.5; margin: 0;">
+                    Você fica com <strong>85%</strong> e a plataforma com <strong>15%</strong>. Ao indicar um promotor parceiro, na <strong>primeira reposição realizada por ele</strong>, você ganha o bônus de indicação referente à transação inicial!
+                </p>
+            </div>
+
+            <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Seu Link de Indicação Exclusivo</label>
+            <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+                <input type="text" id="input-link-indicacao" readonly style="flex: 1; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 12px; color: var(--gold, #f59e0b); background: #162032; outline: none; box-sizing: border-box;" value="https://abasteceja.com.br/promotor/cadastro?ref=OTAVIO">
+                <button onclick="copiarLinkIndicacao()" style="background: #27272a; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 0 15px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px;">Copiar</button>
+            </div>
+
+            <button class="btn" onclick="compartilharWhatsApp()" style="width: 100%; background: #25d366; color: #ffffff; font-weight: bold; padding: 14px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 30px;">
+                Compartilhar via WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 5: NOTIFICAÇÕES -->
+    <div id="subscreen-notificacoes" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-notificacoes')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px;">Configurações de Notificação</h2>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+                <label style="display: flex; align-items: center; justify-content: space-between; background: #162032; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
+                    <span style="font-size: 13px; color: #fff;">📲 Notificações de novas reposições (Push)</span>
+                    <input type="checkbox" id="notif-push" checked style="width: 18px; height: 18px; accent-color: var(--gold, #f59e0b);">
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; background: #162032; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
+                    <span style="font-size: 13px; color: #fff;">💬 Mensagens no chat da loja</span>
+                    <input type="checkbox" id="notif-chat" checked style="width: 18px; height: 18px; accent-color: var(--gold, #f59e0b);">
+                </label>
+            </div>
+
+            <button class="btn" onclick="fecharSubtela('subscreen-notificacoes')" style="width: 100%; background: var(--gold, #f59e0b); color: #000; font-weight: bold; padding: 14px; border: none; border-radius: 12px; cursor: pointer;">Salvar Notificações</button>
+        </div>
+    </div>
+
+    <!-- TELA TÁTIL 6: AJUDA E SUPORTE -->
+    <div id="subscreen-ajuda" class="app-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0f1d; z-index: 999999; overflow-y: auto;">
+        <div style="max-width: 480px; width: 100%; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <button onclick="fecharSubtela('subscreen-ajuda')" style="background: transparent; border: none; color: var(--gold, #f59e0b); font-size: 22px; font-weight: bold; cursor: pointer;">❮</button>
+                <h2 style="margin: 0; color: #ffffff; font-size: 18px;">Ajuda e Suporte</h2>
+            </div>
+            
+            <div class="glass" style="padding: 20px; border-radius: 16px; margin-bottom: 20px; border: 1px solid var(--gold);">
+                <h3 style="color: var(--gold); font-size: 16px; margin: 0 0 10px 0;">💻 Suporte Técnico Abastece Já</h3>
+                <p style="font-size: 13px; color: #e4e4e7; line-height: 1.6; margin: 0 0 15px 0;">
+                    Precisa de suporte com chamadas de abastecimento, repasses ou cadastro de loja?
+                </p>
+                <div style="font-size: 13px; color: #fff; display: flex; flex-direction: column; gap: 8px;">
+                    <div>📧 <strong>E-mail:</strong> suporte@abasteceja.com.br</div>
+                    <div>📱 <strong>WhatsApp de Suporte:</strong> (19) 99999-9999</div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="fecharSubtela('subscreen-ajuda')" style="width: 100%; background: #27272a; color: #fff; font-weight: bold; padding: 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; cursor: pointer;">Voltar ao Menu</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE CHAT FLUTUANTE -->
+    <div id="modal-chat-flutuante" class="app-overlay">
+        <div class="glass modal-box" style="max-width: 450px; width: 100%; height: 80vh; display: flex; flex-direction: column; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px; margin-bottom: 10px;">
+                <h3 id="chat-active-name" style="margin: 0; color: var(--gold); font-size: 16px;">Conversa</h3>
+                <button onclick="fecharConversaModal()" style="background: transparent; border: none; color: #ff3333; font-size: 18px; font-weight: bold; cursor: pointer;">✕</button>
+            </div>
+            <div id="chat-list-view" style="flex: 1; overflow-y: auto;"></div>
+            <div id="chat-conversation-view" style="display: none; flex: 1; flex-direction: column;">
+                <div id="chat-box" class="chat-messages-container" style="flex: 1; overflow-y: auto; margin-bottom: 10px;"></div>
+                <div class="chat-input-bar" style="display: flex; gap: 8px;">
+                    <input type="text" id="input-chat-msg" placeholder="Digite sua mensagem..." style="flex: 1; margin: 0;">
+                    <button onclick="enviarMensagemChat()" style="background: var(--gold); color: #000; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold;">Enviar</button>
+                </div>
+                <button onclick="enviarPropostaPersonal()" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--gold); color: var(--gold); width: 100%; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: bold; margin-top: 8px; cursor: pointer;">📋 Enviar Orçamento de Diária / Turno</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TERMOS DE USO -->
+    <div id="modal-termos" class="app-overlay">
+        <div class="glass modal-box" style="max-height: 80vh; overflow-y: auto; text-align: left; padding: 25px;">
+            <h3 style="color: var(--gold); margin-bottom: 10px;">📜 Termos de Uso - ABASTECE JÁ</h3>
+            <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                • <strong>Taxa da Plataforma (15%):</strong> Intermediação e repasse automático via Mercado Pago.<br>
+                • <strong>Cancelamento:</strong> Válido conforme prazos de confirmação de diárias.
+            </p>
+            <button class="btn btn-primary" style="margin-top: 20px; width: 100%;" onclick="aceitarTermosModal()">Entendi e Concordo</button>
+        </div>
+    </div>
+
+    <!-- MODAL: CADASTRAR CLIENTE/LOJA -->
+    <div id="modal-cadastrar-aluno" class="app-overlay">
+        <div class="glass modal-box">
+            <h3 style="margin-bottom: 10px; color: var(--gold);">Cadastrar Loja / Contratante</h3>
+            <input type="text" id="cad-aluno-cpf" placeholder="CNPJ / CPF do Responsável">
+            <input type="text" id="cad-aluno-nome" placeholder="Nome da Loja ou Marca">
+            <input type="text" id="cad-aluno-objetivo" placeholder="Setor de Reposição (ex: Mercearia)">
+            <input type="number" id="cad-aluno-preco" placeholder="Valor da Diária (R$)">
+            <input type="text" id="cad-aluno-dias" placeholder="Dias do Abastecimento">
+            <input type="text" id="cad-aluno-horario" placeholder="Horário do Turno">
+            <input type="text" id="cad-aluno-frequencia" placeholder="Frequência">
+            <button class="btn btn-primary" onclick="confirmarCadastroAluno()">Confirmar Registro</button>
+            <button class="btn btn-outline" style="margin-top: 8px;" onclick="fecharModalCadastrarAluno()">Cancelar</button>
+        </div>
+    </div>
+
+    <script>
+        window.fecharSubtela = function(idTela) {
+            const el = document.getElementById(idTela);
+            if (el) el.style.display = 'none';
+        }
+
+        window.toggleDiaTrabalho = function(btn) {
+            const isAtivo = btn.classList.toggle('active');
+            if (isAtivo) {
+                btn.style.background = 'rgba(245,158,11,0.2)';
+                btn.style.borderColor = 'var(--gold, #f59e0b)';
+                btn.style.color = '#fff';
+                btn.innerText = btn.innerText.replace(' (Folga)', '');
+            } else {
+                btn.style.background = '#162032';
+                btn.style.borderColor = 'rgba(255,255,255,0.15)';
+                btn.style.color = '#888';
+                if (!btn.innerText.includes('Folga')) btn.innerText += ' (Folga)';
+            }
+        }
+
+        window.salvarPreferenciasAtendimento = function() {
+            alert("✅ Preferências de reposição salvos com sucesso!");
+            fecharSubtela('subscreen-preferencias-atendimento');
+        }
+
+        window.copiarLinkIndicacao = function() {
+            const input = document.getElementById('input-link-indicacao');
+            if (!input) return;
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            alert("📋 Link de indicação copiado para a área de transferência!");
+        }
+
+        window.compartilharWhatsApp = function() {
+            const input = document.getElementById('input-link-indicacao');
+            const link = input ? input.value : "https://abasteceja.com.br/promotor/cadastro";
+            const texto = encodeURIComponent(`Olá! Venha para o ABASTECE JÁ, a plataforma de demandas de reposição e abastecimento no varejo. Cadastre-se pelo link: ${link}`);
+            window.open(`https://api.whatsapp.com/send?text=${texto}`, '_blank');
+        }
+    </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCYuhjdqUwLqt1wBkq4SkkUcC3FDaPXspU&libraries=geometry&callback=initMapAlunos" async defer></script>
+    <script type="module" src="script-personal.js"></script>
+</body>
+</html>
 
 </body>
 </html>
