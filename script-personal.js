@@ -325,6 +325,7 @@ function estadoVazio(icone, titulo, texto) {
 }
 
 function renderizarAgenda() {
+    atualizarProximaReposicao();
     const lista = $("lista-agenda");
     const resumo = $("lista-agenda-resumo");
     lista.innerHTML = "";
@@ -485,3 +486,39 @@ Object.assign(window, {
     fazerCheckin, cancelarTurno, aceitarTurno, abrirModalCadastrarAluno, fecharModalCadastrarAluno,
     confirmarCadastroAluno, fecharConversaModal, enviarMensagemChat, enviarPropostaPersonal, initMapAlunos
 });
+
+
+// ==========================================
+// PARIDADE COM O APP DO CONTRATANTE
+// ==========================================
+function toggleTheme() {
+    const claro = $("theme-toggle").checked;
+    document.body.classList.toggle("light-theme", claro);
+    try { localStorage.setItem("abastece_tema", claro ? "claro" : "escuro"); } catch (e) {}
+}
+try {
+    if (localStorage.getItem("abastece_tema") === "claro") {
+        document.body.classList.add("light-theme");
+        window.addEventListener("DOMContentLoaded", () => { const t = $("theme-toggle"); if (t) t.checked = true; });
+    }
+} catch (e) {}
+
+async function salvarContato() {
+    const tel = $("promotor-input-telefone").value.trim();
+    if (!tel) { toast("Informe seu telefone ou WhatsApp."); return; }
+    try { await salvarMerge({ telefone: tel }); toast("✅ Contato salvo!"); }
+    catch (e) { console.error(e); toast("Não foi possível salvar o contato."); }
+}
+
+function atualizarProximaReposicao() {
+    const el = $("proxima-reposicao");
+    const prox = agendaDeHoje.find((s) => s.status === "ocupado");
+    if (el) el.textContent = prox ? `${prox.hora} · ${prox.loja} (${prox.setor})` : "Nenhum turno agendado.";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    const c = $("lista-conversas-promotor");
+    if (c) c.innerHTML = estadoVazio("💬", "Nenhuma conversa ainda", "Quando você aceitar um turno, o chat com a loja aparece aqui.");
+});
+
+Object.assign(window, { toggleTheme, salvarContato, toast });
