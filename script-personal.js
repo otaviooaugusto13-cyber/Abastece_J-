@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, getDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, setDoc, getDoc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -310,13 +310,23 @@ function atualizarFotoPerfil(event) {
 // ==========================================
 // AGENDA / CALENDÁRIO
 // ==========================================
-function carregarAgendaDoBanco() {
-    // Dados de demonstração só para promotores aprovados
-    agendaDeHoje = dadosPerfil.status === "ativo" ? [
-        { hora: "08:00", loja: "Supermercado Central", setor: "Gôndola de Limpeza", status: "ocupado", valor: 100 },
-        { hora: "10:00", loja: "Atacadão Bom Preço", setor: "Hortifrúti", status: "ocupado", valor: 100 },
-        { hora: "14:00", loja: "Turno Aberto", setor: "Disponível no Radar", status: "livre", valor: 120 }
-    ] : [];
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtBRL = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtData = (d) => (d ? d.split("-").reverse().join("/") : "");
+const chavePromotor = () => dadosPerfil.cpf || dadosPerfil.uid;
+let valorMinimo = 0;
+
+async function carregarAgendaDoBanco() {
+    agendaDeHoje = [];
+    try {
+        const chave = chavePromotor();
+        if (chave) {
+            const snap = await getDocs(query(collection(db, "solicitacoes"), where("promotorChave", "==", chave)));
+            agendaDeHoje = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+        }
+    } catch (e) { console.warn("Agenda não carregada:", e.code); }
+    ganhosAvulsos = agendaDeHoje.filter((x) => x.status === "concluida").reduce((t, x) => t + x.valor * 0.85, 0);
+    atualizarFinanceiro();
     renderizarAgenda();
 }
 
@@ -326,59 +336,29 @@ function estadoVazio(icone, titulo, texto) {
 
 function renderizarAgenda() {
     atualizarProximaReposicao();
-    const lista = $("lista-agenda");
-    const resumo = $("lista-agenda-resumo");
-    lista.innerHTML = "";
-    resumo.innerHTML = "";
-
+    const lista = $("lista-agenda"), resumo = $("lista-agenda-resumo");
     if (!agendaDeHoje.length) {
-        const vazio = estadoVazio("📅", "Nenhum turno por aqui", "Assim que seu perfil for aprovado, seus turnos aparecerão neste espaço.");
-        lista.innerHTML = vazio;
-        resumo.innerHTML = vazio;
-        return;
+        const v = estadoVazio("📅", "Nenhum turno por aqui", "Os turnos que você aceitar nas Ofertas aparecem neste espaço.");
+        lista.innerHTML = v; resumo.innerHTML = v; return;
     }
-
-    agendaDeHoje.forEach((slot, i) => {
-        const cls = slot.status === "concluida" ? "slot-concluida" : slot.status === "livre" ? "slot-livre" : "slot-ocupado";
-        const acoes = slot.status === "ocupado"
-            ? `<button class="btn-slot-action btn-qr" onclick="fazerCheckin(${i})">Check-in</button>
-               <button class="btn-slot-action" onclick="cancelarTurno(${i})">Cancelar</button>`
-            : slot.status === "livre" ? `<button class="btn-slot-action btn-qr" onclick="aceitarTurno(${i})">Aceitar</button>` : "";
-        const desc = slot.status === "concluida" ? "Concluído · pagamento liberado" : `${slot.setor} · R$ ${slot.valor},00`;
-
-        const div = document.createElement("div");
-        div.className = `glass agenda-slot ${cls}`;
-        div.innerHTML = `<div class="slot-time">${slot.hora}</div>
-            <div class="slot-info"><div class="slot-info-name">${slot.loja}</div><div class="slot-info-desc">${desc}</div></div>
-            <div class="slot-actions">${acoes}</div>`;
-        lista.appendChild(div);
-
-        const r = document.createElement("div");
-        r.className = `glass agenda-slot ${cls}`;
-        r.innerHTML = `<div class="slot-time">${slot.hora}</div><div class="slot-info"><div class="slot-info-name">${slot.loja}</div><div class="slot-info-desc">${desc}</div></div>`;
-        resumo.appendChild(r);
-    });
+    const card = (x, acao) => `<div class="glass agenda-slot ${x.status === "concluida" ? "slot-concluida" : "slot-ocupado"}">
+        <div class="slot-time">${esc(x.entrada)}</div>
+        <div class="slot-info"><div class="slot-info-name">${esc(x.loja)}</div>
+        <div class="slot-info-desc">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)} · você recebe ${fmtBRL(x.valor * 0.85)}</div></div>${acao}</div>`;
+    lista.innerHTML = agendaDeHoje.map((x, i) => card(x, x.status === "aceita" ? `<div class="slot-actions"><button class="btn-slot-action btn-qr" onclick="mostrarQR(${i})">Cobrar (QR)</button></div>` : "")).join("");
+    resumo.innerHTML = agendaDeHoje.map((x) => card(x, "")).join("");
 }
 
-function fazerCheckin(i) {
-    if (!confirm("Confirmar check-in na loja? (valida sua localização)")) return;
-    agendaDeHoje[i].status = "concluida";
-    ganhosAvulsos += agendaDeHoje[i].valor * 0.85;
-    atualizarFinanceiro();
-    renderizarAgenda();
-    toast("✅ Check-in validado! Repasse em processamento.");
+function mostrarQR(i) {
+    const x = agendaDeHoje[i];
+    const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+    $("qr-box").innerHTML = "";
+    if (window.QRCode) new QRCode($("qr-box"), { text: `${base}pagar.html?id=${encodeURIComponent(x.id)}`, width: 200, height: 200 });
+    $("qr-valor").textContent = `Valor da loja: ${fmtBRL(x.valor)}`;
+    $("qr-liquido").textContent = `Plataforma 15% (${fmtBRL(x.valor * 0.15)}) · Você recebe 85% (${fmtBRL(x.valor * 0.85)})`;
+    $("modal-qr").classList.add("active");
 }
-function cancelarTurno(i) {
-    if (!confirm("Cancelar este turno? Cancelamentos frequentes afetam sua avaliação.")) return;
-    agendaDeHoje.splice(i, 1);
-    renderizarAgenda();
-}
-function aceitarTurno(i) {
-    agendaDeHoje[i].status = "ocupado";
-    agendaDeHoje[i].loja = "Supermercado Central";
-    renderizarAgenda();
-    toast("Turno aceito!");
-}
+function fecharQR() { $("modal-qr").classList.remove("active"); }
 
 function atualizarFinanceiro() {
     const fmt = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -418,13 +398,47 @@ function selecionarDia(d) {
 // ==========================================
 // OFERTAS + MAPA
 // ==========================================
-function renderizarOfertas() {
+async function renderizarOfertas() {
     const el = $("lista-demandas-cards");
     if (dadosPerfil.status !== "ativo") {
         el.innerHTML = estadoVazio("🔒", "Ofertas liberadas após aprovação", "Estamos analisando seu cadastro. Você será avisado por aqui.");
         return;
     }
-    el.innerHTML = estadoVazio("🛒", "Sem ofertas por enquanto", "Novas demandas de reposição na sua região aparecerão aqui.");
+    let lista = [];
+    try {
+        const chave = chavePromotor();
+        if (chave) {
+            const perfil = await getDoc(doc(db, "profissionais", chave));
+            valorMinimo = Number(perfil.data()?.valorMin) || 0;
+            if ($("pref-valor-min")) $("pref-valor-min").value = valorMinimo || "";
+        }
+        const snap = await getDocs(query(collection(db, "solicitacoes"), where("status", "==", "aberta")));
+        lista = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.valor >= valorMinimo);
+    } catch (e) { console.warn("Ofertas não carregadas:", e.code); }
+    el.innerHTML = lista.length ? lista.map((x) => `<div class="glass agenda-slot slot-livre">
+        <div class="slot-info"><div class="slot-info-name">${esc(x.loja)}</div>
+        <div class="slot-info-desc">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}<br>Você recebe <strong>${fmtBRL(x.valor * 0.85)}</strong> (loja paga ${fmtBRL(x.valor)})</div></div>
+        <div class="slot-actions"><button class="btn-slot-action btn-qr" onclick="aceitarOferta('${x.id}')">Aceitar</button></div></div>`).join("")
+        : estadoVazio("🛒", "Sem ofertas por enquanto", valorMinimo ? `Nenhuma proposta de ${fmtBRL(valorMinimo)} ou mais na região agora.` : "Novas demandas de reposição na sua região aparecerão aqui.");
+}
+
+async function aceitarOferta(id) {
+    try {
+        await updateDoc(doc(db, "solicitacoes", id), { status: "aceita", promotorChave: chavePromotor(), promotorNome: dadosPerfil.nome, aceitoEm: serverTimestamp() });
+        toast("Turno aceito! Ele já está na sua agenda.");
+        carregarAgendaDoBanco(); renderizarOfertas();
+    } catch (e) { console.error(e); toast("Não foi possível aceitar. Outro promotor pode ter pegado."); }
+}
+
+async function salvarPrefs() {
+    const v = parseFloat($("pref-valor-min").value) || 0;
+    try {
+        await salvarMerge({ valorMin: v, especialidade: $("pref-estilo").selectedOptions[0].text, disponibilidade: { inicio: $("pref-hora-inicio").value, fim: $("pref-hora-fim").value } });
+        valorMinimo = v;
+        toast("✅ Preferências salvas!");
+        fecharSubtela("subscreen-preferencias-atendimento");
+        renderizarOfertas();
+    } catch (e) { console.error(e); toast("Não foi possível salvar as preferências."); }
 }
 
 function initMapAlunos() {
@@ -512,8 +526,8 @@ async function salvarContato() {
 
 function atualizarProximaReposicao() {
     const el = $("proxima-reposicao");
-    const prox = agendaDeHoje.find((s) => s.status === "ocupado");
-    if (el) el.textContent = prox ? `${prox.hora} · ${prox.loja} (${prox.setor})` : "Nenhum turno agendado.";
+    const prox = agendaDeHoje.find((x) => x.status === "aceita");
+    if (el) el.textContent = prox ? `${fmtData(prox.data)} · ${prox.entrada}–${prox.saida} · ${prox.loja}` : "Nenhum turno agendado.";
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -521,4 +535,4 @@ window.addEventListener("DOMContentLoaded", () => {
     if (c) c.innerHTML = estadoVazio("💬", "Nenhuma conversa ainda", "Quando você aceitar um turno, o chat com a loja aparece aqui.");
 });
 
-Object.assign(window, { toggleTheme, salvarContato, toast });
+Object.assign(window, { toggleTheme, salvarContato, toast, mostrarQR, fecharQR, aceitarOferta, salvarPrefs });
