@@ -8,20 +8,86 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#d4af37">
     <style>
-        /* Garante que o container da landing fique visível no topo */
+        /* Estilos fluidos e orgânicos para a Landing Page */
         #landing-page-container {
             display: block;
             width: 100%;
             overflow-x: hidden;
-            background-color: var(--bg-color, #07090e);
-            color: var(--text-color, #ffffff);
+            background-color: #05070b;
+            color: #ffffff;
             position: relative;
             z-index: 10;
         }
 
-        .landing-section {
-            width: 100%;
+        .hero- fluido {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 20px;
+            text-align: center;
             box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        /* Formas orgânicas coloridas de fundo (Efeito Fluido) */
+        .bg-blob-1 {
+            position: absolute;
+            top: -100px;
+            left: -100px;
+            width: 350px;
+            height: 350px;
+            background: linear-gradient(135deg, #d4af37, #ff5e00);
+            filter: blur(80px);
+            opacity: 0.35;
+            z-index: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .bg-blob-2 {
+            position: absolute;
+            bottom: 10%;
+            right: -100px;
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5, #d4af37);
+            filter: blur(90px);
+            opacity: 0.3;
+            z-index: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .hero-content-wrapper {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 440px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Divisor de ondas SVG moderno */
+        .wave-divider {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            overflow: hidden;
+            line-height: 0;
+            z-index: 1;
+            opacity: 0.8;
+        }
+
+        .wave-divider svg {
+            position: relative;
+            display: block;
+            width: calc(100% + 1.3px);
+            height: 80px;
         }
 
         @keyframes bounce {
@@ -40,72 +106,99 @@
         </svg>
     </a>
 
-    <!-- LANDING PAGE DE APRESENTAÇÃO INICIAL -->
+    <!-- CONTAINER DA LANDING PAGE COM CORES E FLUIDEZ -->
     <div id="landing-page-container">
         
-        <!-- SEÇÃO 1: HERO / BANNER PRINCIPAL -->
-        <section class="landing-section" style="min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; text-align: center; box-sizing: border-box;">
-            <div>
-                <h1 style="font-size: 2.3rem; letter-spacing: 2px; margin-top: 20px;">ABASTECE<span class="highlight">JÁ</span></h1>
-                <p class="subtitle" style="font-size: 14px;">Conectando Oportunidades • Movimentando o Varejo</p>
-            </div>
+        <!-- SEÇÃO 1: HERO COM BLOBS COLORIDOS E CURVAS -->
+        <section class="hero-fluido">
+            <div class="bg-blob-1"></div>
+            <div class="bg-blob-2"></div>
 
-            <div class="glass" style="padding: 30px 20px; max-width: 400px; width: 100%; border: 1px solid var(--gold, #d4af37);">
-                <h3 style="font-size: 17px; color: var(--gold, #d4af37); margin-bottom: 10px;">Promotores e Lojas sob Demanda</h3>
-                <p style="font-size: 13px; color: var(--text-muted, #aaaaaa); margin-bottom: 20px;">A plataforma digital que conecta supermercados e profissionais qualificados com agilidade.</p>
-                
-                <div style="display: flex; gap: 12px; flex-direction: column;">
-                    <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="background: var(--gold, #d4af37); color: #000; font-weight: bold; border: none; padding: 14px; border-radius: 12px; cursor: pointer;">
-                        Sou Contratante / Acessar Painel
-                    </button>
-                    <a href="promotor.html" class="btn btn-outline" style="border: 1px solid var(--gold, #d4af37); color: var(--gold, #d4af37); text-decoration: none; text-align: center; font-weight: bold; padding: 14px; border-radius: 12px;">
-                        Sou Promotor / Freelancer
-                    </a>
+            <div class="hero-content-wrapper" style="z-index: 2; margin-top: 20px;">
+                <!-- Aqui você poderá colocar a tag <img> com o seu logo PNG depois -->
+                <div style="margin-bottom: 15px;">
+                    <h1 style="font-size: 2.5rem; letter-spacing: 2px; text-shadow: 0 4px 20px rgba(212,175,55,0.4);">
+                        ABASTECE<span class="highlight" style="color: var(--gold, #d4af37);">JÁ</span>
+                    </h1>
+                    <p class="subtitle" style="font-size: 14px; color: #d0d5dd;">Conectando Oportunidades • Movimentando o Varejo</p>
+                </div>
+
+                <div class="glass" style="padding: 30px 22px; width: 100%; border: 1px solid rgba(212,175,55,0.4); background: rgba(10, 14, 23, 0.65); backdrop-filter: blur(16px); border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5);">
+                    <h3 style="font-size: 17px; color: var(--gold, #d4af37); margin-bottom: 10px;">Promotores e Lojas sob Demanda</h3>
+                    <p style="font-size: 13px; color: #9aa4b2; margin-bottom: 25px;">A plataforma digital de alta performance que une supermercados e profissionais com agilidade.</p>
+                    
+                    <div style="display: flex; gap: 12px; flex-direction: column;">
+                        <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="background: linear-gradient(135deg, #d4af37, #aa8c2c); color: #000; font-weight: bold; border: none; padding: 15px; border-radius: 14px; cursor: pointer; box-shadow: 0 4px 15px rgba(212,175,55,0.3);">
+                            Sou Contratante / Acessar Painel
+                        </button>
+                        <a href="promotor.html" class="btn btn-outline" style="border: 1px solid rgba(212,175,55,0.5); color: var(--gold, #d4af37); text-decoration: none; text-align: center; font-weight: bold; padding: 14px; border-radius: 14px; background: rgba(212,175,55,0.05);">
+                            Sou Promotor / Freelancer
+                        </a>
+                    </div>
                 </div>
             </div>
 
-            <!-- Seta animada indicativa para rolar -->
-            <div style="animation: bounce 2s infinite; cursor: pointer; margin-bottom: 10px;" onclick="rolarParaProximaSecao()">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #d4af37)" stroke-width="2.5"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+            <!-- Seta indicativa animada -->
+            <div style="animation: bounce 2s infinite; cursor: pointer; z-index: 2; margin-bottom: 15px;" onclick="rolarParaProximaSecao()">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #d4af37)" stroke-width="2.5"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+            </div>
+
+            <!-- Onda decorativa inferior -->
+            <div class="wave-divider">
+                <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+                    <path d="M0,0 C150,90 350,-40 500,40 C650,120 900,20 1200,60 L1200,120 L0,120 Z" fill="rgba(212,175,55,0.06)"></path>
+                </svg>
             </div>
         </section>
 
-        <!-- SEÇÃO 2: NÚMEROS DA PLATAFORMA -->
-        <section class="landing-section" style="padding: 60px 20px; text-align: center;">
-            <h2 style="color: var(--gold, #d4af37); margin-bottom: 30px; font-size: 1.8rem;">Números do Abastece Já</h2>
+        <!-- SEÇÃO 2: NÚMEROS DA PLATAFORMA (Com cartões flutuantes em vidro) -->
+        <section class="landing-section" style="padding: 70px 20px; text-align: center; position: relative;">
+            <h2 style="color: var(--gold, #d4af37); margin-bottom: 35px; font-size: 1.8rem; text-shadow: 0 2px 10px rgba(212,175,55,0.2);">Números do Abastece Já</h2>
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 480px; margin: 0 auto;">
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">4,9</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Avaliação média</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+2.000</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Lojas atendidas</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+450K</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Atendimentos</p></div>
-                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold, #d4af37); font-size: 24px; margin: 0;">+3M</h3><p style="font-size: 12px; color: var(--text-muted, #aaaaaa); margin-top: 5px;">Horas realizadas</p></div>
+                <div class="glass" style="padding: 22px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); background: rgba(20,25,38,0.5);">
+                    <h3 style="color: var(--gold, #d4af37); font-size: 26px; margin: 0;">4,9</h3>
+                    <p style="font-size: 12px; color: #9aa4b2; margin-top: 5px;">Avaliação média</p>
+                </div>
+                <div class="glass" style="padding: 22px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); background: rgba(20,25,38,0.5);">
+                    <h3 style="color: var(--gold, #d4af37); font-size: 26px; margin: 0;">+2.000</h3>
+                    <p style="font-size: 12px; color: #9aa4b2; margin-top: 5px;">Lojas atendidas</p>
+                </div>
+                <div class="glass" style="padding: 22px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); background: rgba(20,25,38,0.5);">
+                    <h3 style="color: var(--gold, #d4af37); font-size: 26px; margin: 0;">+450K</h3>
+                    <p style="font-size: 12px; color: #9aa4b2; margin-top: 5px;">Atendimentos</p>
+                </div>
+                <div class="glass" style="padding: 22px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); background: rgba(20,25,38,0.5);">
+                    <h3 style="color: var(--gold, #d4af37); font-size: 26px; margin: 0;">+3M</h3>
+                    <p style="font-size: 12px; color: #9aa4b2; margin-top: 5px;">Horas realizadas</p>
+                </div>
             </div>
         </section>
 
         <!-- SEÇÃO 3: SERVIÇOS ATENDIDOS -->
         <section class="landing-section" style="padding: 60px 20px; text-align: center;">
-            <h2 style="color: var(--gold, #d4af37); margin-bottom: 30px; font-size: 1.8rem;">Servícios que Atendemos</h2>
+            <h2 style="color: var(--gold, #d4af37); margin-bottom: 35px; font-size: 1.8rem;">Servícios que Atendemos</h2>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 480px; margin: 0 auto;">
-                <div class="glass" style="padding: 15px; font-size: 12px;">🛒<br><strong>Mercearia</strong></div>
-                <div class="glass" style="padding: 15px; font-size: 12px;">🍎<br><strong>Hortifruti</strong></div>
-                <div class="glass" style="padding: 15px; font-size: 12px;">🧀<br><strong>Frios</strong></div>
-                <div class="glass" style="padding: 15px; font-size: 12px;">🍾<br><strong>Bebidas</strong></div>
-                <div class="glass" style="padding: 15px; font-size: 12px;">🔍<br><strong>Inventário</strong></div>
-                <div class="glass" style="padding: 15px; font-size: 12px;">📦<br><strong>Outros</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">🛒<br><strong style="color: #fff; display: block; margin-top: 6px;">Mercearia</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">🍎<br><strong style="color: #fff; display: block; margin-top: 6px;">Hortifruti</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">🧀<br><strong style="color: #fff; display: block; margin-top: 6px;">Frios</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">🍾<br><strong style="color: #fff; display: block; margin-top: 6px;">Bebidas</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">🔍<br><strong style="color: #fff; display: block; margin-top: 6px;">Inventário</strong></div>
+                <div class="glass" style="padding: 18px 10px; border-radius: 16px; border: 1px solid rgba(212,175,55,0.2); font-size: 12px; background: rgba(20,25,38,0.5);">📦<br><strong style="color: #fff; display: block; margin-top: 6px;">Outros</strong></div>
             </div>
         </section>
 
         <!-- SEÇÃO 4: MARCAS PARCEIRAS -->
-        <section class="landing-section" style="padding: 60px 20px 80px 20px; text-align: center;">
+        <section class="landing-section" style="padding: 60px 20px 90px 20px; text-align: center;">
             <h2 style="color: var(--gold, #d4af37); margin-bottom: 15px; font-size: 1.8rem;">Marcas Parceiras</h2>
-            <p style="color: var(--text-muted, #aaaaaa); font-size: 13px; margin-bottom: 25px;">Grandes redes do varejo que confiam em nossa tecnologia.</p>
+            <p style="color: #9aa4b2; font-size: 13px; margin-bottom: 25px;">Grandes redes do varejo que confiam em nossa tecnologia.</p>
             <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 480px; margin: 0 auto;">
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Supermercados</div>
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Atacarejos</div>
-                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold, #d4af37);">Distribuidoras</div>
+                <div class="glass" style="padding: 12px 22px; border-radius: 12px; font-weight: bold; color: var(--gold, #d4af37); border: 1px solid rgba(212,175,55,0.2);">Supermercados</div>
+                <div class="glass" style="padding: 12px 22px; border-radius: 12px; font-weight: bold; color: var(--gold, #d4af37); border: 1px solid rgba(212,175,55,0.2);">Atacarejos</div>
+                <div class="glass" style="padding: 12px 22px; border-radius: 12px; font-weight: bold; color: var(--gold, #d4af37); border: 1px solid rgba(212,175,55,0.2);">Distribuidoras</div>
             </div>
             
-            <div style="margin-top: 40px;">
-                <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="max-width: 300px; margin: 0 auto; padding: 16px; background: var(--gold, #d4af37); color: #000; border: none; font-weight: bold; border-radius: 12px; cursor: pointer;">
+            <div style="margin-top: 45px;">
+                <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="max-width: 300px; margin: 0 auto; padding: 16px; background: linear-gradient(135deg, #d4af37, #aa8c2c); color: #000; border: none; font-weight: bold; border-radius: 14px; cursor: pointer; box-shadow: 0 5px 20px rgba(212,175,55,0.3);">
                     Entrar no Sistema
                 </button>
             </div>
@@ -115,21 +208,21 @@
 
     <!-- TELA DE LOGIN DO CONTRATANTE (Inicia Oculta) -->
     <div id="screen-login" class="screen" style="display: none;">
-        <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
+        <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%; border-radius: 20px; border: 1px solid rgba(212,175,55,0.4); background: rgba(10, 14, 23, 0.85); backdrop-filter: blur(16px);">
             <div style="text-align: center; margin-bottom: 25px;">
-                <h1 style="letter-spacing: 1px;">ABASTECE<span class="highlight">JÁ</span></h1>
-                <p class="subtitle">Conectando Oportunidades • Movimentando o Varejo</p>
+                <h1 style="letter-spacing: 1px;">ABASTECE<span class="highlight" style="color: var(--gold, #d4af37);">JÁ</span></h1>
+                <p class="subtitle" style="font-size: 13px; color: #9aa4b2;">Conectando Oportunidades • Movimentando o Varejo</p>
             </div>
 
             <!-- CHECKBOX DE TERMOS -->
-            <div class="remember-box" style="margin-bottom: 20px; background: rgba(212, 175, 55, 0.08); padding: 10px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.2); text-align: left;">
+            <div class="remember-box" style="margin-bottom: 20px; background: rgba(212, 175, 55, 0.08); padding: 12px; border-radius: 10px; border: 1px solid rgba(212, 175, 55, 0.2); text-align: left;">
                 <input type="checkbox" id="check-termos-aluno">
-                <label for="check-termos-aluno" style="font-size: 11px; color: var(--text-color, #ffffff);">
+                <label for="check-termos-aluno" style="font-size: 11px; color: #ffffff;">
                     Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;" style="color: var(--gold, #d4af37); text-decoration: underline; font-weight: bold;">Termos de Uso e Regras da Plataforma</a>.
                 </label>
             </div>
             
-            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border-color: var(--gold, #d4af37); color: var(--text-color, #ffffff); opacity: 0.5; cursor: not-allowed; margin-bottom: 15px; padding: 14px; border-radius: 12px; font-weight: bold;">
+            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 1px solid var(--gold, #d4af37); color: #ffffff; opacity: 0.5; cursor: not-allowed; margin-bottom: 15px; padding: 14px; border-radius: 12px; font-weight: bold;">
                 <svg width="18" height="18" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -143,7 +236,7 @@
                 Sou Freelancer / Promotor
             </a>
 
-            <button onclick="voltarParaApresentacao()" class="btn btn-outline" style="border: 1px solid rgba(255,255,255,0.2); color: var(--text-muted, #aaaaaa); width: 100%; margin-top: 15px; padding: 10px; border-radius: 12px; cursor: pointer;">
+            <button onclick="voltarParaApresentacao()" class="btn btn-outline" style="border: 1px solid rgba(255,255,255,0.2); color: #9aa4b2; width: 100%; margin-top: 15px; padding: 10px; border-radius: 12px; cursor: pointer;">
                 ← Voltar para Apresentação
             </button>
         </div>
@@ -307,51 +400,7 @@
         </div>
     </div>
 
-    <!-- OVERLAY: CHAT ATIVO -->
-    <div id="active-chat-screen" class="app-overlay">
-        <div class="chat-header-bar">
-            <button class="btn-icon text-btn" onclick="closeActiveChat()">&#8592; Voltar</button>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">P</div>
-                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Promotor</h3>
-            </div>
-            <div style="width: 50px;"></div>
-        </div>
-        <div id="chat-messages" class="chat-messages-area"></div>
-        <div class="chat-input-area">
-            <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." onkeypress="handleEnter(event)">
-            <button class="btn-send" onclick="sendMessage()">&#10148;</button>
-        </div>
-    </div>
-
-    <!-- OVERLAY: PERFIL DO PROMOTOR & AVALIAÇÕES -->
-    <div id="trainer-profile-overlay" class="app-overlay">
-        <div class="chat-header-bar">
-            <button class="btn-icon text-btn" onclick="closeTrainerProfile()">&#8592; Voltar</button>
-            <h3 style="font-size: 16px; margin: 0;">Perfil do Promotor</h3>
-            <div style="width: 50px;"></div>
-        </div>
-        <div class="profile-scroll-area">
-            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
-                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">P</div>
-                <h2 id="tp-name" style="margin-bottom: 4px;">Nome</h2>
-                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Promotor Credenciado AbasteceJá</p>
-                <div class="star-rating" id="tp-media-estrelas">⭐⭐⭐⭐⭐ (5.0)</div>
-            </div>
-            <div class="section-title">Avaliações das Lojas</div>
-            <div id="reviews-list"></div>
-            <div class="glass" style="padding: 15px; margin-top: 20px;">
-                <h4 style="margin-bottom: 10px; font-size: 14px;">Deixe sua Avaliação</h4>
-                <div id="star-selector" style="font-size: 24px; cursor: pointer; margin-bottom: 10px; color: var(--gold);">
-                    <span onclick="setRating(1)">★</span><span onclick="setRating(2)">★</span><span onclick="setRating(3)">★</span><span onclick="setRating(4)">★</span><span onclick="setRating(5)">★</span>
-                </div>
-                <textarea id="new-review-text" rows="3" placeholder="Como foi o serviço prestado na loja?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
-                <button class="btn btn-primary" style="padding: 10px; font-size: 13px;" onclick="submitReview()">Publicar Avaliação</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- SCRIPTS E INTEGRAÇÕES DE EVENTOS -->
+    <!-- SCRIPTS DE CONTROLE -->
     <script>
         window.rolarParaProximaSecao = function() {
             window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
