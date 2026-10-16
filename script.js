@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     getAuth, signInWithPopup, signInWithRedirect, getRedirectResult,
     GoogleAuthProvider, signOut, onAuthStateChanged
@@ -128,6 +128,8 @@ function mostrarApp(user) {
     navTo("screen-main");
     renderPromotores();
     renderConversas();
+    renderCalendario();
+    carregarPedidos();
     carregarPerfilLoja();
     carregarProximoAbastecimento();
     if (window.google && !mapRadar) initMap();
@@ -238,7 +240,7 @@ async function enviarSolicitacao(extra = {}) {
         });
         toast("✅ Solicitação enviada! Avisaremos quando um promotor aceitar.");
         $("solicitacao-local").value = "";
-        carregarProximoAbastecimento({ loja: local, horario: $("solicitacao-horario").value });
+        carregarPedidos();
     } catch (e) {
         console.error(e);
         toast("Não foi possível enviar. Verifique as regras do Firestore.");
@@ -369,7 +371,84 @@ function initMap() {
 // EXPORTS PARA O HTML (onclick="...")
 // Módulos ES não expõem funções ao escopo global automaticamente.
 // ==========================================
+// ==========================================
+// PEDIDOS / AGENDA / CARTEIRA / MENU
+// ==========================================
+let pedidos = [];
+let dataCalendario = new Date();
+const ROTULO = { aberta: "Aguardando promotor", aceita: "Aceito", concluida: "Concluído", cancelada: "Cancelado" };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const vazio = (i, t, x) => `<div class="empty-state"><div class="empty-icon">${i}</div><h4>${t}</h4><p>${x}</p></div>`;
+
+async function carregarPedidos() {
+    try {
+        const snap = await getDocs(query(collection(db, "solicitacoes"), where("uid", "==", usuarioAtual.uid)));
+        pedidos = snap.docs.map((d) => d.data()).sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+    } catch (e) { console.warn("Pedidos não carregados:", e.code); pedidos = []; }
+    renderPedidos();
+    renderCarteira();
+    carregarProximoAbastecimento(pedidos.find((p) => p.status === "aberta" || p.status === "aceita"));
+}
+
+function cartaoPedido(p) {
+    const st = p.status || "aberta";
+    return `<div class="glass agenda-slot slot-${st === "concluida" ? "concluida" : st === "aberta" ? "livre" : "ocupado"}">
+        <div class="slot-info"><div class="slot-info-name">${esc(p.loja)}</div>
+        <div class="slot-info-desc">${esc(p.foco)} · ${esc(p.horario)}</div></div>
+        <span class="badge badge-gold">${ROTULO[st] || st}</span></div>`;
+}
+function renderPedidos() {
+    const el = $("lista-pedidos");
+    el.innerHTML = pedidos.length ? pedidos.map(cartaoPedido).join("") : vazio("🛒", "Nenhum pedido ainda", "Solicite um promotor na aba Início e acompanhe o andamento aqui.");
+    el.style.cssText = "display:flex;flex-direction:column;gap:10px";
+}
+function renderCarteira() {
+    $("cart-abertos").innerText = pedidos.filter((p) => p.status === "aberta" || p.status === "aceita").length;
+    const total = pedidos.filter((p) => p.status === "concluida").reduce((s, p) => s + (p.valor || 0), 0);
+    $("cart-total").innerText = total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function renderCalendario() {
+    const grid = $("calendar-days-grid");
+    const ano = dataCalendario.getFullYear(), mes = dataCalendario.getMonth();
+    $("calendar-month-year").innerText = dataCalendario.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
+    const primeiro = (new Date(ano, mes, 1).getDay() + 6) % 7, total = new Date(ano, mes + 1, 0).getDate(), hoje = new Date();
+    let html = "<div></div>".repeat(primeiro);
+    for (let d = 1; d <= total; d++) {
+        const ehHoje = d === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear();
+        html += `<div class="cal-day${ehHoje ? " today" : ""}" onclick="selecionarDia(${d})">${d}</div>`;
+    }
+    grid.innerHTML = html;
+}
+function mudarMesCalendario(n) { dataCalendario = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth() + n, 1); renderCalendario(); }
+function selecionarDia(d) {
+    const data = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth(), d);
+    $("selected-date-label").innerText = "Turnos de " + data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    const dia = pedidos.filter((p) => p.criadoEm?.seconds && new Date(p.criadoEm.seconds * 1000).toDateString() === data.toDateString());
+    $("lista-agenda").innerHTML = dia.length ? dia.map(cartaoPedido).join("") : vazio("📅", "Nenhum turno neste dia", "Pedidos feitos nesta data aparecem aqui.");
+}
+
+const SUB = { pagamento: "pagamento", preferencias: "preferencias", indicar: "indicar", notificacoes: "notificacoes", ajuda: "ajuda" };
+function abrirOpcaoMenu(n) { const e = $("subscreen-" + SUB[n]); if (e) e.style.display = "block"; }
+function fecharSubtela(id) { $(id).style.display = "none"; }
+
+async function salvarCampos(dados, msg, subId) {
+    if (!usuarioAtual) return;
+    try {
+        await setDoc(doc(db, "contratantes", usuarioAtual.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true });
+        toast(msg); fecharSubtela(subId);
+    } catch (e) { console.error(e); toast("Não foi possível salvar. Verifique as regras do Firestore."); }
+}
+function salvarPagamento() { salvarCampos({ pagamento: { metodo: $("pg-metodo").value, documento: $("pg-doc").value.trim() } }, "✅ Forma de pagamento salva!", "subscreen-pagamento"); }
+function salvarPreferencias() { salvarCampos({ preferencias: { setor: $("pref-setor").value, turno: $("pref-turno").value } }, "✅ Preferências salvas!", "subscreen-preferencias"); }
+function copiarLinkIndicacao() { const i = $("input-link-indicacao"); i.select(); navigator.clipboard?.writeText(i.value); toast("📋 Link copiado!"); }
+function compartilharWhatsApp() {
+    const t = encodeURIComponent("Conheça o ABASTECE JÁ: promotores e repositores sob demanda para o varejo. " + $("input-link-indicacao").value);
+    window.open("https://api.whatsapp.com/send?text=" + t, "_blank");
+}
+
 Object.assign(window, {
+    mudarMesCalendario, selecionarDia, abrirOpcaoMenu, fecharSubtela, salvarPagamento, salvarPreferencias, copiarLinkIndicacao, compartilharWhatsApp, toast,
     initMap, loginGoogleAluno, logoutAluno, navTo, switchTab, toggleTheme,
     solicitarTreinoModoUber, solicitarPromotorEspecifico, salvarPerfilAluno,
     atualizarFotoPerfilAluno, abrirChatSimples
