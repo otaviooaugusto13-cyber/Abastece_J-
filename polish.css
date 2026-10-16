@@ -176,3 +176,28 @@ body.light-theme .auth-card { background: rgba(255, 255, 255, .95); }
 body.light-theme [id^="subscreen"] { background: var(--bg-color) !important; }
 body.light-theme [id^="subscreen"] :is(h2, h3, p, span, strong, div) { color: var(--text-color) !important; }
 body.light-theme [id^="subscreen"] :is(input, select, textarea, label[style*="background"]) { background: var(--glass-bg) !important; color: var(--text-color) !important; border-color: var(--glass-border) !important; }
+
+
+/* ---------- Contratante: paridade com o portal do promotor ---------- */
+.glass-nav .nav-item { width: auto; flex: 1; }
+.btn-cal { background: transparent; border: none; color: var(--gold); font-size: 16px; cursor: pointer; padding: 6px 10px; }
+.sub-overlay { position: fixed; inset: 0; z-index: 999999; background: var(--bg-color); overflow-y: auto; animation: none; }
+.sub-inner { max-width: 480px; margin: 0 auto; padding: 20px 20px calc(30px + env(safe-area-inset-bottom)); }
+.sub-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--glass-border); }
+.sub-head h2 { margin: 0; font-size: 18px; }
+.sub-head button { background: none; border: none; color: var(--gold); font-size: 22px; cursor: pointer; }
+.fld { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.sw-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px; margin-bottom: 12px; border-radius: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); font-size: 13px; }
+.sw-row input { width: 18px; height: 18px; margin: 0; accent-color: var(--gold); }
+.header-personal { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; margin: 20px 0 15px; }
+
+/* Classes do portal do promotor, agora também usadas no contratante */
+.finance-card { padding: 15px; margin-bottom: 15px; }
+.finance-header { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.finance-values { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px; }
+.finance-item span { font-size: 11px; color: var(--text-muted); }
+.finance-item h3 { font-size: 16px; margin-top: 3px; }
+.glass-list { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
+.menu-option-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 15px; border-bottom: 1px solid var(--glass-border); cursor: pointer; }
+.option-left { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.option-arrow { font-size: 16px; color: var(--text-muted); font-weight: bold; }
