@@ -29,10 +29,7 @@ let mapRadar;
 let userMarker;
 
 // Banco de lojas/promotores (demonstração)
-const lojasDB = [
-    { nome: "Carlos Silva", especialidade: "Reposição de Gôndolas & Limpeza", lat: -22.4350, lng: -46.8220, elementId: "dist-0", nota: "4,9" },
-    { nome: "Mariana Lima", especialidade: "Hortifrúti & Estoque", lat: -22.4430, lng: -46.8310, elementId: "dist-1", nota: "4,8" }
-];
+const lojasDB = []; // sem dados fictícios: só promotores reais
 
 // ==========================================
 // UTILITÁRIOS
@@ -185,24 +182,23 @@ try {
 // ==========================================
 // LISTAS (PROMOTORES / CONVERSAS)
 // ==========================================
-function renderPromotores() {
+async function renderPromotores() {
     const lista = $("lista-personais-reais");
     if (!lista) return;
-    lista.innerHTML = lojasDB.map((p, i) => `
+    let ativos = [];
+    try {
+        const s = await getDocs(query(collection(db, "profissionais"), where("status", "==", "ativo")));
+        ativos = s.docs.map((d) => d.data());
+    } catch (e) { console.warn("Promotores não carregados:", e.code); }
+    lista.innerHTML = ativos.length ? ativos.map((p) => `
         <div class="glass trainer-card card-gold">
             <div class="trainer-header">
-                <div class="avatar-container story-ring"><div class="avatar">${p.nome.charAt(0)}</div></div>
-                <div class="trainer-info">
-                    <h4>${p.nome} <span class="badge badge-gold">★ ${p.nota}</span></h4>
-                    <p>${p.especialidade}</p>
-                    <div class="trainer-status status-online"><span class="dot"></span>Disponível · <span id="${p.elementId}">calculando...</span></div>
-                </div>
+                <div class="avatar-container story-ring"><div class="avatar">${esc((p.nome || "P").charAt(0))}</div></div>
+                <div class="trainer-info"><h4>${esc(p.nome)}</h4><p>${esc(p.especialidade || "Reposição e abastecimento")}</p>
+                <div class="trainer-status status-online"><span class="dot"></span>Disponível</div></div>
             </div>
-            <div class="trainer-actions">
-                <button class="btn-action btn-outline" onclick="abrirChatSimples('${p.nome}')">Mensagem</button>
-                <button class="btn-action btn-fill" onclick="solicitarPromotorEspecifico('${p.nome}')">Solicitar</button>
-            </div>
-        </div>`).join("");
+            <div class="trainer-actions"><button class="btn-action btn-fill" data-nome="${esc(p.nome)}" onclick="solicitarPromotorEspecifico(this.dataset.nome)">Solicitar</button></div>
+        </div>`).join("") : vazio("🧑‍🔧", "Nenhum promotor ativo ainda", "Faça seu pedido acima: os promotores da região recebem a proposta.");
 }
 
 function renderConversas() {
@@ -225,21 +221,21 @@ function abrirChatSimples(nome) {
 async function enviarSolicitacao(extra = {}) {
     if (!usuarioAtual) { toast("Faça login primeiro."); return; }
     const local = $("solicitacao-local").value.trim();
+    const data = $("solicitacao-data").value, entrada = $("solicitacao-entrada").value, saida = $("solicitacao-saida").value;
+    const valor = parseFloat($("solicitacao-valor").value);
     if (!local) { toast("Informe o nome/endereço da loja."); $("solicitacao-local").focus(); return; }
-
+    if (!data) { toast("Escolha o dia do serviço."); return; }
+    if (data < new Date().toISOString().slice(0, 10)) { toast("O dia não pode ser anterior a hoje."); return; }
+    if (!entrada || !saida || saida <= entrada) { toast("A saída precisa ser depois da entrada."); return; }
+    if (!(valor > 0)) { toast("Informe o valor que deseja pagar."); $("solicitacao-valor").focus(); return; }
     try {
         await addDoc(collection(db, "solicitacoes"), {
-            uid: usuarioAtual.uid,
-            email: usuarioAtual.email,
-            loja: local,
-            horario: $("solicitacao-horario").value,
-            foco: $("solicitacao-foco").value,
-            status: "aberta",
-            criadoEm: serverTimestamp(),
-            ...extra
+            uid: usuarioAtual.uid, email: usuarioAtual.email, loja: local,
+            data, entrada, saida, horario: `${entrada}–${saida}`, valor,
+            foco: $("solicitacao-foco").value, status: "aberta", criadoEm: serverTimestamp(), ...extra
         });
-        toast("✅ Solicitação enviada! Avisaremos quando um promotor aceitar.");
-        $("solicitacao-local").value = "";
+        toast("✅ Pedido enviado! Promotores com esse valor serão avisados.");
+        $("solicitacao-local").value = ""; $("solicitacao-valor").value = "";
         carregarPedidos();
     } catch (e) {
         console.error(e);
@@ -378,12 +374,14 @@ let pedidos = [];
 let dataCalendario = new Date();
 const ROTULO = { aberta: "Aguardando promotor", aceita: "Aceito", concluida: "Concluído", cancelada: "Cancelado" };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtData = (d) => (d ? d.split("-").reverse().join("/") : "");
+const fmtBRL = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const vazio = (i, t, x) => `<div class="empty-state"><div class="empty-icon">${i}</div><h4>${t}</h4><p>${x}</p></div>`;
 
 async function carregarPedidos() {
     try {
         const snap = await getDocs(query(collection(db, "solicitacoes"), where("uid", "==", usuarioAtual.uid)));
-        pedidos = snap.docs.map((d) => d.data()).sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+        pedidos = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
     } catch (e) { console.warn("Pedidos não carregados:", e.code); pedidos = []; }
     renderPedidos();
     renderCarteira();
@@ -394,7 +392,7 @@ function cartaoPedido(p) {
     const st = p.status || "aberta";
     return `<div class="glass agenda-slot slot-${st === "concluida" ? "concluida" : st === "aberta" ? "livre" : "ocupado"}">
         <div class="slot-info"><div class="slot-info-name">${esc(p.loja)}</div>
-        <div class="slot-info-desc">${esc(p.foco)} · ${esc(p.horario)}</div></div>
+        <div class="slot-info-desc">${fmtData(p.data)} · ${esc(p.horario)} · ${esc(p.foco)} · ${fmtBRL(p.valor)}</div></div>
         <span class="badge badge-gold">${ROTULO[st] || st}</span></div>`;
 }
 function renderPedidos() {
@@ -424,8 +422,9 @@ function mudarMesCalendario(n) { dataCalendario = new Date(dataCalendario.getFul
 function selecionarDia(d) {
     const data = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth(), d);
     $("selected-date-label").innerText = "Turnos de " + data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-    const dia = pedidos.filter((p) => p.criadoEm?.seconds && new Date(p.criadoEm.seconds * 1000).toDateString() === data.toDateString());
-    $("lista-agenda").innerHTML = dia.length ? dia.map(cartaoPedido).join("") : vazio("📅", "Nenhum turno neste dia", "Pedidos feitos nesta data aparecem aqui.");
+    const iso = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const dia = pedidos.filter((p) => p.data === iso);
+    $("lista-agenda").innerHTML = dia.length ? dia.map(cartaoPedido).join("") : vazio("📅", "Nenhum turno neste dia", "Pedidos para esta data aparecem aqui.");
 }
 
 const SUB = { pagamento: "pagamento", preferencias: "preferencias", indicar: "indicar", notificacoes: "notificacoes", ajuda: "ajuda" };
