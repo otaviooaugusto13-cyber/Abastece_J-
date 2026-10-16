@@ -301,3 +301,9 @@ function appendMessage(texto, tipo) {
     msgsArea.appendChild(bubble);
     msgsArea.scrollTop = msgsArea.scrollHeight;
 }
+// No final de script.js:
+window.loginGoogleAluno = loginGoogleAluno;
+window.logoutAluno = logoutAluno;
+window.navTo = navTo;
+window.switchTab = switchTab;
+window.toggleTheme = toggleTheme;
