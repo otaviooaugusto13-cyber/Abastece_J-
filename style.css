@@ -32,11 +32,11 @@ body.light-theme {
 }
 
 /* Reset & Base */
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, Roboto, sans-serif; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', -apple-system, Roboto, sans-serif; }
 body { background-color: var(--bg-color); color: var(--text-color); overflow-x: hidden; transition: background-color 0.3s, color 0.3s; }
 
 /* Glassmorphism */
-.glass { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3); transition: all 0.3s; }
+.glass { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3); transition: all 0.3s; }
 
 /* Textos e Tipografia */
 h1 { font-size: 2.3rem; margin-bottom: 10px; font-weight: 800; }
@@ -55,9 +55,9 @@ h2 { font-size: 1.5rem; margin-bottom: 10px; font-weight: 600; }
 .tab-content.active { display: flex; animation: fadeIn 0.3s ease-out; }
 
 /* Inputs e Botões */
-input, select { width: 100%; padding: 14px 16px; margin-bottom: 15px; border-radius: 12px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-color); outline: none; font-size: 15px; transition: border 0.3s; }
+input, select { width: 100%; padding: 14px 16px; margin-bottom: 15px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-color); outline: none; font-size: 15px; transition: border 0.3s; }
 input:focus, textarea:focus, select:focus { border-color: var(--gold) !important; outline: none; }
-.btn { background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-color); padding: 16px 30px; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; position: relative; overflow: hidden; width: 100%; transition: transform 0.1s, background-color 0.2s; }
+.btn { background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-color); padding: 16px 30px; border-radius: 999px; font-size: 15px; font-weight: bold; cursor: pointer; position: relative; overflow: hidden; width: 100%; transition: transform 0.1s, background-color 0.2s; }
 .btn:active { transform: scale(0.97); }
 .btn-primary { background: linear-gradient(135deg, #d4af37, #ffd700); border: none; color: #000; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); }
 
@@ -98,7 +98,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .status-online .dot { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
 
 .trainer-actions { display: flex; gap: 10px; width: 100%; border-top: 1px solid var(--glass-border); padding-top: 15px; }
-.btn-action { flex: 1; padding: 10px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; text-align: center; }
+.btn-action { flex: 1; padding: 10px; border-radius: 999px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; text-align: center; }
 .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text-color); }
 .btn-outline:hover { background: var(--glass-bg); }
 .btn-fill { background: var(--gold); border: none; color: #000; }
@@ -108,7 +108,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .avatar { width: 100%; height: 100%; border-radius: 50%; background: #121927; z-index: 1; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid var(--bg-color); color: var(--gold); }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-.badge { font-size: 10px; padding: 3px 6px; border-radius: 4px; margin-left: 5px; }
+.badge { font-size: 10px; padding: 3px 6px; border-radius: 999px; margin-left: 5px; }
 .badge-gold { background: rgba(212, 175, 55, 0.15); color: var(--gold); border: 1px solid rgba(212, 175, 55, 0.3); }
 
 /* Overlays */
@@ -122,7 +122,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 
 .profile-scroll-area { flex: 1; overflow-y: auto; padding: 20px; }
 .star-rating { color: var(--gold); font-size: 13px; font-weight: bold; letter-spacing: 2px; margin-top: 5px; }
-.review-card { padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); margin-bottom: 10px; }
+.review-card { padding: 15px; border-radius: 18px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); margin-bottom: 10px; }
 .review-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
 .review-author { font-size: 14px; font-weight: bold; color: var(--text-color); }
 .review-date { font-size: 12px; color: var(--text-muted); }
@@ -140,7 +140,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--gold) !important
 .btn-send { background: var(--gold); color: #000; border: none; border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; flex-shrink: 0; font-size: 18px; transition: 0.2s; }
 
 /* Menu Fixo Inferior */
-.glass-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 80px; display: flex; justify-content: space-around; align-items: center; background: var(--glass-nav); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-top: 1px solid var(--glass-border); z-index: 500; padding-bottom: 10px; }
+.glass-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 80px; display: flex; justify-content: space-around; align-items: center; background: var(--glass-nav); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-top: 1px solid var(--glass-border); z-index: 500; border-radius: 22px 22px 0 0; }
 .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 60px; cursor: pointer; color: var(--text-muted); transition: all 0.3s ease; }
 .nav-icon { width: 24px; height: 24px; margin-bottom: 4px; transition: 0.3s; }
 .nav-item span { font-size: 11px; font-weight: 500; }
@@ -172,3 +172,8 @@ input, textarea { font-size: 16px; }
     40% { transform: translateY(-8px); }
     60% { transform: translateY(-4px); }
 }
+
+
+/* Campos de data/hora */
+input[type=date], input[type=time] { color-scheme: dark; min-width: 0; }
+body.light-theme input[type=date], body.light-theme input[type=time] { color-scheme: light; }
