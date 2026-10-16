@@ -1,10 +1,8 @@
 :root {
     --brand-primary: #1e3a8a;
     --brand-gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%);
-    --bg-body: #ffffff; /* Fundo 100% branco para um visual ultra-clean */
-    --bg-subtle: #f8fafc;
+    --bg-body: #f8fafc;
     --text-dark: #0f172a;
-    --text-muted: #64748b;
     --accent-gold: #f59e0b;
 }
 
@@ -26,17 +24,18 @@ body, html {
 /* HERO HEADER AZUL MARINHO */
 .hero-banner {
     background: var(--brand-gradient);
-    padding: 50px 20px 110px 20px;
+    padding: 45px 20px 110px 20px;
     text-align: center;
     color: #ffffff;
     position: relative;
 }
 
 .hero-banner-title {
-    font-size: 2.4rem;
+    font-size: 2.3rem;
     font-weight: 900;
     margin: 0;
     letter-spacing: -1px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
 
 .hero-banner-title span {
@@ -44,12 +43,13 @@ body, html {
 }
 
 .hero-banner-sub {
-    font-size: 14px;
+    font-size: 13px;
     opacity: 0.9;
     margin-top: 6px;
     margin-bottom: 20px;
 }
 
+/* ONDA DIVISORA */
 .hero-wave {
     position: absolute;
     bottom: 0;
@@ -70,68 +70,69 @@ body, html {
     fill: var(--bg-body);
 }
 
-/* CARD DE DESTAQUE FLUTUANTE */
+/* CARD SOBREPOSTO AO TOPO */
 .card-overlap {
-    max-width: 440px;
+    max-width: 420px;
     width: 90%;
-    margin: -70px auto 40px auto;
+    margin: -70px auto 30px auto;
     background: #ffffff;
-    border-radius: 20px;
-    padding: 28px 24px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    border-radius: 22px;
+    padding: 22px 18px;
+    box-shadow: 0 15px 35px rgba(15, 23, 42, 0.1);
     position: relative;
     z-index: 10;
-    border: 1px solid #f1f5f9;
+    border: 1px solid rgba(226, 232, 240, 0.9);
     box-sizing: border-box;
 }
 
 .card-tag {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
-    color: #d97706;
+    color: var(--accent-gold);
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     display: block;
 }
 
 .card-title {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
-    line-height: 1.4;
+    line-height: 1.35;
     color: var(--text-dark);
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
 }
 
 .card-desc {
-    font-size: 13px;
-    color: var(--text-muted);
-    line-height: 1.5;
-    margin-bottom: 22px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.45;
+    margin-bottom: 18px;
 }
 
+/* BOTÕES REFINADOS */
 .btn-main {
     background: linear-gradient(135deg, #f59e0b, #d97706);
     color: #ffffff;
     font-weight: 700;
-    font-size: 14px;
-    padding: 15px;
+    font-size: 13px;
+    padding: 14px;
     border-radius: 12px;
     border: none;
     width: 100%;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(217, 119, 6, 0.25);
-    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(217, 119, 6, 0.25);
+    margin-bottom: 8px;
 }
 
 .btn-sub {
-    background: #f8fafc;
+    background: #f1f5f9;
     color: #334155;
     font-weight: 700;
-    font-size: 14px;
-    padding: 14px;
+    font-size: 13px;
+    padding: 12px;
     border-radius: 12px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
     width: 100%;
     display: block;
     text-align: center;
@@ -139,125 +140,109 @@ body, html {
     box-sizing: border-box;
 }
 
-/* SEÇÃO DE NÚMEROS: FAIXA CONTINUA CLEAN (SEM CAIXAS SOLTAS) */
-.stats-banner-section {
-    background: #f8fafc;
-    padding: 35px 20px;
-    border-top: 1px solid #f1f5f9;
-    border-bottom: 1px solid #f1f5f9;
-    margin: 20px 0 40px 0;
+/* SEÇÕES COMUNS */
+.content-section {
+    padding: 15px 20px 35px 20px;
+    max-width: 420px;
+    width: 90%;
+    margin: 0 auto;
+    text-align: center;
+    box-sizing: border-box;
 }
 
+.section-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin-bottom: 15px;
+}
+
+/* NÚMEROS: DESIGN EM FAIXA UNIFICADA (MAIS LIMPO) */
 .stats-container {
-    max-width: 500px;
-    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+    padding: 16px 10px;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 24px 16px;
-    text-align: center;
+    gap: 12px;
 }
 
 .stat-item {
     display: flex;
     flex-direction: column;
     align-items: center;
+    padding: 8px;
 }
 
-.stat-value {
-    font-size: 26px;
+.stat-num {
+    font-size: 19px;
     font-weight: 900;
-    color: var(--brand-primary);
-    line-height: 1.1;
-    letter-spacing: -0.5px;
-}
-
-.stat-desc {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
+    color: var(--text-dark);
     margin-top: 4px;
 }
 
-/* SERVIÇOS: LISTA MINIMALISTA SLIM */
-.content-section {
-    padding: 0 20px 40px 20px;
-    max-width: 480px;
-    margin: 0 auto;
-    text-align: center;
+.stat-lbl {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
 }
 
-.section-title {
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--text-dark);
-    margin-bottom: 20px;
+/* SERVIÇOS: FORMATO PÍLULA / TAG COMPACTA */
+.services-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
 }
 
-.services-chips-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-
-.service-chip {
+.service-pill-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 12px 6px;
+    padding: 10px 14px;
+    border-radius: 14px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    transition: border-color 0.2s;
+    gap: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    width: calc(50% - 6px);
+    box-sizing: border-box;
 }
 
-.service-chip:hover {
-    border-color: #cbd5e1;
-}
-
-.service-chip-icon {
-    font-size: 20px;
-    line-height: 1;
-}
-
-.service-chip-text {
+.service-pill-card span {
     font-size: 12px;
     font-weight: 700;
     color: #334155;
 }
 
-/* MARCAS PARCEIRAS: LINHA ELEGANTE DE BADGES */
-.partners-row {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 15px;
-}
-
-.partner-badge {
-    background: #f1f5f9;
-    color: #475569;
-    font-size: 12px;
-    font-weight: 700;
+/* MARCAS PARCEIRAS */
+.partner-pill {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     padding: 8px 16px;
-    border-radius: 20px;
-    border: 1px solid #e2e8f0;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    display: inline-block;
+    margin: 3px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
-/* BOTÃO WHATSAPP */
+/* WHATSAPP */
 .btn-whatsapp {
     position: fixed;
     bottom: 20px;
     right: 20px;
     background: #25d366;
     color: white;
-    width: 48px;
-    height: 48px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     z-index: 100;
 }
