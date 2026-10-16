@@ -1,7 +1,3 @@
-
-
-// Se o Maps carregou antes do módulo, inicia agora
-if (window.google && window.google.maps) initMap();
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -128,6 +124,7 @@ function mostrarApp(user) {
     }
 
     navTo("screen-main");
+    const lk = $("input-link-indicacao"); if (lk) lk.value = location.origin + location.pathname.replace(/[^/]*$/, "") + "index.html";
     const inpData = $("solicitacao-data");
     if (inpData) { inpData.min = hojeLocal(); if (!inpData.value) inpData.value = hojeLocal(); }
     renderPromotores();
