@@ -45,6 +45,16 @@ exports.webhookMP = onRequest(async (req, res) => {
   try {
     const id = req.body?.data?.id || req.query["data.id"];
     if (!id) return res.sendStatus(200);
+    // INDICAÇÃO: ao aprovar o pagamento, se for o 1º turno concluído do promotor e ele tiver "indicadoPor",
+    // os 15% da plataforma viram crédito do promotor que indicou:
+    //   const prom = (await db.collection("profissionais").doc(s.promotorChave).get()).data();
+    //   if (prom.indicadoPor && !prom.bonusIndicacaoPago) {
+    //     const q = await db.collection("profissionais").where("refCode", "==", prom.indicadoPor).limit(1).get();
+    //     if (!q.empty && q.docs[0].id !== s.promotorChave) {
+    //       await db.collection("indicacoes").add({ para: q.docs[0].id, de: s.promotorChave, valor: s.valor * 0.15, solicitacaoId: id, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    //       await db.collection("profissionais").doc(s.promotorChave).update({ bonusIndicacaoPago: true });
+    //     }
+    //   }
     // Confirme o pagamento consultando a API do MP (com o token do promotor) antes de marcar.
     // Exemplo resumido: após validar status === "approved":
     //   await db.collection("solicitacoes").doc(external_reference).update({ status: "concluida", pagoEm: admin.firestore.FieldValue.serverTimestamp() });
