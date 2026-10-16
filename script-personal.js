@@ -20,7 +20,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const $ = (id) => document.getElementById(id);
 
-let dadosPerfil = { nome: "Promotor", cpf: "", cref: "", status: "pendente", fotoUrl: null };
+let dadosPerfil = { nome: "Promotor", cpf: "", cref: "", uid: "", status: "pendente", fotoUrl: null };
 let agendaDeHoje = [];
 let ganhosAvulsos = 0;
 let mapaOfertas = null;
@@ -141,28 +141,37 @@ async function loginComGoogle() {
 }
 
 async function processarUsuarioGoogle(user, interativo) {
+    dadosPerfil.uid = user.uid;
+    dadosPerfil.fotoUrl = user.photoURL;
+
     let prof = null;
-    try { prof = await acharProfissionalPorEmail(user.email); } catch (e) { console.warn(e); }
+    let erroBanco = false;
+    try { prof = await acharProfissionalPorEmail(user.email); }
+    catch (e) { erroBanco = true; console.error("Firestore (consulta profissionais):", e.code, e.message); }
 
     if (prof) {
         if (prof.status === "bloqueado") { toast("❌ Acesso não liberado para este e-mail."); return; }
-        dadosPerfil.fotoUrl = user.photoURL;
         finalizarLogin({ lembreme: false, nome: prof.nome || user.displayName, cpf: prof.cpf || "", cref: prof.cref || "", status: prof.status || "pendente" });
         return;
     }
-    if (!interativo) return; // restauração de sessão sem cadastro: fica no login
+    // Restauração automática de sessão sem cadastro de promotor: fica na tela de login
+    if (!interativo) return;
 
-    const cpf = (prompt("Login realizado!\n\nInforme seu CPF (apenas números) para concluir o cadastro:") || "").replace(/\D/g, "");
-    if (!cpf) return;
-    if (!cpfValido(cpf)) { toast("CPF inválido."); return; }
-    try {
-        await setDoc(doc(db, "profissionais", cpf), {
-            nome: user.displayName, email: user.email, cpf, cref: "",
-            fotoGoogle: user.photoURL, status: "pendente", criadoEm: serverTimestamp()
-        });
-    } catch (e) { console.error(e); toast("Não foi possível salvar o cadastro agora."); return; }
-    dadosPerfil.fotoUrl = user.photoURL;
-    finalizarLogin({ lembreme: false, nome: user.displayName, cpf, cref: "", status: "pendente" });
+    // Primeiro acesso: cria o cadastro como "pendente" e ENTRA (sem prompt, que alguns navegadores bloqueiam).
+    // O CPF pode ser preenchido depois em Menu → Perfil.
+    if (!erroBanco) {
+        try {
+            await setDoc(doc(db, "profissionais", user.uid), {
+                nome: user.displayName || "", email: user.email, uid: user.uid, cpf: "", cref: "",
+                fotoGoogle: user.photoURL || "", status: "pendente", criadoEm: serverTimestamp()
+            });
+        } catch (e) {
+            erroBanco = true;
+            console.error("Firestore (criar cadastro):", e.code, e.message);
+        }
+    }
+    if (erroBanco) toast("Entrou, mas o banco recusou a leitura/gravação. Ajuste as regras do Firestore.");
+    finalizarLogin({ lembreme: false, nome: user.displayName || user.email, cpf: "", cref: "", status: "pendente" });
 }
 
 onAuthStateChanged(auth, (user) => { if (user) processarUsuarioGoogle(user, false); });
@@ -254,8 +263,9 @@ function fecharSubtela(id) { $(id).style.display = "none"; }
 // PERFIL / BANCO / PREFERÊNCIAS
 // ==========================================
 async function salvarMerge(dados) {
-    if (!dadosPerfil.cpf) { toast("Salvo apenas neste aparelho (sem CPF vinculado)."); return; }
-    await setDoc(doc(db, "profissionais", dadosPerfil.cpf), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true });
+    const chave = dadosPerfil.cpf || dadosPerfil.uid;
+    if (!chave) { toast("Faça login para salvar."); return; }
+    await setDoc(doc(db, "profissionais", chave), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true });
 }
 
 async function salvarPerfilProfissionalCompleto() {
