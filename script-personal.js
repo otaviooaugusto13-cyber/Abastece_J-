@@ -497,7 +497,7 @@ Object.assign(window, {
     validarProfissional, loginComGoogle, validarCheckTermos, abrirModalTermos, aceitarTermosModal,
     abrirOpcaoMenu, fecharSubtela, salvarPerfilProfissionalCompleto, salvarDadosBancarios,
     atualizarFotoPerfil, sairModoPessoal, switchTabPersonal, mudarMesCalendario, selecionarDia,
-    fazerCheckin, cancelarTurno, aceitarTurno, abrirModalCadastrarAluno, fecharModalCadastrarAluno,
+    abrirModalCadastrarAluno, fecharModalCadastrarAluno,
     confirmarCadastroAluno, fecharConversaModal, enviarMensagemChat, enviarPropostaPersonal, initMapAlunos
 });
 
