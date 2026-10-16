@@ -25,7 +25,7 @@
             <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
             <div class="auth-switch"><a href="index.html" class="">Sou contratante</a><a href="promotor.html" class="on">Sou promotor</a></div>
             <h2 class="auth-title">Comece a pegar turnos</h2>
-            <p class="auth-sub">Seu cadastro passa por análise antes de liberar as ofertas.</p>
+            <p class="auth-sub" id="login-sub">Seu cadastro passa por análise antes de liberar as ofertas.</p>
             <input type="text" id="input-nome" placeholder="Seu nome profissional" autocomplete="name">
             <input type="text" id="input-cpf" placeholder="CPF (apenas números)" maxlength="11" inputmode="numeric">
             <input type="text" id="input-cref" placeholder="MEI ou experiência (opcional)">
@@ -466,13 +466,13 @@
             <div class="glass" style="padding: 20px; border-radius: 16px; margin-bottom: 20px; background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.3);">
                 <h3 style="color: var(--gold, #ffd700); font-size: 16px; margin: 0 0 10px 0;">🎁 Como funciona?</h3>
                 <p style="font-size: 13px; color: #e4e4e7; line-height: 1.5; margin: 0;">
-                    Você fica com <strong>85%</strong> e a plataforma com <strong>15%</strong>. Ao indicar um promotor parceiro, na <strong>primeira reposição realizada por ele</strong>, você ganha o bônus de indicação referente à transação inicial!
+                    Envie seu link para um amigo promotor. Quando ele concluir o <strong>primeiro turno</strong>, os <strong>15% da plataforma</strong> desse turno ficam com você. Depois disso, tudo segue o padrão normal (85% promotor, 15% plataforma).
                 </p>
             </div>
 
             <label style="font-size: 12px; font-weight: bold; color: #e4e4e7; display: block; margin-bottom: 6px;">Seu Link de Indicação Exclusivo</label>
             <div style="display: flex; gap: 8px; margin-bottom: 20px;">
-                <input type="text" id="input-link-indicacao" readonly style="flex: 1; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 12px; color: var(--gold, #ffd700); background: #1f1f23; outline: none; box-sizing: border-box;" value="https://abasteceja.com.br/promotor/cadastro?ref=OTAVIO">
+                <input type="text" id="input-link-indicacao" readonly style="flex: 1; padding: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 12px; color: var(--gold, #ffd700); background: #1f1f23; outline: none; box-sizing: border-box;" value="" placeholder="Gerando seu link...">
                 <button onclick="copiarLinkIndicacao()" style="background: #27272a; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 0 15px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px;">Copiar</button>
             </div>
 
@@ -620,7 +620,7 @@
 
         window.compartilharWhatsApp = function() {
             const input = document.getElementById('input-link-indicacao');
-            const link = input ? input.value : "https://abasteceja.com.br/promotor/cadastro";
+            const link = input && input.value ? input.value : location.href.split("?")[0];
             const texto = encodeURIComponent(`Olá! Venha para o ABASTECE JÁ, a plataforma de demandas de reposição e abastecimento no varejo. Cadastre-se pelo link: ${link}`);
             window.open(`https://api.whatsapp.com/send?text=${texto}`, '_blank');
         }
