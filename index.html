@@ -17,8 +17,75 @@
         </svg>
     </a>
 
+    <!-- CONTAINER DA LANDING PAGE DE APRESENTAÇÃO -->
+    <div id="landing-page-container" style="width: 100%; overflow-x: hidden;">
+        
+        <!-- SEÇÃO 1: HERO / APRESENTAÇÃO PRINCIPAL -->
+        <section class="landing-section" style="min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; text-align: center; position: relative;">
+            <div>
+                <h1 style="font-size: 2.3rem; letter-spacing: 2px;">ABASTECE<span class="highlight">JÁ</span></h1>
+                <p class="subtitle" style="font-size: 14px;">Conectando Oportunidades • Movimentando o Varejo</p>
+            </div>
+
+            <div class="glass" style="padding: 30px 20px; max-width: 400px; width: 100%; border: 1px solid var(--gold);">
+                <h3 style="font-size: 17px; color: var(--gold); margin-bottom: 10px;">Promotores e Lojas sob Demanda</h3>
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">A plataforma digital que une supermercados e profissionais qualificados com agilidade.</p>
+                
+                <div style="display: flex; gap: 10px; flex-direction: column;">
+                    <a href="promotor.html" class="btn" style="background: var(--gold); color: #000; text-decoration: none; text-align: center; font-weight: bold; padding: 14px;">Cadastro Promotor / Freelancer</a>
+                    <button onclick="abrirTelaLoginApp()" class="btn btn-outline" style="border-color: var(--gold); color: var(--gold); padding: 14px;">Acessar Painel / Entrar</button>
+                </div>
+            </div>
+
+            <!-- Seta indicativa para baixo -->
+            <div style="animation: bounce 2s infinite; cursor: pointer; margin-top: 10px;" onclick="rolarParaProximaSecao()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 2: NÚMEROS DA PLATAFORMA -->
+        <section class="landing-section" style="padding: 60px 20px; text-align: center;">
+            <h2 style="color: var(--gold); margin-bottom: 30px; font-size: 1.8rem;">Números do Abastece Já</h2>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 480px; margin: 0 auto;">
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">4,9</h3><p style="font-size: 12px; color: var(--text-muted);">Avaliação média</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+2.000</h3><p style="font-size: 12px; color: var(--text-muted);">Lojas atendidas</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+450K</h3><p style="font-size: 12px; color: var(--text-muted);">Atendimentos</p></div>
+                <div class="glass" style="padding: 20px;"><h3 style="color: var(--gold); font-size: 24px;">+3M</h3><p style="font-size: 12px; color: var(--text-muted);">Horas realizadas</p></div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 3: SERVIÇOS QUE ATENDEMOS -->
+        <section class="landing-section" style="padding: 60px 20px; text-align: center;">
+            <h2 style="color: var(--gold); margin-bottom: 30px; font-size: 1.8rem;">Servícios que Atendemos</h2>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 480px; margin: 0 auto;">
+                <div class="glass" style="padding: 15px; font-size: 12px;">🛒<br><strong>Mercearia</strong></div>
+                <div class="glass" style="padding: 15px; font-size: 12px;">🍎<br><strong>Hortifruti</strong></div>
+                <div class="glass" style="padding: 15px; font-size: 12px;">🧀<br><strong>Frios</strong></div>
+                <div class="glass" style="padding: 15px; font-size: 12px;">🍾<br><strong>Bebidas</strong></div>
+                <div class="glass" style="padding: 15px; font-size: 12px;">🔍<br><strong>Inventário</strong></div>
+                <div class="glass" style="padding: 15px; font-size: 12px;">📦<br><strong>Outros</strong></div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 4: MARCAS PARCEIRAS -->
+        <section class="landing-section" style="padding: 60px 20px; text-align: center;">
+            <h2 style="color: var(--gold); margin-bottom: 20px; font-size: 1.8rem;">Marcas Parceiras</h2>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 25px;">Grandes redes do varejo que confiam em nossa tecnologia.</p>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 480px; margin: 0 auto;">
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Supermercados</div>
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Atacarejos</div>
+                <div class="glass" style="padding: 12px 20px; font-weight: bold; color: var(--gold);">Distribuidoras</div>
+            </div>
+            
+            <div style="margin-top: 40px;">
+                <button onclick="abrirTelaLoginApp()" class="btn btn-primary" style="max-width: 300px; margin: 0 auto;">Quero Acessar o Sistema</button>
+            </div>
+        </section>
+
+    </div>
+
     <!-- TELA 1: Login do Contratante -->
-    <div id="screen-login" class="screen active">
+    <div id="screen-login" class="screen" style="display: none;">
         <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
             <div style="text-align: center; margin-bottom: 25px;">
                 <h1 style="letter-spacing: 1px;">ABASTECE<span class="highlight">JÁ</span></h1>
@@ -46,6 +113,10 @@
             <a href="promotor.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
                 Sou Freelancer / Contratante
             </a>
+
+            <button onclick="voltarParaApresentacao()" class="btn btn-outline" style="border-color: rgba(255,255,255,0.2); color: var(--text-muted); width: 100%; margin-top: 10px;">
+                ← Voltar para Apresentação
+            </button>
         </div>
     </div>
 
@@ -252,6 +323,23 @@
     </div>
 
     <script>
+        function rolarParaProximaSecao() {
+            window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+        }
+
+        function abrirTelaLoginApp() {
+            document.getElementById('landing-page-container').style.display = 'none';
+            document.getElementById('screen-login').style.display = 'flex';
+            document.getElementById('screen-login').classList.add('active');
+        }
+
+        function voltarParaApresentacao() {
+            document.getElementById('screen-login').style.display = 'none';
+            document.getElementById('screen-main').classList.remove('active');
+            document.getElementById('landing-page-container').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function validarCheckTermosAluno() {
             const checkbox = document.getElementById('check-termos-aluno');
             const btnLogin = document.getElementById('btn-login-aluno');
