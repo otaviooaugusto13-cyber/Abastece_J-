@@ -3,224 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ABASTECE JÁ - App do Promotor</title>
+    <title>ABASTECE JÁ - Conectando o Varejo</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d4af37">
 </head>
 <body>
 
     <!-- Botão Flutuante de Suporte WhatsApp -->
-    <a href="https://wa.me/5511999999999" target="_blank" class="btn-whatsapp" title="Suporte via WhatsApp">
+    <a href="https://wa.me/5519999999999" target="_blank" id="btn-whatsapp-suporte" class="btn-whatsapp" title="Suporte via WhatsApp">
         <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
         </svg>
     </a>
 
-    <!-- TELA 1: Login do Promotor -->
+    <!-- TELA 1: Login do Contratante -->
     <div id="screen-login" class="screen active">
         <div class="glass login-box" style="padding: 40px 30px; max-width: 400px; width: 100%;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h1>ABASTECE<span class="highlight">JÁ</span></h1>
-                <p class="subtitle">Faça Renda Extra no Varejo</p>
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="letter-spacing: 1px;">ABASTECE<span class="highlight">JÁ</span></h1>
+                <p class="subtitle">Conectando Oportunidades • Movimentando o Varejo</p>
+            </div>
+
+            <!-- CHECKBOX OBRIGATÓRIO DOS TERMOS -->
+            <div class="remember-box" style="margin-bottom: 20px; background: rgba(212, 175, 55, 0.08); padding: 10px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.2); text-align: left;">
+                <input type="checkbox" id="check-termos-aluno" onchange="validarCheckTermosAluno()">
+                <label for="check-termos-aluno" style="font-size: 11px; color: var(--text-color);">
+                    Li e concordo com os <a href="#" onclick="abrirModalTermosAluno(); return false;" style="color: var(--gold); text-decoration: underline; font-weight: bold;">Termos de Uso e Regras da Plataforma</a>.
+                </label>
             </div>
             
-            <input type="text" id="input-name" placeholder="Seu Nome ou E-mail">
-            <input type="password" id="input-senha" placeholder="Sua Senha">
+            <button id="btn-login-aluno" class="btn btn-primary ripple-btn" onclick="loginGoogleAluno()" disabled style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border-color: var(--gold); color: var(--text-color); opacity: 0.5; cursor: not-allowed; margin-bottom: 15px;">
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                Entrar com Google (Contratante)
+            </button>
             
-            <button class="btn btn-primary ripple-btn" onclick="simulateLogin()">Entrar como Promotor</button>
-            
-            <a href="personal.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
-                Sou Supermercado / Acessar Portal
+            <a href="promotor.html" class="btn btn-outline" style="display: block; text-align: center; margin-top: 15px; color: var(--gold); border: 1px solid var(--gold); text-decoration: none;">
+                Sou Promotor / Freelancer
             </a>
         </div>
     </div>
 
-    <!-- TELA PRINCIPAL (App do Promotor) -->
+    <!-- TELA PRINCIPAL (App do Contratante) -->
     <div id="screen-main" class="screen main-app-screen">
         
         <!-- ABA: HOME -->
-        <div id="tab-home" class="tab-content active">
+        <div id="tab-home" class="tab-content active" style="padding-bottom: 110px;">
             <div class="header-glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <div>
-                    <h2>Olá, <span id="display-name-home" class="highlight">Promotor</span>!</h2>
-                    <p id="welcome-subtitle" style="font-size: 13px; color: var(--text-muted);">Pronto para o plantão de reposição?</p>
+                    <h2>Olá, <span id="display-name-home" class="highlight">Loja</span>!</h2>
+                    <p id="welcome-subtitle" style="font-size: 13px; color: var(--text-muted);">Precisou abastecer? AbasteceJá!</p>
                 </div>
-                <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--neon-green);">P</div>
+                <div class="avatar" id="main-user-avatar" style="width: 45px; height: 45px; border-color: var(--gold);">A</div>
             </div>
 
-            <!-- Radar em Tempo Real de Lojas -->
-            <div class="section-title">Radar de Lojas e Supermercados Próximos</div>
-            <div id="mapa-quadrado" class="glass" style="height: 230px; width: 100%; border-radius: 16px; border: 1px solid var(--neon-green); overflow: hidden; margin-bottom: 25px; z-index: 1;"></div>
-
-            <!-- Skeleton Loading -->
-            <div id="skeleton-area" class="skeleton-container" style="display: none;">
-                <div class="skeleton"></div>
-                <div class="skeleton"></div>
-            </div>
-
-            <!-- Conteúdo Dinâmico com Lojas / Supermercados -->
-            <div id="home-content">
-                <div class="section-title">Vagas Urgentes na Região</div>
+            <!-- MODO UBER: CHAMAR PROMOTOR AGORA -->
+            <div class="glass" style="padding: 15px; margin-bottom: 20px; border: 1px solid var(--gold); border-left: 4px solid var(--gold);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0; font-size: 15px; color: var(--gold); display: flex; align-items: center; gap: 6px;">🛒 Solicitar Promotor em Tempo Real</h3>
+                    <span style="font-size: 10px; background: rgba(212,175,55,0.2); color: var(--gold); padding: 2px 8px; border-radius: 10px; font-weight: bold;">Rápido & Direto</span>
+                </div>
                 
-                <!-- Loja 1 -->
-                <div class="trainer-card glass card-gold">
-                    <div class="trainer-header">
-                        <div class="avatar-container story-ring">
-                            <div class="avatar">SC</div>
-                        </div>
-                        <div class="trainer-info">
-                            <h4>Supermercado Central <span class="badge badge-gold">Alta Demanda</span></h4>
-                            <p>Demanda: Reposição de Gôndolas & Limpeza</p>
-                            <div class="trainer-status status-online">
-                                <span class="dot"></span> Turno Aberto • <span id="dist-roberto">Calculando distância...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="trainer-actions">
-                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Supermercado Central')">Ver Detalhes</button>
-                        <button class="btn-action btn-fill" onclick="openActiveChat('Supermercado Central')">Aceitar Turno</button>
-                    </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <select id="solicitacao-horario" style="flex: 1; padding: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px;">
+                        <option value="Agora (Imediato)">⏱️ Reposição Imediata</option>
+                        <option value="Turno Manhã">🌅 Turno Manhã</option>
+                        <option value="Turno Tarde">🌆 Turno Tarde</option>
+                        <option value="Diária Completa">📦 Diária Completa</option>
+                    </select>
+
+                    <select id="solicitacao-foco" style="flex: 1; padding: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px;">
+                        <option value="Mercearia">🛒 Mercearia</option>
+                        <option value="Hortifruti / FLV">🍎 Hortifruti / FLV</option>
+                        <option value="Frios & Laticínios">🧀 Frios & Laticínios</option>
+                        <option value="Bebidas">🍾 Bebidas</option>
+                        <option value="Auditoria / Inventário">🔍 Inventário</option>
+                    </select>
                 </div>
 
-                <!-- Loja 2 -->
-                <div class="trainer-card glass card-silver">
-                    <div class="trainer-header">
-                        <div class="avatar-container">
-                            <div class="avatar">AB</div>
-                        </div>
-                        <div class="trainer-info">
-                            <h4>Atacadão Bom Preço <span class="badge badge-silver">Verificado</span></h4>
-                            <p>Demanda: Organização de Hortifrúti & Estoque</p>
-                            <div class="trainer-status status-online">
-                                <span class="dot"></span> Vagas Disponíveis • <span id="dist-livia">Calculando distância...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="trainer-actions">
-                        <button class="btn-action btn-outline" onclick="openTrainerProfile('Atacadão Bom Preço')">Ver Detalhes</button>
-                        <button class="btn-action btn-fill" onclick="openActiveChat('Atacadão Bom Preço')">Aceitar Turno</button>
-                    </div>
-                </div>
+                <input type="text" id="solicitacao-local" placeholder="Nome do Supermercado / Endereço da Loja" style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px; margin-bottom: 10px;">
+
+                <button class="btn btn-primary" style="padding: 10px; font-size: 13px; font-weight: bold;" onclick="solicitarTreinoModoUber()">
+                    🚀 Solicitar Promotores na Região
+                </button>
+            </div>
+
+            <!-- Container do Google Maps -->
+            <div class="section-title">Radar de Promotores e Freelancers na Região</div>
+            <div id="mapa-quadrado" class="glass" style="height: 220px; width: 100%; border-radius: 16px; border: 1px solid var(--gold); overflow: hidden; margin-bottom: 25px; z-index: 1;"></div>
+
+            <!-- Lista de Promotores -->
+            <div id="home-content">
+                <div class="section-title">Promotores Disponíveis na Região</div>
+                <div id="lista-personais-reais" style="display: flex; flex-direction: column; gap: 15px;"></div>
             </div>
         </div>
 
         <!-- ABA: MENSAGENS -->
         <div id="tab-mensagens" class="tab-content">
             <div class="header-glass" style="margin-bottom: 20px;">
-                <h2>Conversas com Lojas</h2>
+                <h2>Suas Conversas</h2>
             </div>
-            <div id="lista-conversas">
-                <div class="chat-item glass" onclick="openActiveChat('Supermercado Central')">
-                    <div class="avatar" style="border-color: var(--gold); width: 45px; height: 45px;">SC</div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <h4>Supermercado Central</h4>
-                            <span class="chat-time">10:42</span>
-                        </div>
-                        <p>Turno confirmado para amanhã às 08h!</p>
-                    </div>
-                </div>
-                <div class="chat-item glass" onclick="openActiveChat('Atacadão Bom Preço')">
-                    <div class="avatar" style="border-color: var(--silver); width: 45px; height: 45px;">AB</div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <h4>Atacadão Bom Preço</h4>
-                            <span class="chat-time">Ontem</span>
-                        </div>
-                        <p>Olá! Precisamos de reforço na reposição...</p>
-                    </div>
-                </div>
-            </div>
+            <div id="lista-conversas"></div>
         </div>
 
-        <!-- ABA: PERFIL -->
-        <div id="tab-perfil" class="tab-content">
-            <div class="profile-header">
-                <div class="avatar" id="display-avatar-profile" style="width: 80px; height: 80px; font-size: 32px; border-color: var(--neon-green); margin-bottom: 10px;">P</div>
-                <h3 id="display-name-profile">Nome do Promotor</h3>
-                <span id="profile-role-badge" style="font-size: 13px; color: var(--text-muted); font-weight: bold;">Promotor Verificado ABASTECE JÁ</span>
+        <!-- ABA: PERFIL PROFISSIONAL DO ALUNO -->
+        <div id="tab-perfil" class="tab-content" style="padding-bottom: 110px;">
+            <div class="profile-header" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;">
+                <div class="profile-photo-container" style="width: 80px; height: 80px; border-radius: 50%; background: var(--gold); color: #000; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; position: relative; overflow: hidden; border: 2px solid var(--gold); margin-bottom: 10px;">
+                    <img id="img-aluno-perfil-preview" src="" alt="Foto" style="display:none; width:100%; height:100%; object-fit:cover;">
+                    <span id="display-avatar-profile">A</span>
+                    <label for="input-foto-aluno" class="btn-change-photo" style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); color: #fff; font-size: 9px; text-align: center; padding: 3px 0; cursor: pointer;">📷 Alterar</label>
+                    <input type="file" id="input-foto-aluno" accept="image/*" onchange="atualizarFotoPerfilAluno(event)" style="display: none;">
+                </div>
+                <h3 id="display-name-profile" style="font-size: 20px; font-weight: bold;">Nome da Empresa / Loja</h3>
+                <span id="profile-role-badge" style="font-size: 12px; color: var(--gold); font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 4px 12px; border-radius: 20px; border: 1px solid var(--gold); margin-top: 5px;">
+                    Contratante Verificado ✓
+                </span>
             </div>
 
-            <div class="settings-item glass">
-                <span>Modo Claro / Escuro</span>
-                <label class="theme-switch">
-                    <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                    <span class="slider"></span>
-                </label>
+            <!-- CARD DE PRÓXIMO AGENDAMENTO / ABASTECIMENTO -->
+            <div class="glass" style="padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--gold);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="font-size: 13px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin: 0;">📦 Próximo Abastecimento Agendado</h4>
+                    <span style="font-size: 10px; color: var(--text-muted);">Em breve</span>
+                </div>
+                <div id="card-proximo-treino-conteudo">
+                    <p style="font-size: 13px; color: var(--text-muted); margin: 5px 0;">Buscando agendamentos...</p>
+                </div>
             </div>
-            <div class="settings-item glass" onclick="navTo('screen-login')">
-                <span style="color: #ff3333;">Sair da Conta</span>
+
+            <!-- SEÇÃO 1: OBJETIVO E PREFERÊNCIAS -->
+            <div class="glass" style="padding: 15px; margin-bottom: 15px;">
+                <h4 style="font-size: 14px; color: var(--gold); margin-bottom: 10px;">🎯 Ramo da Loja / Necessidade</h4>
+                <select id="aluno-select-objetivo" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); color: var(--text-color); border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 10px;">
+                    <option value="Supermercado">Supermercado / Atacarejo</option>
+                    <option value="Distribuidora">Distribuidora de Alimentos</option>
+                    <option value="Loja de Conveniência">Loja de Conveniência</option>
+                    <option value="Marca / Indústria">Indústria de Alimentos / Marcas</option>
+                </select>
+
+                <label style="font-size: 11px; color: var(--text-muted);">Telefone / WhatsApp da Loja:</label>
+                <input type="text" id="aluno-input-telefone" placeholder="(19) 99999-9999" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-top: 4px; margin-bottom: 10px;">
+
+                <button class="btn btn-primary" style="padding: 10px; font-size: 12px;" onclick="salvarPerfilAluno()">Salvar Dados da Loja</button>
+            </div>
+
+            <!-- SEÇÃO 2: ATALHOS RÁPIDOS & CONTA -->
+            <div class="glass" style="padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <h4 style="font-size: 14px; color: var(--text-color); margin-bottom: 5px;">⚙️ Ajustes de Exibição</h4>
+                
+                <div class="settings-item" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                    <span style="font-size: 13px;">Modo Claro / Escuro</span>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-item glass" onclick="logoutAluno()" style="cursor: pointer; padding: 15px; text-align: center;">
+                <span style="color: #ff3333; font-weight: bold; font-size: 14px;">🚪 Sair da Conta</span>
             </div>
         </div>
 
         <!-- MENU INFERIOR FIXO -->
         <div class="bottom-nav glass-nav" id="bottom-nav">
             <div class="nav-item active" onclick="switchTab('tab-home', this)">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                 <span>Início</span>
             </div>
             <div class="nav-item" onclick="switchTab('tab-mensagens', this)">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 <span>Chat</span>
             </div>
             <div class="nav-item" onclick="switchTab('tab-perfil', this)">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 <span>Perfil</span>
             </div>
         </div>
     </div>
 
-    <!-- OVERLAY: TELA DE CHAT ATIVO -->
+    <!-- MODAL: TERMOS DE USO DO ALUNO -->
+    <div id="modal-termos-aluno" class="app-overlay">
+        <div class="glass modal-box" style="max-height: 80vh; overflow-y: auto; text-align: left; padding: 25px;">
+            <h3 style="color: var(--gold); margin-bottom: 10px;">📜 Termos de Uso - ABASTECE JÁ</h3>
+            
+            <p style="font-size: 12px; color: var(--text-color); line-height: 1.5; margin-bottom: 10px;">
+                Bem-vindo ao <strong>ABASTECE JÁ</strong>. Ao acessar com sua conta Google, você concorda com as diretrizes de solicitação e repasse de promotores:
+            </p>
+
+            <h4 style="font-size: 13px; color: var(--gold); margin-top: 10px;">1. Intermediação de Serviços</h4>
+            <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                As transações são processadas via gateway seguro de pagamento (Mercado Pago). A plataforma retém a taxa operacional para manutenção do sistema de geolocalização em tempo real.
+            </p>
+
+            <button class="btn btn-primary" style="margin-top: 20px; width: 100%;" onclick="aceitarTermosAlunoModal()">Li e Concordo</button>
+        </div>
+    </div>
+
+    <!-- OVERLAY: CHAT ATIVO -->
     <div id="active-chat-screen" class="app-overlay">
         <div class="chat-header-bar">
-            <button class="btn-icon text-btn" onclick="closeActiveChat()">
-                &#8592; Voltar
-            </button>
+            <button class="btn-icon text-btn" onclick="closeActiveChat()">&#8592; Voltar</button>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">L</div>
-                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Loja / Gerente</h3>
+                <div class="avatar" id="active-chat-avatar" style="width: 35px; height: 35px; border-color: var(--gold);">P</div>
+                <h3 id="active-chat-name" style="font-size: 16px; margin: 0;">Promotor</h3>
             </div>
             <div style="width: 50px;"></div>
         </div>
-
         <div id="chat-messages" class="chat-messages-area"></div>
-
         <div class="chat-input-area">
             <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." onkeypress="handleEnter(event)">
             <button class="btn-send" onclick="sendMessage()">&#10148;</button>
         </div>
     </div>
 
-    <!-- OVERLAY: DETALHES DA LOJA & AVALIAÇÕES -->
+    <!-- OVERLAY: PERFIL DO PROMOTOR & AVALIAÇÕES -->
     <div id="trainer-profile-overlay" class="app-overlay">
         <div class="chat-header-bar">
-            <button class="btn-icon text-btn" onclick="closeTrainerProfile()">
-                &#8592; Voltar
-            </button>
-            <h3 style="font-size: 16px; margin: 0;">Detalhes da Loja</h3>
+            <button class="btn-icon text-btn" onclick="closeTrainerProfile()">&#8592; Voltar</button>
+            <h3 style="font-size: 16px; margin: 0;">Perfil do Promotor</h3>
             <div style="width: 50px;"></div>
         </div>
-
         <div class="profile-scroll-area">
             <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
-                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">L</div>
-                <h2 id="tp-name" style="margin-bottom: 4px;">Nome da Loja</h2>
-                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Setor / Demanda</p>
-                <div class="star-rating">⭐⭐⭐⭐⭐ (4.9 Avaliação de Promotores)</div>
+                <div class="avatar" id="tp-avatar" style="width: 75px; height: 75px; font-size: 28px; border-color: var(--gold); margin-bottom: 12px;">P</div>
+                <h2 id="tp-name" style="margin-bottom: 4px;">Nome</h2>
+                <p id="tp-spec" style="color: var(--text-muted); font-size: 14px;">Promotor Credenciado AbasteceJá</p>
+                <div class="star-rating" id="tp-media-estrelas">⭐⭐⭐⭐⭐ (5.0)</div>
             </div>
-
-            <div class="section-title">Avaliações de Outros Promotores</div>
+            <div class="section-title">Avaliações das Lojas</div>
             <div id="reviews-list"></div>
-
             <div class="glass" style="padding: 15px; margin-top: 20px;">
-                <h4 style="margin-bottom: 10px; font-size: 14px;">Avaliar Estabelecimento</h4>
-                <textarea id="new-review-text" rows="3" placeholder="Como foi o plantão de reposição nesta loja?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
+                <h4 style="margin-bottom: 10px; font-size: 14px;">Deixe sua Avaliação</h4>
+                <div id="star-selector" style="font-size: 24px; cursor: pointer; margin-bottom: 10px; color: var(--gold);">
+                    <span onclick="setRating(1)">★</span><span onclick="setRating(2)">★</span><span onclick="setRating(3)">★</span><span onclick="setRating(4)">★</span><span onclick="setRating(5)">★</span>
+                </div>
+                <textarea id="new-review-text" rows="3" placeholder="Como foi o serviço prestado na loja?" style="width: 100%; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 13px; margin-bottom: 10px; resize: none;"></textarea>
                 <button class="btn btn-primary" style="padding: 10px; font-size: 13px;" onclick="submitReview()">Publicar Avaliação</button>
             </div>
         </div>
     </div>
 
-    <!-- API do Google Maps com Geometry Library -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCouzGdHNqv2VsidRRYgpMIRPNstwGIKzI&libraries=geometry&callback=initMap" async defer></script>
-    <script src="script.js"></script>
+    <script>
+        function validarCheckTermosAluno() {
+            const checkbox = document.getElementById('check-termos-aluno');
+            const btnLogin = document.getElementById('btn-login-aluno');
+            if (checkbox.checked) {
+                btnLogin.disabled = false;
+                btnLogin.style.opacity = '1';
+                btnLogin.style.cursor = 'pointer';
+            } else {
+                btnLogin.disabled = true;
+                btnLogin.style.opacity = '0.5';
+                btnLogin.style.cursor = 'not-allowed';
+            }
+        }
+        function abrirModalTermosAluno() {
+            document.getElementById('modal-termos-aluno').classList.add('active');
+        }
+        function aceitarTermosAlunoModal() {
+            document.getElementById('check-termos-aluno').checked = true;
+            validarCheckTermosAluno();
+            document.getElementById('modal-termos-aluno').classList.remove('active');
+        }
+    </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCYuhjdqUwLqt1wBkq4SkkUcC3FDaPXspU&libraries=geometry&callback=initMap" async defer></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
