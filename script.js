@@ -1,3 +1,7 @@
+
+
+// Se o Maps carregou antes do módulo, inicia agora
+if (window.google && window.google.maps) initMap();
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -35,6 +39,7 @@ const lojasDB = []; // sem dados fictícios: só promotores reais
 // UTILITÁRIOS
 // ==========================================
 const $ = (id) => document.getElementById(id);
+const hojeLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 function toast(msg) {
     let t = $("toast");
@@ -123,6 +128,8 @@ function mostrarApp(user) {
     }
 
     navTo("screen-main");
+    const inpData = $("solicitacao-data");
+    if (inpData) { inpData.min = hojeLocal(); if (!inpData.value) inpData.value = hojeLocal(); }
     renderPromotores();
     renderConversas();
     renderCalendario();
@@ -225,7 +232,7 @@ async function enviarSolicitacao(extra = {}) {
     const valor = parseFloat($("solicitacao-valor").value);
     if (!local) { toast("Informe o nome/endereço da loja."); $("solicitacao-local").focus(); return; }
     if (!data) { toast("Escolha o dia do serviço."); return; }
-    if (data < new Date().toISOString().slice(0, 10)) { toast("O dia não pode ser anterior a hoje."); return; }
+    if (data < hojeLocal()) { toast("O dia não pode ser anterior a hoje."); return; }
     if (!entrada || !saida || saida <= entrada) { toast("A saída precisa ser depois da entrada."); return; }
     if (!(valor > 0)) { toast("Informe o valor que deseja pagar."); $("solicitacao-valor").focus(); return; }
     try {
@@ -236,6 +243,7 @@ async function enviarSolicitacao(extra = {}) {
         });
         toast("✅ Pedido enviado! Promotores com esse valor serão avisados.");
         $("solicitacao-local").value = ""; $("solicitacao-valor").value = "";
+        $("rv-prom").textContent = fmtBRL(0); $("rv-taxa").textContent = fmtBRL(0);
         carregarPedidos();
     } catch (e) {
         console.error(e);
@@ -390,10 +398,14 @@ async function carregarPedidos() {
 
 function cartaoPedido(p) {
     const st = p.status || "aberta";
-    return `<div class="glass agenda-slot slot-${st === "concluida" ? "concluida" : st === "aberta" ? "livre" : "ocupado"}">
-        <div class="slot-info"><div class="slot-info-name">${esc(p.loja)}</div>
-        <div class="slot-info-desc">${fmtData(p.data)} · ${esc(p.horario)} · ${esc(p.foco)} · ${fmtBRL(p.valor)}</div></div>
-        <span class="badge badge-gold">${ROTULO[st] || st}</span></div>`;
+    const etapa = st === "concluida" ? 3 : st === "aceita" ? 2 : 1;
+    const barra = `<div class="steps-line"><span class="${etapa >= 1 ? "on" : ""}"></span><span class="${etapa >= 2 ? "on" : ""}"></span><span class="${etapa >= 3 ? "on" : ""}"></span></div>`;
+    const pagar = st === "aceita" ? `<a class="btn-pagar-pedido" href="pagar.html?id=${encodeURIComponent(p.id)}">💳 Pagar com Pix</a>` : "";
+    const quem = p.promotorNome ? ` · ${esc(p.promotorNome)}` : "";
+    return `<div class="glass agenda-slot slot-${st === "concluida" ? "concluida" : st === "aberta" ? "livre" : "ocupado"}" style="flex-wrap:wrap">
+        <div class="pedido-linha"><div class="slot-info-name">${esc(p.loja)}</div>
+        <div class="slot-info-desc">${fmtData(p.data)} · ${esc(p.horario)} · ${esc(p.foco)} · ${fmtBRL(p.valor)}${quem}</div>${pagar}</div>
+        <span class="badge badge-gold">${ROTULO[st] || st}</span>${barra}</div>`;
 }
 function renderPedidos() {
     const el = $("lista-pedidos");
