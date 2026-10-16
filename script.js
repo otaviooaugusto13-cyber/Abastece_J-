@@ -1,3 +1,19 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where, onSnapshot, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+const firebaseConfig = {
+     apiKey: "AIzaSyA0Z1SEkqrtXuAjtFntv1WRvkKIuY1zilY",
+     authDomain: "abastece-ja-240d5.firebaseapp.com",
+     projectId: "abastece-ja-240d5",
+     storageBucket: "abastece-ja-240d5.firebasestorage.app",
+     messagingSenderId: "1061248119348",
+     appId: "1:1061248119348:web:90d82ea266683086a39061",
+     measurementId: "G-8XFZ5ZGK4L"
+};
+
+
+
 // Variáveis Globais
 let userNameLogado = 'Promotor';
 let mapRadar;
