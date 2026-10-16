@@ -116,7 +116,7 @@
         <div id="tab-agenda" class="tab-content" style="padding-bottom: 120px;">
             <div class="header-personal glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h2 style="margin: 0; font-size: 20px;">Escala de Trabalho</h2>
-                <button class="btn btn-outline" style="padding: 6px 12px; font-size: 11px; border-color: var(--gold); color: var(--gold);" onclick="abrirModalCadastrarAluno()">+ Agendar Cliente</button>
+                
             </div>
 
             <div class="glass" style="padding: 12px 15px; background: rgba(212, 175, 55, 0.08); border-left: 4px solid var(--gold); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
@@ -447,6 +447,10 @@
                 <button type="button" class="btn-dia" onclick="toggleDiaTrabalho(this)" style="padding: 10px; background: #1f1f23; border: 1px solid rgba(255,255,255,0.15); color: #888; border-radius: 8px; font-size: 12px; cursor: pointer;">Dom (Folga)</button>
             </div>
 
+            <label style="font-size: 12px; font-weight: bold; color: var(--gold); display: block; margin-bottom: 10px;">💰 Valor mínimo por turno (R$)</label>
+            <input type="number" id="pref-valor-min" min="0" step="5" placeholder="Ex: 100" style="width: 100%; padding: 12px; background: #1f1f23; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; margin-bottom: 6px; box-sizing: border-box;">
+            <p style="font-size: 11px; color: #a1a1aa; margin-bottom: 20px;">Você só verá propostas deste valor ou acima.</p>
+
             <button class="btn" onclick="salvarPreferenciasAtendimento()" style="width: 100%; background: var(--gold, #ffd700); color: #000000; font-weight: bold; padding: 14px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; margin-bottom: 30px;">Salvar Preferências e Disponibilidade</button>
         </div>
     </div>
@@ -524,6 +528,18 @@
         </div>
     </div>
 
+    <!-- MODAL: QR CODE DE COBRANÇA -->
+    <div id="modal-qr" class="app-overlay">
+        <div class="glass modal-box" style="text-align:center">
+            <h3 style="color:var(--gold);margin-bottom:6px">Cobrar pela reposição</h3>
+            <p class="muted-line" style="margin-bottom:14px">Mostre este QR Code ao gerente da loja para ele pagar pelo app.</p>
+            <div id="qr-box" style="background:#fff;padding:14px;border-radius:14px;display:inline-block"></div>
+            <p id="qr-valor" style="margin:14px 0 4px;font-weight:700"></p>
+            <p id="qr-liquido" class="muted-line"></p>
+            <button class="btn btn-outline" style="margin-top:14px" onclick="fecharQR()">Fechar</button>
+        </div>
+    </div>
+
     <!-- MODAL DE CHAT FLUTUANTE -->
     <div id="modal-chat-flutuante" class="app-overlay">
         <div class="glass modal-box" style="max-width: 450px; width: 100%; height: 80vh; display: flex; flex-direction: column; padding: 15px;">
@@ -592,10 +608,7 @@
             }
         }
 
-        window.salvarPreferenciasAtendimento = function() {
-            window.toast("✅ Preferências de reposição salvos com sucesso!");
-            fecharSubtela('subscreen-preferencias-atendimento');
-        }
+        window.salvarPreferenciasAtendimento = function() { window.salvarPrefs(); }
 
         window.copiarLinkIndicacao = function() {
             const input = document.getElementById('input-link-indicacao');
@@ -613,6 +626,7 @@
         }
     </script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script type="module" src="script-personal.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCYuhjdqUwLqt1wBkq4SkkUcC3FDaPXspU&libraries=geometry&callback=initMapAlunos" async defer></script>
 </body>
