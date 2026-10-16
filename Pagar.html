@@ -1,0 +1,101 @@
+[pagar.html](https://github.com/user-attachments/files/33529517/pagar.html)
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ABASTECE JÁ - Pagar reposição</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="polish.css">
+    <meta name="theme-color" content="#d4af37">
+</head>
+<body>
+    <div class="screen active login-screen">
+        <div class="auth-card">
+            <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Pagamento da reposição</p></div>
+
+            <div id="estado-carregando" class="auth-loader"><span class="spinner"></span> Carregando pedido...</div>
+
+            <div id="estado-login" style="display:none">
+                <h2 class="auth-title">Entre para pagar</h2>
+                <p class="auth-sub">Use a conta Google da loja que fez o pedido.</p>
+                <button class="btn btn-google-login" style="opacity:1;cursor:pointer" onclick="entrar()">Continuar com Google</button>
+            </div>
+
+            <div id="estado-pedido" style="display:none">
+                <h2 class="auth-title" id="p-loja"></h2>
+                <p class="auth-sub" id="p-detalhe"></p>
+                <div class="glass finance-card">
+                    <div class="finance-values">
+                        <div class="finance-item"><span>Promotor recebe (85%)</span><h3 id="p-promotor"></h3></div>
+                        <div class="finance-item"><span>Plataforma (15%)</span><h3 id="p-taxa"></h3></div>
+                    </div>
+                    <div class="finance-total"><span>Total a pagar</span><span id="p-total" style="color:var(--gold);font-size:20px;font-weight:800"></span></div>
+                </div>
+                <button id="btn-pagar" class="btn btn-primary" onclick="pagar()">Pagar com Pix</button>
+            </div>
+
+            <p id="msg" class="auth-sub" style="display:none;text-align:center;margin:0"></p>
+            <div class="auth-links"><a href="index.html">Voltar ao painel</a></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // Endereço do servidor que cria a cobrança no Mercado Pago (com split de 15%).
+        // Enquanto estiver vazio, o botão apenas avisa que o pagamento ainda não está conectado.
+        const PAGAMENTO_ENDPOINT = "";
+
+        const app = initializeApp({
+            apiKey: "AIzaSyA0Z1SEkqrtXuAjtFntv1WRvkKIuY1zilY", authDomain: "abastece-ja-240d5.firebaseapp.com",
+            projectId: "abastece-ja-240d5", appId: "1:1061248119348:web:90d82ea266683086a39061"
+        });
+        const auth = getAuth(app), db = getFirestore(app);
+        const $ = (id) => document.getElementById(id);
+        const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+        const id = new URLSearchParams(location.search).get("id");
+        let pedido = null, usuario = null;
+
+        const mostrar = (qual) => ["estado-carregando", "estado-login", "estado-pedido"].forEach((e) => ($(e).style.display = e === qual ? "block" : "none"));
+        const aviso = (t) => { $("msg").textContent = t; $("msg").style.display = "block"; };
+
+        onAuthStateChanged(auth, async (user) => {
+            usuario = user;
+            if (!id) { mostrar(""); return aviso("QR Code inválido: pedido não encontrado."); }
+            if (!user) return mostrar("estado-login");
+            try {
+                const snap = await getDoc(doc(db, "solicitacoes", id));
+                if (!snap.exists()) { mostrar(""); return aviso("Pedido não encontrado."); }
+                pedido = snap.data();
+                if (pedido.uid !== user.uid) { mostrar(""); return aviso("Este pedido pertence a outra conta. Entre com a conta da loja."); }
+                if (pedido.status === "concluida") { mostrar(""); return aviso("✅ Este pedido já foi pago."); }
+                $("p-loja").textContent = pedido.loja;
+                $("p-detalhe").textContent = `${(pedido.data || "").split("-").reverse().join("/")} · ${pedido.horario} · ${pedido.foco}`;
+                $("p-total").textContent = brl(pedido.valor);
+                $("p-promotor").textContent = brl(pedido.valor * 0.85);
+                $("p-taxa").textContent = brl(pedido.valor * 0.15);
+                mostrar("estado-pedido");
+            } catch (e) { console.error(e); mostrar(""); aviso("Não foi possível carregar o pedido."); }
+        });
+
+        window.entrar = () => signInWithPopup(auth, new GoogleAuthProvider()).catch((e) => aviso("Não foi possível entrar (" + (e.code || "erro") + ")."));
+
+        window.pagar = async () => {
+            if (!PAGAMENTO_ENDPOINT) return aviso("Pagamento ainda não conectado ao Mercado Pago. Avise o suporte.");
+            $("btn-pagar").disabled = true;
+            try {
+                const r = await fetch(PAGAMENTO_ENDPOINT, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ solicitacaoId: id, idToken: await usuario.getIdToken() })
+                });
+                const { init_point } = await r.json();
+                if (!init_point) throw new Error("sem link");
+                location.href = init_point;
+            } catch (e) { console.error(e); aviso("Não foi possível iniciar o pagamento. Tente de novo."); $("btn-pagar").disabled = false; }
+        };
+    </script>
+</body>
+</html>
