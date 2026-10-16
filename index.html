@@ -50,12 +50,7 @@
                 </div>
                 
                 <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                    <select id="solicitacao-horario" style="flex: 1; padding: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px;">
-                        <option value="Agora (Imediato)">⏱️ Reposição Imediata</option>
-                        <option value="Turno Manhã">🌅 Turno Manhã</option>
-                        <option value="Turno Tarde">🌆 Turno Tarde</option>
-                        <option value="Diária Completa">📦 Diária Completa</option>
-                    </select>
+                    <input type="date" id="solicitacao-data" class="mini-in" aria-label="Dia">
 
                     <select id="solicitacao-foco" style="flex: 1; padding: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px;">
                         <option value="Mercearia">🛒 Mercearia</option>
@@ -66,11 +61,17 @@
                     </select>
                 </div>
 
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <div class="mini-f"><label>Entrada</label><input type="time" id="solicitacao-entrada" class="mini-in" value="08:00"></div>
+                    <div class="mini-f"><label>Saída</label><input type="time" id="solicitacao-saida" class="mini-in" value="12:00"></div>
+                    <div class="mini-f"><label>Valor (R$)</label><input type="number" id="solicitacao-valor" class="mini-in" min="1" step="1" placeholder="100" inputmode="decimal"></div>
+                </div>
                 <input type="text" id="solicitacao-local" placeholder="Nome do Supermercado / Endereço da Loja" style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-color); font-size: 12px; margin-bottom: 10px;">
 
                 <button class="btn btn-primary" style="padding: 10px; font-size: 13px; font-weight: bold;" onclick="solicitarTreinoModoUber()">
                     🚀 Solicitar Promotores na Região
                 </button>
+                <p class="muted-line" style="margin-top:8px;text-align:center;">O promotor recebe 85% do valor. A plataforma retém 15%.</p>
             </div>
 
             <div class="section-title">Radar de Promotores e Freelancers na Região</div>
