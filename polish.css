@@ -33,7 +33,7 @@ h2, h3, h4 { letter-spacing: -0.015em; }
 
 /* Botões */
 .btn { border-radius: 14px; letter-spacing: .01em; transition: transform .15s var(--ease), box-shadow .2s, filter .2s; }
-.btn-primary, .btn-fill { background: var(--gold-grad) !important; color: #ffffff !important; box-shadow: 0 6px 20px rgba(212, 175, 55, .28); }
+.btn-primary, .btn-fill { background: var(--gold-grad) !important; color: #1a1400 !important; box-shadow: 0 6px 20px rgba(212, 175, 55, .28); }
 .btn-primary:hover { filter: brightness(1.06); box-shadow: 0 8px 26px rgba(212, 175, 55, .38); }
 .btn:disabled { filter: grayscale(.4); }
 .btn:focus-visible, .nav-item:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -201,3 +201,7 @@ body.light-theme [id^="subscreen"] :is(input, select, textarea, label[style*="ba
 .menu-option-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 15px; border-bottom: 1px solid var(--glass-border); cursor: pointer; }
 .option-left { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .option-arrow { font-size: 16px; color: var(--text-muted); font-weight: bold; }
+
+.mini-in { width: 100%; padding: 8px; margin: 0; background: rgba(0,0,0,.4); font-size: 12px; border-radius: 8px; }
+.mini-f { flex: 1; min-width: 0; }
+.mini-f label { display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
