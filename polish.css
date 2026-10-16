@@ -1,4 +1,7 @@
-[polish (1).css](https://github.com/user-attachments/files/33527595/polish.1.css)
+
+.mini-in { width: 100%; padding: 8px; margin: 0; background: rgba(0,0,0,.4); font-size: 12px; border-radius: 8px; }
+.mini-f { flex: 1; min-width: 0; }
+.mini-f label { display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
 /* ==========================================================
    ABASTECE JÁ — Camada de refinamento visual
    Carregue DEPOIS do style.css / style-personal.css
@@ -205,3 +208,83 @@ body.light-theme [id^="subscreen"] :is(input, select, textarea, label[style*="ba
 .mini-in { width: 100%; padding: 8px; margin: 0; background: rgba(0,0,0,.4); font-size: 12px; border-radius: 8px; }
 .mini-f { flex: 1; min-width: 0; }
 .mini-f label { display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
+
+
+/* ==========================================================
+   v3 — ARREDONDAMENTO GERAL, SETORES EM DESTAQUE, DATA, PAGAMENTO
+   ========================================================== */
+:root { --r-sm: 14px; --r-md: 18px; --r-lg: 24px; --pill: 999px; }
+
+/* Botões: formato pílula, em qualquer tela (vence estilos inline antigos) */
+.btn, button.btn, .btn-primary, .btn-outline, .btn-fill, .btn-action, .btn-google-login,
+.btn-slot-action, .nav-btn-entrar, .btn-main, .btn-sub {
+    border-radius: var(--pill) !important;
+}
+.btn { min-height: 46px; }
+.btn-outline { background: transparent; border: 1.5px solid var(--gold); color: var(--gold); }
+button[onclick*="salvar"], button[onclick*="Salvar"], button[onclick*="copiar"], button[onclick*="compartilhar"] { border-radius: var(--pill) !important; }
+
+/* Campos, selects, textareas: cantos generosos */
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea {
+    border-radius: var(--r-sm) !important; min-height: 44px;
+}
+input[type=file] { border-radius: var(--r-sm) !important; }
+textarea { min-height: 88px; }
+input[type=date], input[type=time] { color-scheme: dark; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; }
+body.light-theme input[type=date], body.light-theme input[type=time] { color-scheme: light; }
+
+/* Cartões, modais, listas */
+.glass, .glass-list, .finance-card, .empty-state, .sw-row, .modal-box, .login-box, .auth-card, .agenda-slot,
+.menu-shortcut-card, .trainer-card, .roi-item, .stat-card-box, .testimonial-card { border-radius: var(--r-md) !important; }
+.modal-box, .auth-card, .login-box { border-radius: var(--r-lg) !important; }
+.badge, .badge-gold, .highlight-badge { border-radius: var(--pill) !important; }
+.avatar, .profile-photo-container { border-radius: 50% !important; }
+.cal-day { border-radius: 12px; }
+.msg { border-radius: 18px; }
+.theme-switch, .theme-switch .slider, .theme-switch .slider:before { border-radius: var(--pill); }
+[class*="btn-dia"] { border-radius: var(--pill) !important; }
+.sub-overlay button[onclick^="fechar"], .sub-head button { border-radius: 50% !important; }
+.bottom-nav { border-radius: 22px 22px 0 0; }
+#mapa-quadrado, #mapa-alunos { border-radius: var(--r-md) !important; }
+
+/* Formulário de pedido (contratante) */
+.pedido-card { padding: 18px !important; }
+.pedido-card h3 { font-size: 16px; }
+.pedido-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-color); margin: 14px 0 8px; }
+.pedido-label small { font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+.pedido-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pedido-grid .full { grid-column: 1 / -1; }
+.pedido-grid .mini-f label { font-size: 11px; font-weight: 600; margin-bottom: 5px; }
+.pedido-grid input, .pedido-card input#solicitacao-local { width: 100%; padding: 11px 14px !important; font-size: 14px !important; margin: 0; background: rgba(0,0,0,.35) !important; }
+body.light-theme .pedido-grid input, body.light-theme .pedido-card input#solicitacao-local { background: rgba(0,0,0,.04) !important; }
+
+/* Setores como cartões grandes e visíveis */
+.setor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.setor-chip {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    padding: 14px 6px; min-height: 78px; text-align: center; cursor: pointer;
+    font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--text-color);
+    background: var(--glass-bg); border: 1.5px solid var(--glass-border); border-radius: var(--r-md) !important;
+    transition: transform .15s var(--ease), border-color .2s, background .2s, box-shadow .2s;
+}
+.setor-chip .ico { font-size: 24px; line-height: 1; }
+.setor-chip:hover { border-color: rgba(212, 175, 55, .6); }
+.setor-chip:active { transform: scale(.97); }
+.setor-chip.sel { border-color: var(--gold); background: rgba(212, 175, 55, .16); box-shadow: 0 0 0 3px rgba(212, 175, 55, .20); color: var(--gold); }
+.resumo-valor { margin-top: 14px; padding: 12px 14px; border-radius: var(--r-sm); background: rgba(212, 175, 55, .08); border: 1px dashed rgba(212, 175, 55, .45); font-size: 12.5px; color: var(--text-muted); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.resumo-valor strong { color: var(--gold); }
+
+/* Pedidos: botão de pagar */
+.btn-pagar-pedido { display: inline-block; margin-top: 10px; padding: 9px 18px; border-radius: var(--pill); font-size: 12px; font-weight: 800; text-decoration: none; background: var(--gold-grad); color: #1a1400; }
+.pedido-linha { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }
+.agenda-slot .badge { white-space: nowrap; align-self: flex-start; padding: 4px 10px; font-size: 10.5px; }
+
+/* Etapas do pedido (acompanhamento) */
+.steps-line { display: flex; gap: 6px; margin-top: 10px; width: 100%; }
+.steps-line span { flex: 1; height: 5px; border-radius: var(--pill); background: var(--glass-border); }
+.steps-line span.on { background: var(--gold); }
+
+/* Pagamento (pagar.html) */
+.finance-total { display: flex; justify-content: space-between; align-items: center; }
+.pay-box { text-align: center; }
+.pay-pix { display: flex; align-items: center; justify-content: center; gap: 8px; }
