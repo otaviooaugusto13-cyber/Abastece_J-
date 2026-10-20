@@ -42,8 +42,6 @@ export const FIREBASE_CONFIG = {
 };
 
 // ---- Cloud Functions ----------------------------------------
-// Depois do `firebase deploy --only functions`, a URL base é:
-//   https://REGIAO-PROJETO.cloudfunctions.net
+// URL do servidor de pagamentos (Web Service no Render, pasta server/).
 // Deixe vazio enquanto o backend não estiver no ar: o app avisa em vez de quebrar.
-// config.js
 export const FUNCTIONS_BASE = "https://abastece-j.onrender.com";
