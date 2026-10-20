@@ -1,184 +1,223 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ABASTECE JÁ - Gestão e Reposição Sob Demanda para o Varejo</title>
-    <link rel="stylesheet" href="style-landing.css">
-    <link rel="manifest" href="manifest.json">
+    <title>Abastece Já — reposição sob demanda para o varejo</title>
     <meta name="description" content="Reposição sob demanda para o varejo: a loja pede, o promotor aceita, o pagamento é dividido automaticamente e a nota sai na hora.">
     <meta property="og:title" content="Abastece Já — reposição sob demanda">
     <meta property="og:description" content="Promotores e repositores sob demanda para mercados, atacarejos e distribuidoras.">
+    <meta name="theme-color" content="#0b1324">
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon-192.png">
-    <meta name="theme-color" content="#0a0f1d">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="style-landing.css">
 </head>
 <body>
 
-    <!-- NAVBAR FIXED SAAS -->
-    <header class="navbar-landing">
-        <div class="nav-container">
-            <h2 class="nav-logo">ABASTECE<span>JÁ</span></h2>
-            <nav class="nav-links">
-                <a href="#roi-calculo">Métricas & ROI</a>
-                <a href="#solucoes">Soluções</a>
-                <a href="#como-funciona">Como funciona</a>
-            </nav>
-            <a href="index.html" class="nav-btn-entrar">Acessar Painel</a>
-        </div>
-    </header>
-
-    <!-- WHATSAPP FLOAT -->
-    <a href="https://wa.me/5519999999999" target="_blank" id="btn-whatsapp-suporte" class="btn-whatsapp" title="Suporte via WhatsApp">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-        </svg>
-    </a>
-
-    <div id="landing-page-container">
-        <!-- HERO BANNER TECH B2B -->
-        <section class="hero-banner">
-            <span class="hero-badge-tech">Plataforma B2B para o Varejo</span>
-            <h1 class="hero-headline">Elimine a ruptura de gôndola e aumente o faturamento do seu supermercado</h1>
-            <p class="hero-subheadline">Conecte sua loja a promotores e repositores cadastrados sob demanda. Sem custo fixo.</p>
-
-            <div class="hero-wave">
-                <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
-                    <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V95.8C59.71,118.06,150.21,121.2,216.7,112.55A1032.12,1032.12,0,0,0,321.39,56.44Z" class="shape-fill"></path>
-                </svg>
-            </div>
-        </section>
-
-        <!-- CARD DE AÇÃO PRINCIPAL -->
-        <div class="card-overlap">
-            <span class="card-tag">Operação On-Demand</span>
-            <h2 class="card-title">Atendimento imediato para horários de pico e falta de equipe</h2>
-            <p class="card-desc">Publique a vaga, acompanhe o pedido pelo app e pague por Pix ou cartão quando o serviço terminar, com nota automática.</p>
-
-            <a href="index.html" class="btn-main">Solicitar Promotor / Acessar Painel</a>
-            <a href="promotor.html" class="btn-sub">Sou Promotor / Quero me Cadastrar</a>
-        </div>
-
-        <!-- NOVO BLOCO: O CUSTO DA RUPTURA E RETORNO (ROI) -->
-        <section class="content-section" id="roi-calculo">
-            <h2 class="section-title">O Impacto da Ruptura na Sua Loja</h2>
-            
-            <div class="roi-card-box">
-                <div class="roi-item border-highlight">
-                    <span class="roi-tag red">Perda Estimada</span>
-                    <span class="roi-number">Venda perdida</span>
-                    <p class="roi-desc">Prateleira vazia é cliente indo embora sem comprar. Nos horários de pico, cada minuto sem reposição custa venda.</p>
-                </div>
-
-                <div class="roi-item green-bg">
-                    <span class="roi-tag green">Custo sob controle</span>
-                    <span class="roi-number green-text">Você define o valor</span>
-                    <p class="roi-desc">Você escolhe quanto pagar por turno e só paga depois que o serviço é feito.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- COMO FUNCIONA -->
-        <section class="content-section" id="como-funciona">
-            <h2 class="section-title">Como funciona</h2>
-            <div class="how-list">
-                <div class="how-step"><span class="how-n">1</span><div><strong>A loja faz o pedido</strong><p>Escolhe o setor, o dia, o horário e o valor do turno.</p></div></div>
-                <div class="how-step"><span class="how-n">2</span><div><strong>Um promotor aceita</strong><p>Promotores cadastrados e aprovados da região veem a vaga e aceitam.</p></div></div>
-                <div class="how-step"><span class="how-n">3</span><div><strong>Serviço feito, pagamento por QR Code</strong><p>O gestor escaneia o QR Code do promotor e paga por Pix ou cartão. O valor é dividido na hora e a nota é emitida.</p></div></div>
-            </div>
-            <div class="split-box">
-                <div><span class="split-num">80%</span><span class="split-txt">fica com o promotor</span></div>
-                <div><span class="split-num alt">20%</span><span class="split-txt">comissão da plataforma</span></div>
-            </div>
-            <p class="split-note">Sem mensalidade: a plataforma só ganha quando o serviço acontece. Na loja, soma-se uma taxa fixa de R$&nbsp;5,00 por turno. A divisão é automática e a nota sai na hora.</p>
-        </section>
-
-        <!-- SOLUÇÕES OPERACIONAIS B2B -->
-        <section class="content-section" id="solucoes" style="padding-top: 0;">
-            <h2 class="section-title">Soluções Operacionais B2B</h2>
-            <div class="services-grid-mobile">
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Reposição Contínua</span>
-                        <span class="service-pill-sub">Abastecimento de prateleira</span>
-                    </div>
-                </div>
-
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Prevenção de Ruptura</span>
-                        <span class="service-pill-sub">Acompanhamento do giro</span>
-                    </div>
-                </div>
-
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Gestão de Câmara & FIFO</span>
-                        <span class="service-pill-sub">Organização e validade</span>
-                    </div>
-                </div>
-
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Montagem de Ilhas</span>
-                        <span class="service-pill-sub">Pontos extras de venda</span>
-                    </div>
-                </div>
-
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Auditoria de Estoque</span>
-                        <span class="service-pill-sub">Contagem física preventiva</span>
-                    </div>
-                </div>
-
-                <div class="service-pill">
-                    <div class="service-pill-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    </div>
-                    <div>
-                        <span class="service-pill-label">Trade Marketing</span>
-                        <span class="service-pill-sub">Ações promocionais em loja</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- PARCEIROS E FOOTER BANNER -->
-        <section class="content-section" style="padding-top: 0; padding-bottom: 60px;">
-            <h2 class="section-title">Atendemos Todo o Ecossistema</h2>
-            
-            <div class="partners-wrapper">
-                <span class="partner-pill">Supermercados</span>
-                <span class="partner-pill">Atacarejos</span>
-                <span class="partner-pill">Distribuidoras</span>
-                <span class="partner-pill">Indústria & Marcas</span>
-            </div>
-
-            <div class="footer-cta-box">
-                <h3>Escale sua operação sem aumentar a folha</h3>
-                <p>Abra um chamado agora e tenha promotores cadastrados atendendo no seu estabelecimento.</p>
-                <a href="index.html" class="btn-main" style="max-width: 280px; margin: 0 auto;">
-                    Acessar Painel / Entrar
-                </a>
-            </div>
-        </section>
+<header class="nav">
+    <div class="wrap nav-in">
+        <a class="logo" href="landing.html" aria-label="Abastece Já">Abastece<span>Já</span></a>
+        <nav class="nav-links" aria-label="Seções">
+            <a href="#roi-calculo">Impacto da ruptura</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#solucoes">Soluções</a>
+        </nav>
+        <a href="index.html" class="btn btn-gold btn-sm">Acessar painel</a>
     </div>
+</header>
 
+<main>
+    <!-- HERO -->
+    <section class="hero">
+        <div class="wrap hero-in">
+            <div class="hero-copy">
+                <h1>Elimine a ruptura de gôndola e aumente o faturamento do seu supermercado</h1>
+                <p class="lead">Conecte sua loja a promotores e repositores cadastrados, sob demanda. Sem mensalidade e sem custo fixo.</p>
+                <div class="hero-actions">
+                    <a href="index.html" class="btn btn-gold">Solicitar um promotor</a>
+                    <a href="promotor.html" class="btn btn-ghost">Sou promotor e quero me cadastrar</a>
+                </div>
+                <p class="hero-note">Você só paga depois do serviço feito, por Pix ou cartão. A nota é emitida automaticamente.</p>
+            </div>
+
+            <figure class="hero-art" aria-label="Gôndola com um espaço vazio sendo reposto e um pedido aceito por um promotor">
+                <div class="shelf" aria-hidden="true">
+                    <div class="shelf-row"><i class="p c1"></i><i class="p c2"></i><i class="p c3"></i><i class="p c1"></i><i class="p c4"></i><i class="p c2"></i></div>
+                    <div class="shelf-row"><i class="p c4"></i><i class="p c1"></i><i class="gap"><b class="refill"></b></i><i class="p c3"></i><i class="p c2"></i><i class="p c4"></i></div>
+                    <div class="shelf-row"><i class="p c3"></i><i class="p c2"></i><i class="p c4"></i><i class="p c1"></i><i class="p c3"></i><i class="p c1"></i></div>
+                </div>
+                <figcaption class="order-card">
+                    <div class="order-top">
+                        <span class="dot"></span>
+                        <strong>Pedido aceito</strong>
+                    </div>
+                    <dl>
+                        <div><dt>Serviço</dt><dd>Reposição de bebidas</dd></div>
+                        <div><dt>Quando</dt><dd>Hoje, 14h às 18h</dd></div>
+                        <div><dt>Valor do turno</dt><dd>R$&nbsp;100,00</dd></div>
+                    </dl>
+                </figcaption>
+            </figure>
+        </div>
+    </section>
+
+    <!-- ROI -->
+    <section class="section" id="roi-calculo">
+        <div class="wrap">
+            <div class="section-head">
+                <h2>Prateleira vazia é venda perdida. Resolver custa só o turno.</h2>
+                <p>Nos horários de pico, cada minuto sem reposição é cliente saindo sem comprar. Com o Abastece Já você define o valor do turno e só paga depois que o serviço é feito.</p>
+            </div>
+
+            <div class="roi-grid">
+                <div class="compare">
+                    <article class="compare-col bad">
+                        <h3>Sem reposição a tempo</h3>
+                        <ul>
+                            <li>Cliente não encontra o produto e compra no concorrente</li>
+                            <li>Equipe sobrecarregada nos horários de pico</li>
+                            <li>Produto parado no estoque, longe da gôndola</li>
+                        </ul>
+                    </article>
+                    <article class="compare-col good">
+                        <h3>Com o Abastece Já</h3>
+                        <ul>
+                            <li>Promotor aprovado da região aceita o turno que você publicou</li>
+                            <li>Sem mensalidade e sem contratação fixa</li>
+                            <li>Pagamento só depois do serviço, com nota automática</li>
+                        </ul>
+                    </article>
+                </div>
+
+                <div class="calc" aria-labelledby="calc-title">
+                    <h3 id="calc-title">Simule um turno</h3>
+                    <label for="calc-valor">Valor do turno (R$)</label>
+                    <input id="calc-valor" type="number" inputmode="decimal" min="30" max="2000" step="1" value="100">
+                    <p id="calc-erro" class="calc-erro" role="alert" hidden>Informe um valor entre R$&nbsp;30,00 e R$&nbsp;2.000,00.</p>
+                    <dl class="calc-out">
+                        <div class="row total"><dt>Sua loja paga</dt><dd id="calc-total">R$&nbsp;105,00</dd></div>
+                        <div class="row"><dt>Promotor recebe (80%)</dt><dd id="calc-prom">R$&nbsp;80,00</dd></div>
+                        <div class="row"><dt>Plataforma (20% + taxa fixa de R$&nbsp;5,00)</dt><dd id="calc-app">R$&nbsp;25,00</dd></div>
+                    </dl>
+                    <p class="calc-note">A divisão é automática no pagamento. A taxa de processamento do Mercado Pago (Pix ou cartão) é descontada por ele.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- COMO FUNCIONA -->
+    <section class="section alt" id="como-funciona">
+        <div class="wrap">
+            <div class="section-head">
+                <h2>Do pedido à nota em três passos</h2>
+            </div>
+            <ol class="steps">
+                <li>
+                    <span class="step-n">1</span>
+                    <div><h3>A loja faz o pedido</h3><p>Escolhe o setor, o dia, o horário e o valor do turno.</p></div>
+                </li>
+                <li>
+                    <span class="step-n">2</span>
+                    <div><h3>Um promotor aceita</h3><p>Promotores cadastrados e aprovados da região veem a vaga e aceitam.</p></div>
+                </li>
+                <li>
+                    <span class="step-n">3</span>
+                    <div><h3>Serviço feito, pagamento por QR Code</h3><p>O gestor escaneia o QR Code do promotor e paga por Pix ou cartão. O valor é dividido na hora e a nota é emitida.</p></div>
+                </li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- SOLUÇÕES -->
+    <section class="section" id="solucoes">
+        <div class="wrap">
+            <div class="section-head">
+                <h2>O que os promotores fazem na sua loja</h2>
+                <p>Escolha o serviço ao publicar o turno. Cada pedido tem setor, dia, horário e valor definidos por você.</p>
+            </div>
+            <ul class="sol-grid">
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                    <h3>Reposição contínua</h3><p>Abastecimento de prateleira ao longo do dia.</p>
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <h3>Prevenção de ruptura</h3><p>Acompanhamento do giro para repor antes de faltar.</p>
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    <h3>Câmara e FIFO</h3><p>Organização por validade: o que vence primeiro sai primeiro.</p>
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                    <h3>Montagem de ilhas</h3><p>Pontos extras de venda montados para a sua campanha.</p>
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <h3>Auditoria de estoque</h3><p>Contagem física preventiva para achar divergências cedo.</p>
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <h3>Trade marketing</h3><p>Ações promocionais executadas dentro da loja.</p>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- QUEM ATENDEMOS + CTA -->
+    <section class="section tight">
+        <div class="wrap">
+            <p class="segments"><strong>Para quem é:</strong> supermercados, atacarejos, distribuidoras e indústria e marcas.</p>
+
+            <div class="cta">
+                <div>
+                    <h2>Escale a operação sem aumentar a folha</h2>
+                    <p>Publique um turno agora e tenha um promotor cadastrado atendendo na sua loja.</p>
+                </div>
+                <a href="index.html" class="btn btn-gold">Entrar no painel</a>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="foot">
+    <div class="wrap foot-in">
+        <span class="logo">Abastece<span>Já</span></span>
+        <nav aria-label="Rodapé">
+            <a href="index.html">Painel da loja</a>
+            <a href="promotor.html">Área do promotor</a>
+            <a href="https://wa.me/551995350637" target="_blank" rel="noopener">Suporte no WhatsApp</a>
+        </nav>
+    </div>
+</footer>
+
+<a href="https://wa.me/551995350637" target="_blank" rel="noopener" class="wa" aria-label="Falar com o suporte pelo WhatsApp">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+</a>
+
+<script>
+// Simulador: mesma regra de config.js / functions/split.js (20% + taxa fixa de R$ 5,00)
+(function () {
+    var PCT = 20, TAXA = 500, MIN = 3000, MAX = 200000;
+    var $ = function (id) { return document.getElementById(id); };
+    var brl = function (c) { return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/\s/g, "\u00a0"); };
+    function calcular() {
+        var c = Math.round(parseFloat(String($("calc-valor").value).replace(",", ".")) * 100);
+        var ok = c >= MIN && c <= MAX;
+        $("calc-erro").hidden = ok;
+        $("calc-valor").setAttribute("aria-invalid", ok ? "false" : "true");
+        if (!ok) return;
+        var comissao = Math.round(c * PCT / 100);
+        $("calc-total").textContent = brl(c + TAXA);
+        $("calc-prom").textContent = brl(c - comissao);
+        $("calc-app").textContent = brl(comissao + TAXA);
+    }
+    $("calc-valor").addEventListener("input", calcular);
+    calcular();
+})();
+</script>
 </body>
 </html>
