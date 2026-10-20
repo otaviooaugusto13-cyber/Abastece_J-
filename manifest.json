@@ -1,49 +1,22 @@
+
 {
   "name": "Abastece Já",
   "short_name": "AbasteceJá",
-  "description": "Reposição sob demanda para o varejo: lojas pedem promotores, promotores pegam turnos.",
+  "description": "Reposição sob demanda para o varejo: lojas pedem promotores, promotores pegam turnos, pagamento e nota automáticos.",
   "lang": "pt-BR",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#07090e",
-  "theme_color": "#d4af37",
+  "theme_color": "#07090e",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    {
-      "name": "Sou promotor",
-      "url": "./promotor.html"
-    },
-    {
-      "name": "Sou contratante",
-      "url": "./index.html"
-    },
-    {
-      "name": "Meus pedidos",
-      "url": "./index.html"
-    }
-  ],
-  "id": "./index.html",
-  "categories": [
-    "business",
-    "productivity"
+    { "name": "Sou promotor", "url": "./promotor.html" },
+    { "name": "Sou loja", "url": "./index.html" }
   ]
 }
