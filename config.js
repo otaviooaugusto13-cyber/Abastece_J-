@@ -44,4 +44,4 @@ export const FIREBASE_CONFIG = {
 // ---- Cloud Functions ----------------------------------------
 // URL do servidor de pagamentos (Web Service no Render, pasta server/).
 // Deixe vazio enquanto o backend não estiver no ar: o app avisa em vez de quebrar.
-export const FUNCTIONS_BASE = "https://abastece-j.onrender.com";
+export const FUNCTIONS_BASE = "hhttps://abastece-ja.onrender.com";
