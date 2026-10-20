@@ -217,7 +217,7 @@ $("btn-csv").addEventListener("click", () => {
 async function conectarMP(b) {
     if (b) { b.disabled = true; }
     try { const { url } = await chamarFuncao("mpConectarUrl"); location.href = url; }
-    catch (e) { console.error(e); erro(e.code === "backend-nao-configurado" ? "O backend de pagamento ainda não foi publicado (FUNCTIONS_BASE em config.js)." : "Não foi possível iniciar a conexão com o Mercado Pago."); if (b) b.disabled = false; }
+    catch (e) { console.error(e); erro(e.code === "backend-nao-configurado" ? "O backend de pagamento ainda não foi publicado (FUNCTIONS_BASE em config.js)." : (e.code === 404 || e.code === "rota-inexistente") ? "O servidor de pagamentos não respondeu (404). Confira se o serviço no Render está no ar." : e.code === "mp-nao-configurado" ? "O Mercado Pago ainda não foi configurado no servidor." : "Não foi possível iniciar a conexão com o Mercado Pago."); if (b) b.disabled = false; }
 }
 
 // ---------- chat ----------
