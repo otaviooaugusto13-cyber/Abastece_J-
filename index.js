@@ -1,194 +1,273 @@
-// =============================================================================
-// ABASTECE JÁ — Cloud Functions (pagamento com split + nota)
-// Deploy:  firebase deploy --only functions      (plano Blaze)
+// ============================================================
+// ABASTECE JÁ — Cloud Functions (Firebase, plano Blaze)
 //
-// Fluxo:
-//  1. Loja abre pagar.html → criarCobranca cria a preferência no Mercado Pago
-//     COM o token do promotor e marketplace_fee = parte do app (20% + taxa fixa).
-//  2. Mercado Pago divide sozinho: promotor recebe o líquido, app recebe a fee.
-//  3. webhookMP confirma o pagamento direto na API do MP, marca o pedido como
-//     "concluida" e emite a NOTA (coleção "notas") — nunca confiamos no navegador.
+// O que este arquivo faz:
+//  1. mpConectarUrl / mpCallback  → promotor conecta a conta Mercado Pago dele (OAuth)
+//  2. criarCobranca               → cria o checkout com SPLIT AUTOMÁTICO (80% promotor / 20% app + taxa fixa)
+//  3. webhookMP / confirmarPagamento → confirma o pagamento direto na API do MP, marca "paga" e emite a NOTA
+//  4. onAvaliacao                 → recalcula a nota média do promotor
 //
-// Secrets (firebase functions:secrets:set NOME):
-//   MP_APP_ID, MP_APP_SECRET   → aplicação do APP em mercadopago.com.br/developers
-//   MP_WEBHOOK_SECRET          → "Assinatura secreta" do webhook (opcional, recomendado)
-// Config no arquivo functions/.env:  SITE_URL=https://seu-dominio.com
-// =============================================================================
+// Regra de ouro: NENHUM valor vem do navegador. O servidor lê o pedido no Firestore,
+// calcula o split (split.js) e só aceita o pagamento se o valor bater ao centavo.
+// ============================================================
 const { onRequest } = require("firebase-functions/v2/https");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { defineSecret, defineString } = require("firebase-functions/params");
+const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
+const { calcularSplit, VALOR_MINIMO_CENTAVOS, VALOR_MAXIMO_CENTAVOS } = require("./split");
 
 admin.initializeApp();
 const db = admin.firestore();
-const { FieldValue } = admin.firestore;
+const { FieldValue, Timestamp } = admin.firestore;
 
-// ⚠️ Mesmos números de financeiro.js (front). Em CENTAVOS.
-const TAXA_PROMOTOR = 0.8;
-const TAXA_FIXA_CENTAVOS = 300;
-const SECRETS = ["MP_APP_ID", "MP_APP_SECRET", "MP_WEBHOOK_SECRET"];
-const SITE = () => (process.env.SITE_URL || "").replace(/\/$/, "");
+// Configuração (firebase functions:secrets:set / functions/.env)
+const MP_CLIENT_SECRET = defineSecret("MP_CLIENT_SECRET");
+const MP_WEBHOOK_SECRET = defineSecret("MP_WEBHOOK_SECRET"); // opcional (assinatura do webhook)
+const MP_CLIENT_ID = defineString("MP_CLIENT_ID");
+const APP_URL = defineString("APP_URL", { default: "https://SEU-USUARIO.github.io/abastece-ja" }); // onde o site está hospedado
+const REGION = "southamerica-east1";
+const opts = { region: REGION, cors: true, secrets: [MP_CLIENT_SECRET, MP_WEBHOOK_SECRET] };
 
-function calcular(valorReais) {
-    const base = Math.round(Number(valorReais) * 100);
-    if (!Number.isFinite(base) || base <= 0) throw new Error("valor inválido");
-    const promotor = Math.round(base * TAXA_PROMOTOR);
-    const comissao = base - promotor;
-    return { base, promotor, comissao, fixa: TAXA_FIXA_CENTAVOS, app: comissao + TAXA_FIXA_CENTAVOS, total: base + TAXA_FIXA_CENTAVOS };
+const MP_API = "https://api.mercadopago.com";
+const funcUrl = (nome) => `https://${REGION}-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/${nome}`;
+const appUrl = () => APP_URL.value().replace(/\/$/, "");
+
+class Falha extends Error { constructor(status, msg, codigo) { super(msg); this.status = status; this.codigo = codigo; } }
+
+// ---------- utilidades ----------
+async function usuario(req) {
+  const h = req.get("authorization") || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : req.body?.idToken;
+  if (!token) throw new Falha(401, "login necessário");
+  try { return await admin.auth().verifyIdToken(token); } catch { throw new Falha(401, "sessão inválida"); }
 }
-const reais = (c) => Math.round(c) / 100;
-const fail = (res, code, erro) => res.status(code).json({ erro });
+const envelope = (fn) => async (req, res) => {
+  try { await fn(req, res); }
+  catch (e) {
+    if (e instanceof Falha) return res.status(e.status).json({ erro: e.message, codigo: e.codigo });
+    logger.error(e); res.status(500).json({ erro: "erro interno" });
+  }
+};
+const assinar = (texto) => crypto.createHmac("sha256", MP_CLIENT_SECRET.value()).update(texto).digest("hex");
 
-// ---------------------------------------------------------------------------
-// 1) Cobrança
-// ---------------------------------------------------------------------------
-exports.criarCobranca = onRequest({ cors: true, secrets: SECRETS }, async (req, res) => {
-    try {
-        const { solicitacaoId, idToken } = req.body || {};
-        if (!solicitacaoId || !idToken) return fail(res, 400, "dados incompletos");
-        const user = await admin.auth().verifyIdToken(idToken);
-        const ref = db.collection("solicitacoes").doc(String(solicitacaoId));
-        const s = (await ref.get()).data();
-        if (!s || s.uid !== user.uid) return fail(res, 403, "pedido de outra conta");
-        if (s.status === "concluida") return fail(res, 400, "pedido já pago");
-        if (s.status !== "aceita") return fail(res, 400, "pedido ainda não foi aceito por um promotor");
-
-        const seg = (await db.collection("segredos").doc(s.promotorChave).get()).data();
-        if (!seg?.mpAccessToken) return fail(res, 400, "promotor ainda não conectou o Mercado Pago");
-
-        const v = calcular(s.valor);
-        const mp = new MercadoPagoConfig({ accessToken: seg.mpAccessToken });
-        const pref = await new Preference(mp).create({ body: {
-            items: [
-                { id: "turno", title: `Reposição — ${s.loja}`, quantity: 1, unit_price: reais(v.base), currency_id: "BRL" },
-                { id: "taxa", title: "Taxa de serviço Abastece Já", quantity: 1, unit_price: reais(v.fixa), currency_id: "BRL" }
-            ],
-            marketplace_fee: reais(v.app),
-            external_reference: ref.id,
-            notification_url: `${process.env.FUNCTION_URL_WEBHOOK || ""}?sid=${ref.id}`,
-            back_urls: { success: `${SITE()}/nota.html?id=${ref.id}`, pending: `${SITE()}/pagar.html?id=${ref.id}`, failure: `${SITE()}/pagar.html?id=${ref.id}` },
-            auto_return: "approved",
-            payment_methods: { excluded_payment_types: [{ id: "ticket" }] }
-        }});
-        await ref.update({ cobrancaCriadaEm: FieldValue.serverTimestamp(), preferenciaId: pref.id, split: v });
-        res.json({ init_point: pref.init_point });
-    } catch (e) { console.error(e); fail(res, 500, "falha ao criar cobrança"); }
-});
-
-// ---------------------------------------------------------------------------
-// 2) Webhook: confirma, conclui, emite nota, paga bônus de indicação
-// ---------------------------------------------------------------------------
-function assinaturaOk(req, paymentId) {
-    const secret = process.env.MP_WEBHOOK_SECRET;
-    if (!secret) return true; // sem segredo configurado, só a consulta à API do MP protege
-    const sig = String(req.get("x-signature") || ""), reqId = String(req.get("x-request-id") || "");
-    const ts = (sig.match(/ts=([^,]+)/) || [])[1], v1 = (sig.match(/v1=([^,]+)/) || [])[1];
-    if (!ts || !v1) return false;
-    const calc = crypto.createHmac("sha256", secret).update(`id:${paymentId};request-id:${reqId};ts:${ts};`).digest("hex");
-    try { return crypto.timingSafeEqual(Buffer.from(calc), Buffer.from(v1)); } catch { return false; }
+async function mp(path, token, init = {}) {
+  const r = await fetch(MP_API + path, { ...init, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { logger.error("MP erro", path, r.status, j); throw new Falha(502, "Mercado Pago recusou a operação", "mp"); }
+  return j;
 }
 
-exports.webhookMP = onRequest({ secrets: SECRETS }, async (req, res) => {
-    try {
-        const sid = req.query.sid;
-        const paymentId = req.body?.data?.id || req.query["data.id"];
-        if (!sid || !paymentId) return res.sendStatus(200);
-        if (!assinaturaOk(req, paymentId)) return res.sendStatus(401);
+/** Token do promotor, renovando se estiver perto de vencer. */
+async function tokenDoPromotor(uid) {
+  const ref = db.collection("mp_tokens").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Falha(400, "O promotor ainda não conectou o Mercado Pago.", "promotor-sem-mp");
+  const t = snap.data();
+  if (t.expiraEm && t.expiraEm.toMillis() - Date.now() > 3600_000) return t.accessToken;
+  const r = await fetch(`${MP_API}/oauth/token`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: MP_CLIENT_ID.value(), client_secret: MP_CLIENT_SECRET.value(), grant_type: "refresh_token", refresh_token: t.refreshToken })
+  });
+  const j = await r.json();
+  if (!r.ok) { logger.error("refresh MP", j); throw new Falha(400, "Conexão do promotor com o Mercado Pago expirou. Peça para ele reconectar.", "promotor-sem-mp"); }
+  await ref.set({ accessToken: j.access_token, refreshToken: j.refresh_token, expiraEm: Timestamp.fromMillis(Date.now() + j.expires_in * 1000) }, { merge: true });
+  return j.access_token;
+}
 
-        const ref = db.collection("solicitacoes").doc(String(sid));
-        const s = (await ref.get()).data();
-        if (!s || s.status === "concluida") return res.sendStatus(200); // idempotente
-        const prof = (await db.collection("profissionais").doc(s.promotorChave).get()).data() || {};
-        const seg = (await db.collection("segredos").doc(s.promotorChave).get()).data();
-        if (!seg?.mpAccessToken) return res.sendStatus(200);
+/** Valor do pedido em centavos, validado. */
+function valorDoPedido(s) {
+  const c = Number.isInteger(s.valorCentavos) ? s.valorCentavos : Math.round(Number(s.valor) * 100);
+  if (!(c >= VALOR_MINIMO_CENTAVOS && c <= VALOR_MAXIMO_CENTAVOS)) throw new Falha(400, "valor do pedido fora do permitido");
+  return c;
+}
 
-        // Confirma na fonte (API do MP): status, referência e VALOR PAGO
-        const pg = await new Payment(new MercadoPagoConfig({ accessToken: seg.mpAccessToken })).get({ id: paymentId });
-        const v = calcular(s.valor);
-        if (pg.status !== "approved" || pg.external_reference !== ref.id) return res.sendStatus(200);
-        if (Math.round(pg.transaction_amount * 100) !== v.total) { console.error("valor divergente", sid); return res.sendStatus(200); }
+// ============================================================
+// 1) CONECTAR MERCADO PAGO (OAuth do promotor)
+// ============================================================
+exports.mpConectarUrl = onRequest(opts, envelope(async (req, res) => {
+  const u = await usuario(req);
+  const prof = await db.collection("profissionais").doc(u.uid).get();
+  if (!prof.exists) throw new Falha(403, "cadastro de promotor não encontrado");
+  const state = `${u.uid}.${assinar(u.uid)}`;
+  const url = `https://auth.mercadopago.com.br/authorization?client_id=${MP_CLIENT_ID.value()}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(funcUrl("mpCallback"))}`;
+  res.json({ url });
+}));
 
-        await db.runTransaction(async (t) => {
-            const atual = (await t.get(ref)).data();
-            if (atual.status === "concluida") return;
-            const notaRef = db.collection("notas").doc(ref.id);
-            t.update(ref, { status: "concluida", pagoEm: FieldValue.serverTimestamp(), paymentId: String(paymentId), notaId: notaRef.id });
-            t.set(notaRef, {
-                solicitacaoId: ref.id, numero: Date.now().toString().slice(-8),
-                contratanteUid: s.uid, contratanteEmail: s.email || "",
-                contratanteDoc: s.docNota || "", contratanteNome: s.nomeNota || s.loja,
-                promotorChave: s.promotorChave, promotorUid: s.promotorUid || "", promotorNome: s.promotorNome || "",
-                loja: s.loja, data: s.data, horario: s.horario, setor: s.foco,
-                valorTurno: reais(v.base), repassePromotor: reais(v.promotor), comissaoApp: reais(v.comissao),
-                taxaFixa: reais(v.fixa), totalPago: reais(v.total),
-                formaPagamento: pg.payment_type_id || "pix", paymentId: String(paymentId),
-                tipo: "recibo_servico",        // NÃO é nota fiscal — ver fiscal.emitir abaixo
-                emitidaEm: FieldValue.serverTimestamp()
-            });
-        });
-
-        // Bônus de indicação: 1º turno concluído do promotor → quem indicou ganha a comissão do app desse turno
-        if (prof.indicadoPor && !prof.bonusIndicacaoPago) {
-            const q = await db.collection("profissionais").where("refCode", "==", prof.indicadoPor).limit(1).get();
-            if (!q.empty && q.docs[0].id !== s.promotorChave) {
-                await db.collection("indicacoes").add({ para: q.docs[0].id, de: s.promotorChave, valor: reais(v.comissao), solicitacaoId: ref.id, criadoEm: FieldValue.serverTimestamp() });
-                await db.collection("profissionais").doc(s.promotorChave).update({ bonusIndicacaoPago: true });
-            }
-        }
-        // 🧾 NOTA FISCAL de verdade (NFS-e): plugue aqui um provedor (eNotas, Focus NFe, PlugNotas...).
-        // await fiscal.emitir(notaRef.id)  — exige CNPJ do app + certificado + inscrição municipal.
-        res.sendStatus(200);
-    } catch (e) { console.error(e); res.sendStatus(500); }
-});
-
-// ---------------------------------------------------------------------------
-// 3) Conectar a conta Mercado Pago do promotor (OAuth) — é o que habilita o split
-// ---------------------------------------------------------------------------
-exports.mpConectarUrl = onRequest({ cors: true, secrets: SECRETS }, async (req, res) => {
-    try {
-        const user = await admin.auth().verifyIdToken(req.body?.idToken || "");
-        const chave = String(req.body?.chave || "");
-        const prof = (await db.collection("profissionais").doc(chave).get()).data();
-        if (!prof || (prof.uid && prof.uid !== user.uid)) return fail(res, 403, "perfil de outra conta");
-        const state = crypto.randomBytes(16).toString("hex");
-        await db.collection("mpOauthState").doc(state).set({ chave, uid: user.uid, criadoEm: FieldValue.serverTimestamp() });
-        const redirect = encodeURIComponent(process.env.FUNCTION_URL_CALLBACK || "");
-        res.json({ url: `https://auth.mercadopago.com.br/authorization?client_id=${process.env.MP_APP_ID}&response_type=code&platform_id=mp&state=${state}&redirect_uri=${redirect}` });
-    } catch (e) { console.error(e); fail(res, 500, "falha ao iniciar conexão"); }
-});
-
-exports.mpCallback = onRequest({ secrets: SECRETS }, async (req, res) => {
-    try {
-        const { code, state } = req.query;
-        const st = await db.collection("mpOauthState").doc(String(state)).get();
-        if (!st.exists) return res.status(400).send("Link expirado. Volte ao app e tente de novo.");
-        const r = await fetch("https://api.mercadopago.com/oauth/token", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ client_id: process.env.MP_APP_ID, client_secret: process.env.MP_APP_SECRET, grant_type: "authorization_code", code, redirect_uri: process.env.FUNCTION_URL_CALLBACK })
-        });
-        const tk = await r.json();
-        if (!tk.access_token) { console.error(tk); return res.status(400).send("Mercado Pago recusou a conexão."); }
-        // token fica em "segredos" (nenhum cliente lê); no perfil público só vai o "conectado"
-        await db.collection("segredos").doc(st.data().chave).set({ mpAccessToken: tk.access_token, mpRefreshToken: tk.refresh_token || "", mpUserId: String(tk.user_id || ""), atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
-        await db.collection("profissionais").doc(st.data().chave).set({ mpConectado: true, mpConectadoEm: FieldValue.serverTimestamp() }, { merge: true });
-        await st.ref.delete();
-        res.redirect(`${SITE()}/promotor.html?mp=ok`);
-    } catch (e) { console.error(e); res.status(500).send("Erro ao conectar."); }
-});
-
-// ---------------------------------------------------------------------------
-// 4) Média de avaliações do promotor (a loja só avalia depois de pagar)
-// ---------------------------------------------------------------------------
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
-exports.aoAvaliar = onDocumentUpdated("solicitacoes/{id}", async (event) => {
-    const antes = event.data.before.data(), depois = event.data.after.data();
-    if (antes.avaliacao || !depois.avaliacao || !depois.promotorChave) return;
-    const nota = Math.min(5, Math.max(1, Number(depois.avaliacao.nota) || 0));
-    if (!nota) return;
-    const ref = db.collection("profissionais").doc(depois.promotorChave);
-    await db.runTransaction(async (t) => {
-        const p = (await t.get(ref)).data() || {};
-        const qtd = (p.notaQtd || 0) + 1;
-        t.set(ref, { notaQtd: qtd, notaMedia: Math.round((((p.notaMedia || 0) * (qtd - 1) + nota) / qtd) * 100) / 100 }, { merge: true });
+exports.mpCallback = onRequest({ region: REGION, secrets: [MP_CLIENT_SECRET] }, async (req, res) => {
+  const volta = (q) => res.redirect(`${appUrl()}/promotor.html?mp=${q}`);
+  try {
+    const { code, state = "" } = req.query;
+    const [uid, sig] = String(state).split(".");
+    if (!code || !uid || !sig || assinar(uid) !== sig) return volta("erro");
+    const r = await fetch(`${MP_API}/oauth/token`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: MP_CLIENT_ID.value(), client_secret: MP_CLIENT_SECRET.value(), grant_type: "authorization_code", code, redirect_uri: funcUrl("mpCallback") })
     });
+    const j = await r.json();
+    if (!r.ok) { logger.error("oauth MP", j); return volta("erro"); }
+    await db.collection("mp_tokens").doc(uid).set({
+      accessToken: j.access_token, refreshToken: j.refresh_token, mpUserId: j.user_id,
+      expiraEm: Timestamp.fromMillis(Date.now() + j.expires_in * 1000), conectadoEm: FieldValue.serverTimestamp()
+    });
+    await db.collection("profissionais").doc(uid).set({ mpConectado: true, mpUserId: String(j.user_id) }, { merge: true });
+    volta("ok");
+  } catch (e) { logger.error(e); volta("erro"); }
+});
+
+// ============================================================
+// 2) COBRANÇA COM SPLIT
+// ============================================================
+exports.criarCobranca = onRequest(opts, envelope(async (req, res) => {
+  const u = await usuario(req);
+  const { solicitacaoId } = req.body || {};
+  if (!solicitacaoId) throw new Falha(400, "pedido não informado");
+  const ref = db.collection("solicitacoes").doc(solicitacaoId);
+  const s = (await ref.get()).data();
+  if (!s || s.uid !== u.uid) throw new Falha(403, "pedido de outra conta");
+  if (s.status === "paga" || s.status === "concluida") throw new Falha(400, "pedido já pago", "ja-pago");
+  if (s.status !== "aceita" || !s.promotorUid) throw new Falha(400, "pedido ainda não foi aceito por um promotor");
+
+  const split = calcularSplit(valorDoPedido(s));
+  const token = await tokenDoPromotor(s.promotorUid);
+
+  // O token do PROMOTOR cria a cobrança; marketplace_fee é a parte do app (comissão + taxa fixa).
+  // Assim o Mercado Pago já divide no ato do pagamento: o promotor recebe direto na conta dele.
+  const pref = await mp("/checkout/preferences", token, {
+    method: "POST",
+    body: JSON.stringify({
+      items: [{ id: solicitacaoId, title: `Reposição — ${s.loja}`.slice(0, 120), description: `${s.foco} · ${s.data} ${s.horario}`, quantity: 1, unit_price: split.total / 100, currency_id: "BRL" }],
+      marketplace_fee: split.app / 100,
+      external_reference: solicitacaoId,
+      payer: u.email ? { email: u.email } : undefined,
+      notification_url: `${funcUrl("webhookMP")}?sid=${encodeURIComponent(solicitacaoId)}`,
+      back_urls: ["success", "failure", "pending"].reduce((o, k) => ({ ...o, [k]: `${appUrl()}/pagar.html?id=${encodeURIComponent(solicitacaoId)}&retorno=${k}` }), {}),
+      auto_return: "approved",
+      statement_descriptor: "ABASTECEJA",
+      payment_methods: { excluded_payment_types: [{ id: "ticket" }], installments: 1 }
+    })
+  });
+  await ref.update({ pagamento: { preferenceId: pref.id, status: "iniciado", split, iniciadoEm: FieldValue.serverTimestamp() } });
+  res.json({ init_point: pref.init_point, split });
+}));
+
+// ============================================================
+// 3) CONFIRMAÇÃO + NOTA
+// ============================================================
+async function processarPagamento(sid, paymentId) {
+  const ref = db.collection("solicitacoes").doc(sid);
+  const s = (await ref.get()).data();
+  if (!s) throw new Falha(404, "pedido não encontrado");
+  if (s.status === "paga" || s.status === "concluida") return { jaPago: true, notaId: s.notaId || null };
+  if (!s.promotorUid) throw new Falha(400, "pedido sem promotor");
+
+  const split = calcularSplit(valorDoPedido(s));
+  const token = await tokenDoPromotor(s.promotorUid);
+  const pg = await mp(`/v1/payments/${encodeURIComponent(paymentId)}`, token);   // fonte da verdade: API do MP
+
+  if (pg.external_reference !== sid) throw new Falha(400, "pagamento não pertence a este pedido");
+  if (pg.status !== "approved") return { aprovado: false, status: pg.status };
+  if (Math.round(pg.transaction_amount * 100) !== split.total) {
+    logger.error("valor divergente", { sid, esperado: split.total, recebido: pg.transaction_amount });
+    throw new Falha(400, "valor pago diverge do pedido");
+  }
+
+  // Transação: garante UMA nota por pagamento mesmo se webhook e retorno chegarem juntos.
+  const notaId = await db.runTransaction(async (tx) => {
+    const atual = (await tx.get(ref)).data();
+    if (atual.status === "paga" || atual.status === "concluida") return atual.notaId || null;
+    const contRef = db.collection("contadores").doc("notas");
+    const proximo = ((await tx.get(contRef)).data()?.ultimo || 0) + 1;
+    tx.set(contRef, { ultimo: proximo });
+
+    const [ctnt, profPriv, prof] = await Promise.all([
+      tx.get(db.collection("contratantes").doc(atual.uid)),
+      tx.get(db.collection("profissionais_privado").doc(atual.promotorUid)),
+      tx.get(db.collection("profissionais").doc(atual.promotorUid))
+    ]);
+    const c = ctnt.data() || {}, pp = profPriv.data() || {}, p = prof.data() || {};
+    const nRef = db.collection("notas").doc();
+    tx.set(nRef, {
+      numero: proximo, numeroFmt: String(proximo).padStart(6, "0"), serie: "A1",
+      tipo: "nota_servico_plataforma",            // NÃO é NFS-e. Ver README (integração fiscal).
+      fiscal: { nfse: null },                      // ← aqui entra o retorno de eNotas/Focus NFe/PlugNotas, se contratar
+      solicitacaoId: sid, contratanteUid: atual.uid, promotorUid: atual.promotorUid,
+      tomador: { razaoSocial: c.razaoSocial || atual.loja, documento: c.documento || "", endereco: c.endereco || atual.loja, email: c.email || "" },
+      prestador: { nome: p.nome || atual.promotorNome || "", documento: pp.cpf || "" },
+      servico: { descricao: `Reposição/abastecimento — ${atual.foco}`, loja: atual.loja, data: atual.data, horario: atual.horario },
+      valores: split,
+      pagamento: { mpPaymentId: String(paymentId), metodo: pg.payment_type_id || "", taxaMpCentavos: Math.round((pg.fee_details || []).filter((f) => f.type === "mercadopago_fee").reduce((a, f) => a + f.amount, 0) * 100) },
+      emitidaEm: FieldValue.serverTimestamp()
+    });
+    tx.update(ref, {
+      status: "paga", notaId: nRef.id, notaNumero: proximo, pagaEm: FieldValue.serverTimestamp(),
+      pagamento: { status: "aprovado", mpPaymentId: String(paymentId), split, metodo: pg.payment_type_id || "" }
+    });
+    return nRef.id;
+  });
+
+  await bonusIndicacao(sid, s, split).catch((e) => logger.error("indicação", e));
+  return { aprovado: true, notaId };
+}
+
+/** 1º turno pago de um promotor indicado: a comissão do app desse turno vira crédito de quem indicou. */
+async function bonusIndicacao(sid, s, split) {
+  const pRef = db.collection("profissionais").doc(s.promotorUid);
+  const p = (await pRef.get()).data();
+  if (!p?.indicadoPor || p.bonusIndicacaoPago) return;
+  const q = await db.collection("profissionais").where("refCode", "==", p.indicadoPor).limit(1).get();
+  if (q.empty || q.docs[0].id === s.promotorUid) return;
+  await db.collection("indicacoes").add({ para: q.docs[0].id, de: s.promotorUid, valorCentavos: split.comissaoApp, solicitacaoId: sid, status: "a_pagar", criadoEm: FieldValue.serverTimestamp() });
+  await pRef.update({ bonusIndicacaoPago: true });
+}
+
+function assinaturaValida(req, dataId) {
+  const secret = MP_WEBHOOK_SECRET.value();
+  if (!secret) return true; // sem segredo configurado: a verificação na API do MP continua protegendo
+  const sig = req.get("x-signature") || "", reqId = req.get("x-request-id") || "";
+  const ts = /ts=([^,]+)/.exec(sig)?.[1], v1 = /v1=([^,]+)/.exec(sig)?.[1];
+  if (!ts || !v1) return false;
+  const esperado = crypto.createHmac("sha256", secret).update(`id:${String(dataId).toLowerCase()};request-id:${reqId};ts:${ts};`).digest("hex");
+  return esperado.length === v1.length && crypto.timingSafeEqual(Buffer.from(esperado), Buffer.from(v1));
+}
+
+exports.webhookMP = onRequest(opts, async (req, res) => {
+  try {
+    const sid = req.query.sid;
+    const dataId = req.body?.data?.id || req.query["data.id"] || req.query.id;
+    const tipo = req.body?.type || req.query.type || req.query.topic;
+    if (!sid || !dataId || (tipo && tipo !== "payment")) return res.sendStatus(200);
+    if (!assinaturaValida(req, dataId)) return res.sendStatus(401);
+    await processarPagamento(String(sid), String(dataId));
+    res.sendStatus(200);
+  } catch (e) {
+    logger.error("webhook", e);
+    res.sendStatus(e instanceof Falha && e.status < 500 ? 200 : 500); // 5xx faz o MP tentar de novo
+  }
+});
+
+/** A página pagar.html chama isto ao voltar do checkout (não depende de o webhook já ter chegado). */
+exports.confirmarPagamento = onRequest(opts, envelope(async (req, res) => {
+  const u = await usuario(req);
+  const { solicitacaoId, paymentId } = req.body || {};
+  if (!solicitacaoId || !paymentId) throw new Falha(400, "dados incompletos");
+  const s = (await db.collection("solicitacoes").doc(solicitacaoId).get()).data();
+  if (!s || s.uid !== u.uid) throw new Falha(403, "pedido de outra conta");
+  res.json(await processarPagamento(solicitacaoId, paymentId));
+}));
+
+// ============================================================
+// 4) AVALIAÇÃO → nota média do promotor
+// ============================================================
+exports.onAvaliacao = onDocumentUpdated({ document: "solicitacoes/{id}", region: REGION }, async (ev) => {
+  const antes = ev.data.before.data(), depois = ev.data.after.data();
+  const est = depois?.avaliacao?.estrelas;
+  if (!(est >= 1 && est <= 5) || antes?.avaliacao?.estrelas || !depois.promotorUid) return; // só conta a 1ª avaliação (as regras já impedem edição)
+  const ref = db.collection("profissionais").doc(depois.promotorUid);
+  await db.runTransaction(async (tx) => {
+    const p = (await tx.get(ref)).data() || {};
+    const qtd = (p.ratingQtd || 0) + 1, soma = (p.ratingSoma || 0) + est;
+    tx.set(ref, { ratingQtd: qtd, ratingSoma: soma, ratingMedia: Math.round((soma / qtd) * 10) / 10 }, { merge: true });
+  });
 });
