@@ -1,29 +1,11 @@
 // ============================================================
 // ABASTECE JÁ — Servidor Node.js / Express (Render - 100% Gratuito)
-//
-// O que este arquivo faz:
-//  1. /mpConectarUrl e /mpCallback → promotor conecta a conta Mercado Pago dele (OAuth)
-//  2. /criarCobranca → cria o checkout com SPLIT AUTOMÁTICO (80% promotor / 20% app + taxa fixa)
-//  3. /webhookMP e /confirmarPagamento → confirma pagamento, marca "paga" e gera NOTA
-//  4. /onAvaliacao → recalcula a nota média do promotor
 // ============================================================
-const express = require('express');
-const path = require('path');
-const app = express();
-
-// IMPORTANTE: Diz para o Render servir os arquivos do front-end que estão na pasta pai (raiz do projeto)
-app.use(express.static(path.join(__dirname, '../')));
-
-// Suas rotas de API do Mercado Pago continuam aqui embaixo normal...
-app.post('/mpConectarUrl', (req, res) => {
-    // lógica do mercado pago...
-});
-
-// ... resto do seu código ...
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const path = require("path");
 const { calcularSplit, VALOR_MINIMO_CENTAVOS, VALOR_MAXIMO_CENTAVOS } = require("./split");
 
 const app = express();
@@ -31,9 +13,10 @@ app.set("trust proxy", 1); // o Render fica na frente: confia no x-forwarded-pro
 app.use(cors({ origin: true })); // a autenticação é por token Bearer (sem cookies), então origin aberto é seguro
 app.use(express.json());
 
+// IMPORTANTE: Diz para o Render servir os arquivos do front-end que estão na raiz do projeto
+app.use(express.static(path.join(__dirname, '../')));
+
 // Inicializa o Firebase Admin SDK.
-// No Render não existe credencial automática do Google: informe a chave da conta de serviço
-// na variável FIREBASE_SERVICE_ACCOUNT (o JSON inteiro, ou esse JSON em base64).
 function credencialFirebase() {
   const bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!bruto) return null;
@@ -59,8 +42,6 @@ const MP_API = "https://api.mercadopago.com";
 
 // Função utilitária para pegar a URL base do servidor
 const getBaseUrl = (req) => {
-  // O Render define RENDER_EXTERNAL_URL (ex.: https://abastece-j.onrender.com). Usar ela garante que
-  // o redirect_uri do OAuth seja sempre idêntico ao cadastrado no Mercado Pago.
   if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
   const host = req.get("host");
   const protocol = req.protocol === "https" || req.get("x-forwarded-proto") === "https" ? "https" : "http";
@@ -156,17 +137,10 @@ function valorDoPedido(s) {
   return c;
 }
 
-// Rota de Healthcheck (para testar no navegador)
-app.get("/", (req, res) => {
-  res.send("API Abastece Já rodando com sucesso no Render!");
-});
-
 // ============================================================
 // 1) CONECTAR MERCADO PAGO (OAuth do promotor)
 // ============================================================
 app.all("/mpConectarUrl", envelope(async (req, res) => {
-  // Sempre exige login: o uid vem do token verificado, nunca da URL.
-  // (Aceitar ?uid= permitiria ligar a conta Mercado Pago de outra pessoa ao cadastro de um promotor.)
   const { uid } = await usuario(req);
 
   if (!MP_CLIENT_ID || !MP_CLIENT_SECRET) {
@@ -388,8 +362,13 @@ app.post("/confirmarPagamento", envelope(async (req, res) => {
   res.json(await processarPagamento(solicitacaoId, paymentId));
 }));
 
-// Qualquer rota inexistente responde em JSON (o front mostra a mensagem em vez de um "Not Found" genérico)
-app.use((req, res) => res.status(404).json({ erro: `rota não encontrada: ${req.method} ${req.path}`, codigo: "rota-inexistente" }));
+// Rota coringa para lidar com rotas de API inexistentes em JSON
+app.use((req, res, next) => {
+  if (req.path.startsWith('/mpConectarUrl') || req.path.startsWith('/criarCobranca') || req.path.startsWith('/confirmarPagamento') || req.path.startsWith('/webhookMP')) {
+    return res.status(404).json({ erro: `rota não encontrada: ${req.method} ${req.path}`, codigo: "rota-inexistente" });
+  }
+  next();
+});
 
 // Inicialização do servidor na porta do Render
 app.listen(PORT, "0.0.0.0", () => {
