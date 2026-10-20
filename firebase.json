@@ -1,9 +1,9 @@
 {
-  "firestore": { "rules": "firestore.rules" },
-  "functions": [{ "source": "functions", "codebase": "default" }],
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "functions": [{ "source": "functions", "codebase": "default", "ignore": ["node_modules", ".git"] }],
   "hosting": {
     "public": ".",
-    "ignore": ["firebase.json", "firestore.rules", "functions/**", "**/.*", "**/node_modules/**", "LEIA-ME.md"],
+    "ignore": ["firebase.json", "functions/**", "test/**", "**/.*", "**/node_modules/**", "*.md", "firestore.*"],
     "headers": [{ "source": "sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }]
   }
 }
