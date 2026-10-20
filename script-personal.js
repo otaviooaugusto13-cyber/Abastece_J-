@@ -1,372 +1,291 @@
-// ==========================================================================
-// ABASTECE JÁ — Portal do promotor
-// ==========================================================================
-import { collection, doc, setDoc, getDoc, getDocs, updateDoc, runTransaction, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// ============================================================
+// ABASTECE JÁ — portal do PROMOTOR
+// ============================================================
+import { collection, addDoc, doc, setDoc, getDoc, updateDoc, deleteField, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, FUNCOES, $, esc, brl, fmtData, hojeLocal, vazio, skeleton, toast, cpfValido, mascaraDoc, mascaraTel, aplicarMascara, iniciarTema, alternarTema, mensagemErroAuth, notificar, pedirPermissaoNotificar } from "./comum.js";
-import { calcularRepasse, TAXA_PROMOTOR } from "./financeiro.js";
-import { abrirChat } from "./chat.js";
+import { auth, db, googleProvider, chamarFuncao } from "./firebase.js";
+import { WHATSAPP_SUPORTE } from "./config.js";
+import { brl, calcularSplit, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
+import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
-let user = null, perfilId = "", perfil = {}, privado = {};
-let agenda = [], ofertas = [], notas = [];
-let valorMinimo = 0, mapaOfertas = null, dataCalendario = new Date(), diaSelecionado = "";
-let unsubs = [], primeiraCargaOfertas = true;
-const pct = Math.round(TAXA_PROMOTOR * 100);
+let usuario = null, pub = {}, priv = {}, ofertas = [], turnos = [], filtroSetor = "", ordem = "valor";
+let offUn = null, turnosUn = null, chatUn = null, chatPedido = null, qrAtual = null;
+let dataCal = new Date(), diaSel = "", prim = { o: true, t: true };
+const vistos = new Set(), statusAnt = new Map();
 
-iniciarTema();
+iniciarTema(); registrarSW();
+ligarMascaras({ cpf: mascaraCPF, tel: mascaraTelefone });
+const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
+const R = textoRegra();
+$("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
+$("ajuda-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (promotor).")}`;
+$("benef-split").textContent = `Você fica com ${100 - 20}% de cada turno, sem mensalidade`;
+$("ajuda-split").textContent = `${R.curto} ${R.exemplo} O valor cai direto na sua conta Mercado Pago; a taxa do próprio Mercado Pago (Pix/cartão) é descontada por ele.`;
+$("nota-taxa-mp").textContent = "Os valores mostrados são o que a plataforma repassa a você (80% do turno). O Mercado Pago pode descontar a taxa de processamento dele (ex.: Pix) do valor recebido.";
+$("termos-texto").innerHTML = `<strong>1. Autonomia.</strong> Você é prestador independente; escolhe os turnos que aceita. Não há vínculo empregatício com a plataforma ou com as lojas.<br><br>
+  <strong>2. Pagamento e taxas.</strong> ${esc(R.curto)} A divisão é feita automaticamente pelo Mercado Pago no momento do pagamento, direto na sua conta conectada. Taxas de processamento do Mercado Pago são dele.<br><br>
+  <strong>3. Aprovação.</strong> Seu cadastro passa por análise antes de liberar as ofertas.<br><br>
+  <strong>4. Compromisso.</strong> Aceitou, compareça. Se não puder, use “Desistir” com antecedência para o turno voltar à fila.<br><br>
+  <strong>5. Obrigações fiscais.</strong> Seus ganhos podem ter obrigações tributárias (MEI/autônomo). A nota emitida pela plataforma é um comprovante e não substitui NFS-e.`;
 
 // ---------- indicação (?ref=) ----------
 try { const r = new URLSearchParams(location.search).get("ref"); if (r) localStorage.setItem("abastece_ref", r.replace(/[^\w-]/g, "").slice(0, 40)); } catch (e) {}
 const refRecebido = () => { try { return localStorage.getItem("abastece_ref") || ""; } catch (e) { return ""; } };
-const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
 const novoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+if (refRecebido()) $("login-sub").textContent = "🎁 Você foi convidado por um promotor. Cadastre-se e faça seu primeiro turno!";
+{ const m = new URLSearchParams(location.search).get("mp"); if (m) { history.replaceState(null, "", location.pathname); setTimeout(() => (m === "ok" ? ok("Mercado Pago conectado! Agora você recebe direto na sua conta.") : erro("Não foi possível conectar o Mercado Pago. Tente de novo.")), 600); } }
 
-// ==========================================================================
-// LOGIN (somente Google: o antigo login por CPF não tinha autenticação)
-// ==========================================================================
-function validarCheckTermos() { $("btn-google").disabled = !$("check-termos").checked; }
-const abrirModalTermos = () => $("modal-termos").classList.add("active");
-function aceitarTermosModal() { $("check-termos").checked = true; validarCheckTermos(); $("modal-termos").classList.remove("active"); }
-
-async function loginComGoogle() {
-    if (!$("check-termos").checked) return toast("Aceite os Termos de Uso para continuar.", "erro");
+// ---------- login ----------
+const msgAuth = (e) => ({ "auth/unauthorized-domain": "Domínio não autorizado no Firebase.", "auth/operation-not-allowed": "Login com Google não está ativado no Firebase.", "auth/network-request-failed": "Sem conexão com a internet." })[e.code] ?? ((e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") ? null : `Falha ao autenticar (${e.code || "erro"}).`);
+$("check-termos").addEventListener("change", (e) => ($("btn-login").disabled = !e.target.checked));
+$("link-termos").addEventListener("click", (e) => { e.preventDefault(); abrir("sheet-termos"); });
+$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("btn-login").disabled = false; fechar("sheet-termos"); });
+$("btn-login").addEventListener("click", async () => {
+    const b = $("btn-login"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Entrando…';
     try { await signInWithPopup(auth, googleProvider); }
-    catch (error) {
-        if (error.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e) { error = e; } }
-        const m = mensagemErroAuth(error); if (m) toast(m, "erro");
-    }
-}
-getRedirectResult(auth).catch((e) => { const m = mensagemErroAuth(e); if (m) toast(m, "erro"); });
-onAuthStateChanged(auth, (u) => { if (u) entrar(u); else sair(false); });
+    catch (e) { if (e.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e2) { e = e2; } } const m = msgAuth(e); if (m) erro(m); b.disabled = false; b.innerHTML = html; }
+});
+getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); });
+$("btn-sair").addEventListener("click", async () => { if (!confirm("Deseja sair do portal?")) return; offUn?.(); turnosUn?.(); chatUn?.(); await signOut(auth); });
 
-async function entrar(u) {
-    user = u;
-    $("screen-login-personal").classList.remove("active");
-    $("screen-dashboard").classList.add("active");
-    $("lista-demandas-cards").innerHTML = skeleton(3);
-    try {
-        let snap = await getDoc(doc(db, "profissionais", u.uid));
-        perfilId = u.uid;
-        if (!snap.exists()) {                                  // cadastro antigo (id = CPF)? acha pelo e-mail
-            const q = await getDocs(query(collection(db, "profissionais"), where("email", "==", u.email)));
-            if (!q.empty) { snap = q.docs[0]; perfilId = snap.id; }
-        }
-        if (!snap.exists()) {
-            await setDoc(doc(db, "profissionais", u.uid), { nome: u.displayName || "", email: u.email, uid: u.uid, fotoGoogle: u.photoURL || "", status: "pendente", indicadoPor: refRecebido(), criadoEm: serverTimestamp() });
-            snap = await getDoc(doc(db, "profissionais", u.uid));
-        }
-        perfil = snap.data();
-    } catch (e) { console.error("Perfil:", e); toast("Não foi possível carregar seu cadastro. Verifique as regras do Firestore.", "erro"); perfil = { nome: u.displayName || "Promotor", status: "pendente" }; perfilId = u.uid; }
-    if (perfil.status === "bloqueado") { toast("❌ Acesso não liberado para esta conta.", "erro"); return sair(true); }
-    try { const p = await getDoc(doc(db, "privado", u.uid)); privado = p.exists() ? p.data() : {}; } catch (e) { privado = {}; }
-    valorMinimo = Number(perfil.valorMin) || 0;
-    preencherFormularios();
-    atualizarPerfilTela();
-    garantirLinkIndicacao();
-    iniciarListeners();
-    if (new URLSearchParams(location.search).get("mp") === "ok") { toast("✅ Mercado Pago conectado! Você já pode receber.", "ok"); switchTabPersonal("tab-carteira", document.querySelectorAll("#nav-personal .nav-item")[3]); history.replaceState({}, "", location.pathname); }
-}
-
-async function sairModoPessoal() {
-    if (!confirm("Deseja realmente sair do portal?")) return;
-    try { await signOut(auth); } catch (e) {}
-}
-function sair() {
-    unsubs.forEach((f) => f()); unsubs = []; user = null; primeiraCargaOfertas = true;
-    $("screen-dashboard").classList.remove("active"); $("screen-login-personal").classList.add("active");
-}
-
-// ==========================================================================
-// PERFIL
-// ==========================================================================
-const ativo = () => perfil.status === "ativo";
-function atualizarPerfilTela() {
-    const nome = perfil.nome || user.displayName || "Promotor";
-    $("perfil-nome-display").innerText = nome;
-    $("perfil-cref-display").innerText = ativo() ? "Status: Ativo ✓" : "Status: Em análise";
-    $("initials-perfil").innerText = nome.charAt(0).toUpperCase();
-    const foto = perfil.fotoGoogle || user.photoURL;
-    if (foto) { const i = $("img-perfil-preview"); i.src = foto; i.style.display = "block"; $("initials-perfil").style.display = "none"; }
-    $("card-status-analise").style.display = ativo() ? "none" : "block";
-    const aviso = document.querySelector("#tab-agenda .glass[style*='border-left']"); if (aviso) aviso.style.display = ativo() ? "none" : "flex";
-    $("stat-nota").innerText = perfil.notaQtd ? Number(perfil.notaMedia).toFixed(1) + " ★" : "—";
-    renderPerfilCompleto(); renderCarteira(); renderOfertas();
-}
-function renderPerfilCompleto() {
-    const itens = [
-        ["Conectar o Mercado Pago", !!perfil.mpConectado, "tab-carteira"], ["Informar seu CPF", cpfValido(privado.cpf), "Perfil"],
-        ["Cadastrar telefone/WhatsApp", !!privado.telefone, "tab-menu"], ["Escrever uma bio", !!perfil.bio, "Perfil"], ["Cadastrar chave Pix", !!privado.pix?.chave, "Dados bancários"]];
-    const feitos = itens.filter((i) => i[1]).length, falta = itens.filter((i) => !i[1]);
-    const el = $("card-perfil-completo");
-    el.style.display = falta.length ? "block" : "none";
-    el.innerHTML = `<div class="pc-topo"><strong>Perfil ${Math.round((feitos / itens.length) * 100)}% completo</strong><small>Perfis completos pegam mais turnos</small></div>
-        <div class="pc-barra"><span style="width:${(feitos / itens.length) * 100}%"></span></div>
-        <ul>${falta.map((i) => `<li><a href="#" data-ir="${i[2]}">${i[0]} ›</a></li>`).join("")}</ul>`;
-    el.onclick = (e) => { const a = e.target.closest("[data-ir]"); if (!a) return; e.preventDefault(); a.dataset.ir.startsWith("tab-") ? switchTabPersonal(a.dataset.ir, document.querySelector(`#nav-personal .nav-item[onclick*="${a.dataset.ir}"]`)) : abrirOpcaoMenu(a.dataset.ir); };
-}
-function preencherFormularios() {
-    $("perfil-input-nome").value = perfil.nome || user.displayName || "";
-    $("perfil-input-cpf").value = privado.cpf ? mascaraDoc(privado.cpf) : "";
-    $("perfil-input-nascimento").value = privado.nascimento || "";
-    $("perfil-input-naturalidade").value = perfil.cidade || "";
-    $("personal-input-bio").value = perfil.bio || "";
-    $("promotor-input-telefone").value = privado.telefone || "";
-    if (privado.banco) { $("bank-select-banco").value = privado.banco.banco || $("bank-select-banco").value; $("bank-select-tipo-conta").value = privado.banco.tipo || $("bank-select-tipo-conta").value; $("bank-input-agencia").value = privado.banco.agencia || ""; $("bank-input-conta").value = privado.banco.conta || ""; $("bank-input-digito").value = privado.banco.digito || ""; }
-    if (privado.pix) { $("bank-select-tipo-pix").value = privado.pix.tipo || $("bank-select-tipo-pix").value; $("bank-input-chave-pix").value = privado.pix.chave || ""; }
-    $("pref-valor-min").value = valorMinimo || "";
-    if (perfil.disponibilidade) { $("pref-hora-inicio").value = perfil.disponibilidade.inicio || $("pref-hora-inicio").value; $("pref-hora-fim").value = perfil.disponibilidade.fim || $("pref-hora-fim").value; }
-}
-async function salvarPublico(dados) { await setDoc(doc(db, "profissionais", perfilId), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); Object.assign(perfil, dados); }
-async function salvarPrivado(dados) { await setDoc(doc(db, "privado", user.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); Object.assign(privado, dados); }
-
-async function salvarPerfilProfissionalCompleto() {
-    const cpf = $("perfil-input-cpf").value.replace(/\D/g, "");
-    if (cpf && !cpfValido(cpf)) return toast("CPF inválido. Confira os 11 dígitos.", "erro");
-    try {
-        await salvarPublico({ nome: $("perfil-input-nome").value.trim(), cidade: $("perfil-input-naturalidade").value.trim(), bio: $("personal-input-bio").value.trim() });
-        await salvarPrivado({ cpf, nascimento: $("perfil-input-nascimento").value });
-        atualizarPerfilTela(); toast("✅ Perfil salvo!", "ok"); fecharSubtela("subscreen-perfil-detalhes");
-    } catch (e) { console.error(e); toast("Não foi possível salvar o perfil.", "erro"); }
-}
-async function salvarDadosBancarios() {
-    const agencia = $("bank-input-agencia").value.trim(), conta = $("bank-input-conta").value.trim(), chave = $("bank-input-chave-pix").value.trim();
-    if (!chave && !(agencia && conta)) return toast("Informe a chave PIX ou agência e conta.", "erro");
-    try {
-        await salvarPrivado({ banco: { banco: $("bank-select-banco").value, tipo: $("bank-select-tipo-conta").value, agencia, conta, digito: $("bank-input-digito").value.trim() }, pix: { tipo: $("bank-select-tipo-pix").value, chave } });
-        toast("✅ Dados bancários salvos!", "ok"); fecharSubtela("subscreen-dados-bancarios"); renderPerfilCompleto();
-    } catch (e) { console.error(e); toast("Não foi possível salvar os dados bancários.", "erro"); }
-}
-async function salvarContato() {
-    const tel = $("promotor-input-telefone").value.trim();
-    if (tel.replace(/\D/g, "").length < 10) return toast("Informe um telefone com DDD.", "erro");
-    try { await salvarPrivado({ telefone: tel }); toast("✅ Contato salvo!", "ok"); renderPerfilCompleto(); } catch (e) { console.error(e); toast("Não foi possível salvar o contato.", "erro"); }
-}
-async function salvarPrefs() {
-    const v = parseFloat($("pref-valor-min").value) || 0;
-    try {
-        await salvarPublico({ valorMin: v, especialidade: $("pref-estilo").selectedOptions[0].text, disponibilidade: { inicio: $("pref-hora-inicio").value, fim: $("pref-hora-fim").value } });
-        valorMinimo = v; toast("✅ Preferências salvas!", "ok"); fecharSubtela("subscreen-preferencias-atendimento"); renderOfertas();
-    } catch (e) { console.error(e); toast("Não foi possível salvar as preferências.", "erro"); }
-}
-function atualizarFotoPerfil(ev) {
-    const f = ev.target.files[0]; if (!f) return;
-    if (f.size > 4e6) return toast("Imagem muito grande (máx. 4 MB).", "erro");
-    const r = new FileReader(); r.onload = (e) => { const i = $("img-perfil-preview"); i.src = e.target.result; i.style.display = "block"; $("initials-perfil").style.display = "none"; }; r.readAsDataURL(f);
-}
-async function garantirLinkIndicacao() {
-    const input = $("input-link-indicacao"); if (!input) return;
-    let codigo = perfil.refCode;
-    if (!codigo) { codigo = novoCodigo(); try { await salvarPublico({ refCode: codigo }); } catch (e) { console.warn("refCode:", e.code); } }
-    input.value = `${baseSite()}promotor.html?ref=${codigo}`;
-}
-
-// ==========================================================================
-// NAVEGAÇÃO / SUBTELAS
-// ==========================================================================
-function switchTabPersonal(tabId, el) {
-    document.querySelectorAll("#screen-dashboard .tab-content").forEach((t) => t.classList.remove("active"));
-    $(tabId).classList.add("active");
-    document.querySelectorAll("#nav-personal .nav-item").forEach((i) => { i.classList.remove("active"); i.removeAttribute("aria-current"); });
-    if (el) { el.classList.add("active"); el.setAttribute("aria-current", "page"); }
-    window.scrollTo(0, 0);
-    if (tabId === "tab-ofertas") initMapAlunos();
-}
-const SUBTELAS = { "Perfil": "subscreen-perfil-detalhes", "Dados bancários": "subscreen-dados-bancarios", "Preferências de Atendimento": "subscreen-preferencias-atendimento", "Convidar Amigos": "subscreen-indicar-amigo", "Notificações": "subscreen-notificacoes", "Ajuda": "subscreen-ajuda" };
-function abrirOpcaoMenu(nome) { const id = SUBTELAS[nome]; if (id) $(id).style.display = "block"; }
-const fecharSubtela = (id) => { $(id).style.display = "none"; };
-
-// ==========================================================================
-// LISTENERS EM TEMPO REAL
-// ==========================================================================
-function iniciarListeners() {
-    unsubs.forEach((f) => f()); unsubs = []; primeiraCargaOfertas = true;
-    unsubs.push(onSnapshot(query(collection(db, "solicitacoes"), where("promotorUid", "==", user.uid)), (snap) => {
-        agenda = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
-        renderAgenda(); renderCarteira(); renderCalendario(); renderConversas();
-    }, (e) => console.warn("Agenda:", e.code)));
-    unsubs.push(onSnapshot(query(collection(db, "notas"), where("promotorUid", "==", user.uid)), (snap) => {
-        const antes = notas.length;
-        notas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.emitidaEm?.seconds || 0) - (a.emitidaEm?.seconds || 0));
-        if (antes && notas.length > antes) notificar("Pagamento recebido! 💰", `+ ${brl(notas[0].repassePromotor)} de ${notas[0].loja}`);
-        $("stat-lojas").innerText = notas.length; renderCarteira();
-    }, (e) => console.warn("Notas:", e.code)));
-    if (ativo()) unsubs.push(onSnapshot(query(collection(db, "solicitacoes"), where("status", "==", "aberta")), (snap) => {
-        ofertas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        if (!primeiraCargaOfertas) snap.docChanges().filter((c) => c.type === "added").forEach((c) => { const x = c.doc.data(); if (x.valor >= valorMinimo) notificar("Nova oferta de reposição", `${x.loja} · você recebe ${brl(calcularRepasse(x.valor).promotor)}`); });
-        primeiraCargaOfertas = false;
-        renderOfertas();
-    }, (e) => { console.warn("Ofertas:", e.code); $("lista-demandas-cards").innerHTML = vazio("⚠️", "Não foi possível carregar", "Verifique sua conexão."); }));
-    $("btn-notif").style.display = ("Notification" in window && Notification.permission === "default") ? "block" : "none";
-}
-async function ativarAvisos() { await pedirPermissaoNotificar(); $("btn-notif").style.display = "none"; toast("🔔 Avisos ativados!", "ok"); }
-
-// ==========================================================================
-// OFERTAS
-// ==========================================================================
-function renderOfertas() {
-    const el = $("lista-demandas-cards");
-    if (!ativo()) { el.innerHTML = vazio("🔒", "Ofertas liberadas após aprovação", "Estamos analisando seu cadastro. Você será avisado por aqui."); return; }
-    const sel = $("filtro-setor"), atual = sel.value;
-    const setores = [...new Set(ofertas.map((o) => o.foco))].sort();
-    sel.innerHTML = '<option value="">Todos</option>' + setores.map((s) => `<option${s === atual ? " selected" : ""}>${esc(s)}</option>`).join("");
-    let lista = ofertas.filter((o) => o.valor >= valorMinimo && o.data >= hojeLocal() && (!atual || o.foco === atual));
-    lista.sort($("ordem-ofertas").value === "valor" ? (a, b) => b.valor - a.valor : (a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
-    el.innerHTML = lista.length ? lista.map((x) => `<article class="glass agenda-slot slot-livre"><div class="slot-info"><div class="slot-info-name">${esc(x.loja)}</div>
-        <div class="slot-info-desc">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}<br>Você recebe <strong>${brl(calcularRepasse(x.valor).promotor)}</strong> <small>(${pct}% de ${brl(x.valor)})</small></div></div>
-        <div class="slot-actions"><button class="btn-slot-action btn-qr" data-acao="aceitar" data-id="${x.id}">Aceitar</button></div></article>`).join("")
-        : vazio("🛒", "Sem ofertas por enquanto", valorMinimo ? `Nenhuma proposta de ${brl(valorMinimo)} ou mais agora.` : "Novas demandas de reposição na sua região aparecerão aqui.");
-}
-async function aceitarOferta(id, btn) {
-    if (FUNCOES.mpConectarUrl && !perfil.mpConectado) { toast("Conecte seu Mercado Pago na Carteira para receber os pagamentos.", "erro"); return switchTabPersonal("tab-carteira", document.querySelectorAll("#nav-personal .nav-item")[3]); }
-    btn.disabled = true;
-    try {
-        await runTransaction(db, async (t) => {                  // 2 promotores clicando juntos: só um leva
-            const r = doc(db, "solicitacoes", id), s = await t.get(r);
-            if (!s.exists() || s.data().status !== "aberta") throw new Error("indisponivel");
-            t.update(r, { status: "aceita", promotorChave: perfilId, promotorUid: user.uid, promotorNome: perfil.nome || user.displayName || "Promotor", aceitoEm: serverTimestamp() });
-        });
-        toast("Turno aceito! Ele já está na sua agenda.", "ok");
-    } catch (e) { console.warn(e); toast(e.message === "indisponivel" ? "Ops, outro promotor pegou este turno primeiro." : "Não foi possível aceitar o turno.", "erro"); btn.disabled = false; }
-}
-
-// ==========================================================================
-// AGENDA: check-in, check-out, cobrança
-// ==========================================================================
-function acoesTurno(x) {
-    if (x.status === "concluida") return `<div class="slot-actions"><button class="btn-slot-action" data-acao="chat" data-id="${x.id}">💬</button></div>`;
-    if (x.status !== "aceita") return "";
-    const b = [];
-    if (!x.checkinEm) b.push(`<button class="btn-slot-action btn-qr" data-acao="checkin" data-id="${x.id}">Check-in</button>`);
-    else if (!x.checkoutEm) b.push(`<button class="btn-slot-action btn-qr" data-acao="checkout" data-id="${x.id}">Finalizar turno</button>`);
-    else b.push(`<button class="btn-slot-action btn-qr" data-acao="qr" data-id="${x.id}">Cobrar (QR)</button>`);
-    b.push(`<button class="btn-slot-action" data-acao="chat" data-id="${x.id}" aria-label="Chat">💬</button>`);
-    return `<div class="slot-actions">${b.join("")}</div>`;
-}
-function cartaoTurno(x, acoes = true) {
-    const etapa = x.status === "concluida" ? "Pago ✓" : x.checkoutEm ? "Aguardando pagamento" : x.checkinEm ? "Em andamento" : "Agendado";
-    return `<article class="glass agenda-slot ${x.status === "concluida" ? "slot-concluida" : "slot-ocupado"}"><div class="slot-time">${esc(x.entrada)}</div>
-        <div class="slot-info"><div class="slot-info-name">${esc(x.loja)} <span class="badge badge-gold">${etapa}</span></div>
-        <div class="slot-info-desc">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)} · você recebe ${brl(calcularRepasse(x.valor).promotor)}</div></div>${acoes ? acoesTurno(x) : ""}</article>`;
-}
-function renderAgenda() {
-    const lista = $("lista-agenda"), resumo = $("lista-agenda-resumo");
-    const visiveis = diaSelecionado ? agenda.filter((x) => x.data === diaSelecionado) : agenda.filter((x) => x.status !== "cancelada");
-    lista.innerHTML = visiveis.length ? visiveis.map((x) => cartaoTurno(x)).join("") : vazio("📅", diaSelecionado ? "Nenhum turno neste dia" : "Nenhum turno por aqui", "Os turnos que você aceitar nas Ofertas aparecem neste espaço.");
-    const hoje = agenda.filter((x) => x.data === hojeLocal() && x.status !== "cancelada");
-    resumo.innerHTML = hoje.length ? hoje.map((x) => cartaoTurno(x)).join("") : vazio("☀️", "Nada para hoje", "Quando você tiver turnos hoje, eles aparecem aqui.");
-    const prox = agenda.find((x) => x.status === "aceita");
-    $("proxima-reposicao").textContent = prox ? `${fmtData(prox.data)} · ${prox.entrada}–${prox.saida} · ${prox.loja}` : "Nenhum turno agendado.";
-}
-function renderConversas() {
-    $("lista-conversas-promotor").innerHTML = agenda.filter((x) => x.status !== "cancelada").map((x) => `<button class="glass conversa-item" data-acao="chat" data-id="${x.id}"><div class="avatar">${esc((x.loja || "L").charAt(0))}</div><div><strong>${esc(x.loja)}</strong><br><small class="muted-line">${fmtData(x.data)} · ${esc(x.foco)}</small></div><span class="option-arrow">›</span></button>`).join("")
-        || vazio("💬", "Nenhuma conversa ainda", "Quando você aceitar um turno, o chat com a loja aparece aqui.");
-}
-
-async function acaoLista(e) {
-    const b = e.target.closest("[data-acao]"); if (!b) return;
-    const id = b.dataset.id, a = b.dataset.acao;
-    if (a === "aceitar") return aceitarOferta(id, b);
-    const x = agenda.find((t) => t.id === id); if (!x) return;
-    if (a === "chat") return abrirChat(x.id, x.loja, `${fmtData(x.data)} · ${x.horario}`);
-    if (a === "qr") return mostrarQR(x);
-    if (a === "checkin" && x.data !== hojeLocal()) return toast("O check-in só pode ser feito no dia do turno.", "erro");
-    if (a === "checkin" || a === "checkout") {
-        if (a === "checkout" && !confirm("Finalizar o turno e liberar a cobrança para a loja?")) return;
-        b.disabled = true;
-        try { await updateDoc(doc(db, "solicitacoes", id), { [a === "checkin" ? "checkinEm" : "checkoutEm"]: serverTimestamp() }); toast(a === "checkin" ? "✅ Check-in feito. Bom trabalho!" : "✅ Turno finalizado! Cobre a loja pelo QR Code.", "ok"); }
-        catch (err) { console.error(err); toast("Não foi possível registrar. Tente de novo.", "erro"); b.disabled = false; }
-    }
-}
-function mostrarQR(x) {
-    const link = `${baseSite()}pagar.html?id=${encodeURIComponent(x.id)}`, r = calcularRepasse(x.valor);
-    $("qr-box").innerHTML = "";
-    if (window.QRCode) new QRCode($("qr-box"), { text: link, width: 200, height: 200 }); else $("qr-box").textContent = link;
-    $("qr-valor").textContent = `A loja paga ${brl(r.totalLoja)}`;
-    $("qr-liquido").innerHTML = `Você recebe <b>${brl(r.promotor)}</b> (${pct}% de ${brl(r.base)}) · App: ${brl(r.app)}`;
-    let w = $("qr-whats");
-    if (!w) { w = document.createElement("button"); w.id = "qr-whats"; w.className = "btn btn-primary"; w.style.marginTop = "12px"; $("qr-liquido").after(w); }
-    w.textContent = "Enviar link por WhatsApp";
-    w.onclick = () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent(`Olá! Segue o link para pagar a reposição de ${x.loja}: ${link}`), "_blank");
-    $("modal-qr").classList.add("active");
-}
-const fecharQR = () => $("modal-qr").classList.remove("active");
-
-// ==========================================================================
-// CARTEIRA
-// ==========================================================================
-function renderCarteira() {
-    if (!user) return;
-    const recebido = notas.reduce((s, n) => s + (n.repassePromotor || 0), 0);
-    const pendentes = agenda.filter((x) => x.status === "aceita");
-    const areceber = pendentes.reduce((s, x) => s + calcularRepasse(x.valor).promotor, 0);
-    $("cart-recebido").innerText = brl(recebido); $("cart-areceber").innerText = brl(areceber);
-    $("valor-recebido").innerText = brl(recebido); $("valor-avulso").innerText = brl(areceber); $("valor-total").innerText = brl(recebido + areceber);
-    $("lista-recebimentos").innerHTML = (notas.length || pendentes.length)
-        ? pendentes.map((x) => `<div class="glass recebimento pend"><div><strong>${esc(x.loja)}</strong><br><small class="muted-line">${fmtData(x.data)} · aguardando pagamento</small></div><b>${brl(calcularRepasse(x.valor).promotor)}</b></div>`).join("")
-          + notas.map((n) => `<div class="glass recebimento"><div><strong>${esc(n.loja)}</strong><br><small class="muted-line">${fmtData(n.data)} · recibo nº ${esc(n.numero)}</small></div><b class="ganho">+ ${brl(n.repassePromotor)}</b></div>`).join("")
-        : '<p class="muted-line" style="text-align:center;padding:10px">Seus recebimentos aparecem aqui.</p>';
-    $("card-mp").innerHTML = perfil.mpConectado
-        ? '<div style="font-size:30px">✅</div><h3 style="font-size:15px;margin:6px 0">Mercado Pago conectado</h3><p class="muted-line">Os pagamentos das lojas caem direto na sua conta Mercado Pago.</p>'
-        : '<div style="font-size:30px">💳</div><h3 style="font-size:15px;margin:6px 0">Conecte seu Mercado Pago</h3><p class="muted-line" style="margin-bottom:14px">É por ele que você recebe seus ' + pct + '% automaticamente, sem esperar repasse.</p><button class="btn btn-primary" onclick="conectarMP()">Conectar Mercado Pago</button>';
-    $("card-mp").style.borderLeftColor = perfil.mpConectado ? "#28a745" : "#ff3b30";
-}
-async function conectarMP() {
-    if (!FUNCOES.mpConectarUrl) return toast("O recebimento automático ainda não foi ativado pela plataforma.", "erro");
-    try {
-        const r = await fetch(FUNCOES.mpConectarUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: await user.getIdToken(), chave: perfilId }) });
-        const j = await r.json(); if (!j.url) throw new Error(j.erro || "sem url");
-        location.href = j.url;
-    } catch (e) { console.error(e); toast("Não foi possível abrir o Mercado Pago. Tente de novo.", "erro"); }
-}
-
-// ==========================================================================
-// CALENDÁRIO
-// ==========================================================================
-function renderCalendario() {
-    const grid = $("calendar-days-grid"); if (!grid) return;
-    const ano = dataCalendario.getFullYear(), mes = dataCalendario.getMonth(), hoje = new Date();
-    $("calendar-month-year").innerText = dataCalendario.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
-    const primeiro = (new Date(ano, mes, 1).getDay() + 6) % 7, total = new Date(ano, mes + 1, 0).getDate();
-    const comTurno = new Set(agenda.filter((x) => x.status !== "cancelada").map((x) => x.data));
-    let html = "<div></div>".repeat(primeiro);
-    for (let d = 1; d <= total; d++) {
-        const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const ehHoje = d === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear();
-        html += `<button type="button" class="cal-day${ehHoje ? " today" : ""}${diaSelecionado === iso ? " selected" : ""}${comTurno.has(iso) ? " has-turno" : ""}" onclick="selecionarDia(${d})" aria-label="Dia ${d}${comTurno.has(iso) ? ", com turno" : ""}">${d}</button>`;
-    }
-    grid.innerHTML = html;
-}
-const mudarMesCalendario = (n) => { dataCalendario = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth() + n, 1); renderCalendario(); };
-function selecionarDia(d) {
-    const dt = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth(), d);
-    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    diaSelecionado = diaSelecionado === iso ? "" : iso;                         // clicar de novo limpa o filtro
-    $("selected-date-label").innerText = diaSelecionado ? "Turnos de " + dt.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }) : "Todos os seus turnos";
-    renderCalendario(); renderAgenda();
-}
-
-// ==========================================================================
-// MAPA / INDICAÇÃO
-// ==========================================================================
-function initMapAlunos() {
-    const el = $("mapa-alunos");
-    if (!el || !window.google?.maps) return;
-    if (!mapaOfertas) {
-        mapaOfertas = new google.maps.Map(el, { zoom: 14, center: { lat: -22.4389, lng: -46.8258 }, disableDefaultUI: true, styles: [
-            { elementType: "geometry", stylers: [{ color: "#1a1a24" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-            { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c38" }] }, { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e1626" }] }] });
-        navigator.geolocation?.getCurrentPosition((p) => mapaOfertas.setCenter({ lat: p.coords.latitude, lng: p.coords.longitude }), () => {});
-    } else google.maps.event.trigger(mapaOfertas, "resize");
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-    aplicarMascara("perfil-input-cpf", mascaraDoc); aplicarMascara("promotor-input-telefone", mascaraTel);
-    document.querySelectorAll(".r-pct-prom").forEach((e) => (e.textContent = pct));
-    ["lista-agenda", "lista-agenda-resumo", "lista-demandas-cards", "lista-conversas-promotor"].forEach((id) => $(id)?.addEventListener("click", acaoLista));
-    if (refRecebido() && $("login-sub")) $("login-sub").textContent = "🎁 Você foi convidado por um promotor! Entre com o Google e faça seu primeiro turno.";
-    validarCheckTermos();
+onAuthStateChanged(auth, async (u) => {
+    usuario = u;
+    if (!u) { offUn?.(); turnosUn?.(); document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === "screen-login")); $("btn-login").disabled = !$("check-termos").checked; $("btn-login").innerHTML = $("btn-login").innerHTML.replace(/<span class="spinner"><\/span> Entrando…/, "Continuar com Google"); prim = { o: true, t: true }; return; }
+    try { await entrar(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Verifique as regras do Firestore."); }
 });
 
-Object.assign(window, { loginComGoogle, validarCheckTermos, abrirModalTermos, aceitarTermosModal, abrirOpcaoMenu, fecharSubtela, salvarPerfilProfissionalCompleto, salvarDadosBancarios,
-    atualizarFotoPerfil, sairModoPessoal, switchTabPersonal, mudarMesCalendario, selecionarDia, initMapAlunos, toggleTheme: alternarTema, salvarContato, toast, fecharQR,
-    salvarPrefs, renderizarOfertas: renderOfertas, ativarAvisos, conectarMP });
+async function entrar(u) {
+    const ref = doc(db, "profissionais", u.uid);
+    let s = await getDoc(ref);
+    if (!s.exists()) {
+        await setDoc(ref, { nome: u.displayName || "", email: u.email, uid: u.uid, status: "pendente", indicadoPor: refRecebido(), fotoGoogle: u.photoURL || "", criadoEm: serverTimestamp() });
+        s = await getDoc(ref);
+    }
+    pub = s.data();
+    if (pub.status === "bloqueado") { erro("Acesso não liberado para esta conta."); await signOut(auth); return; }
+    try { priv = (await getDoc(doc(db, "profissionais_privado", u.uid))).data() || {}; } catch (e) { priv = {}; }
+    if (!pub.refCode) { pub.refCode = novoCodigo(); updateDoc(ref, { refCode: pub.refCode }).catch(() => {}); }
+    document.querySelectorAll(".screen").forEach((x) => x.classList.toggle("active", x.id === "screen-dashboard"));
+    montarSetoresPrefs(); pintarPerfil(); escutar(); window.scrollTo(0, 0);
+}
+
+const ativo = () => pub.status === "ativo";
+const mpOk = () => !!pub.mpConectado;
+const nomeProm = () => pub.nome || usuario.displayName || "Promotor";
+
+// ---------- perfil + onboarding ----------
+function pintarPerfil() {
+    const nome = nomeProm(), ini = nome[0].toUpperCase();
+    $("nome-home").textContent = nome.split(" ")[0]; $("nome-menu").textContent = nome;
+    for (const id of ["avatar-home", "avatar-menu"]) { const a = $(id); a.textContent = ini; if (pub.fotoGoogle) a.innerHTML = `<img src="${esc(pub.fotoGoogle)}" alt="" referrerpolicy="no-referrer">`; }
+    const b = $("badge-status"); b.textContent = ativo() ? "Ativo ✓" : "Em análise"; b.className = "badge " + (ativo() ? "green" : "");
+    $("sub-home").textContent = ativo() ? (mpOk() ? "Tudo pronto para pegar turnos." : "Conecte o Mercado Pago para aceitar turnos.") : "Seu cadastro está em análise.";
+    $("i-rating").innerHTML = pub.ratingQtd ? `<span class="stars" style="font-size:20px">★</span> ${pub.ratingMedia.toFixed(1)} <small class="muted" style="font-size:12px">(${pub.ratingQtd})</small>` : "—";
+    $("link-indicar").value = `${baseSite()}promotor.html?ref=${pub.refCode || ""}`;
+    $("indicar-txt").textContent = `Mande seu link para um amigo promotor. Quando ele concluir o primeiro turno, a comissão da plataforma desse turno (os ${20}%) vira bônus para você. Depois disso, tudo segue o padrão normal.`;
+    // onboarding
+    const itens = [
+        { ok: true, t: "Cadastro criado" },
+        { ok: !!(priv.cpf && cpfValido(priv.cpf)), t: "Completar seus dados (CPF)", abrir: "sheet-perfil" },
+        { ok: !!priv.pix?.chave, t: "Cadastrar chave Pix", abrir: "sheet-pix" },
+        { ok: mpOk(), t: "Conectar o Mercado Pago (para receber)", acao: "mp" },
+        { ok: ativo(), t: ativo() ? "Cadastro aprovado" : "Aguardar aprovação da equipe" }
+    ];
+    const feitos = itens.filter((i) => i.ok).length, pct = Math.round(feitos / itens.length * 100);
+    $("card-onboarding").hidden = feitos === itens.length;
+    $("ob-pct").textContent = pct + "%"; $("ob-bar").style.width = pct + "%";
+    $("ob-lista").innerHTML = itens.map((i) => `<div class="todo ${i.ok ? "feito" : ""}" ${i.abrir ? `data-abrir="${i.abrir}"` : ""} ${i.acao ? `data-acao="${i.acao}"` : ""} role="${i.ok || (!i.abrir && !i.acao) ? "listitem" : "button"}"><span class="c">${i.ok ? "✓" : ""}</span><span>${i.t}</span>${!i.ok && (i.abrir || i.acao) ? '<span class="go">›</span>' : ""}</div>`).join("");
+    // sheets
+    $("d-nome").value = pub.nome || ""; $("d-cpf").value = priv.cpf ? mascaraCPF(priv.cpf) : ""; $("d-nasc").value = priv.nascimento || ""; $("d-tel").value = priv.telefone || ""; $("d-cidade").value = pub.cidade || ""; $("d-bio").value = pub.bio || "";
+    $("x-tipo").value = priv.pix?.tipo || "CPF"; $("x-chave").value = priv.pix?.chave || "";
+    if (pub.especialidade) { const o = SETORES.find((s) => s.label === pub.especialidade || s.v === pub.especialidade); if (o) $("pf-esp").value = o.v; }
+    $("pf-ini").value = pub.disponibilidade?.inicio || "06:00"; $("pf-fim").value = pub.disponibilidade?.fim || "22:00";
+    $("pf-min").value = pub.valorMin ? (pub.valorMin / 100).toFixed(2).replace(".", ",") : "";
+}
+function montarSetoresPrefs() {
+    $("pf-esp").innerHTML = SETORES.map((s) => `<option value="${esc(s.v)}">${esc(s.label)}</option>`).join("");
+    $("filtro-setor").innerHTML = `<button class="pill sel" data-s="">Todos</button>` + SETORES.map((s) => `<button class="pill" data-s="${esc(s.v)}">${s.ico} ${esc(s.label)}</button>`).join("");
+}
+
+// ---------- dados em tempo real ----------
+function escutar() {
+    offUn?.(); turnosUn?.();
+    $("lista-ofertas").innerHTML = skeleton(3); $("lista-proximos").innerHTML = skeleton(2);
+    offUn = onSnapshot(query(collection(db, "solicitacoes"), where("status", "==", "aberta")), (snap) => {
+        if (ativo()) snap.docChanges().forEach((c) => { if (c.type === "added" && !prim.o && !vistos.has(c.doc.id) && mpOk()) { const x = c.doc.data(); if (valorFiltro(x)) notificar("Nova oferta 🔔", `${x.loja} · ${brl(calcularSplit(valorCentavos(x)).promotor)} para você`); } vistos.add(c.doc.id); });
+        prim.o = false;
+        ofertas = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderOfertas();
+    }, (e) => { ofertas = []; renderOfertas(); if (e.code !== "permission-denied") console.warn(e.code); });
+    turnosUn = onSnapshot(query(collection(db, "solicitacoes"), where("promotorUid", "==", usuario.uid)), (snap) => {
+        turnos = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+        if (!prim.t) turnos.forEach((t) => { const a = statusAnt.get(t.id); if (a === "aceita" && estaPago(t)) notificar("Pagamento recebido 💸", `${t.loja} · ${brl(calcularSplit(valorCentavos(t)).promotor)} na sua conta.`); if (a && a !== "cancelada" && t.status === "cancelada") notificar("Turno cancelado", `${t.loja} cancelou o pedido.`); });
+        turnos.forEach((t) => statusAnt.set(t.id, t.status)); prim.t = false;
+        renderTudo();
+    }, (e) => { turnos = []; renderTudo(); if (e.code === "permission-denied") erro("Sem permissão para ler turnos. Publique as regras do Firestore."); });
+}
+const valorFiltro = (x) => valorCentavos(x) >= (pub.valorMin || 0);
+const meu = (t) => calcularSplit(valorCentavos(t)).promotor;
+function renderTudo() { renderProximos(); renderAgenda(); renderCarteira(); renderCalendario(); renderConversas(); if (diaSel) renderDia(); }
+
+// ---------- ofertas ----------
+function renderOfertas() {
+    const el = $("lista-ofertas");
+    if (!usuario) return;
+    if (!ativo()) { el.innerHTML = vazio("🔒", "Ofertas liberadas após aprovação", "Estamos analisando seu cadastro. Complete seus dados no Início para agilizar."); $("dot-ofertas").hidden = true; return; }
+    let l = ofertas.filter((x) => x.data >= hojeLocal() && valorFiltro(x) && (!filtroSetor || x.foco === filtroSetor));
+    l.sort((a, b) => ordem === "valor" ? valorCentavos(b) - valorCentavos(a) : `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+    $("dot-ofertas").hidden = !l.length; $("dot-ofertas").textContent = l.length;
+    const aviso = !mpOk() ? `<div class="banner red mb"><span class="ico">🔗</span><div><strong>Conecte o Mercado Pago para aceitar turnos.</strong><br><span class="muted small">É por ele que você recebe sua parte automaticamente.</span><br><a href="#" data-acao="mp">Conectar agora ›</a></div></div>` : "";
+    el.innerHTML = aviso + (l.length ? l.map((x) => {
+        const s = calcularSplit(valorCentavos(x)), paraMim = x.promotorPreferido && x.promotorPreferido === nomeProm();
+        return `<article class="card pedido oferta"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div></div>${paraMim ? '<span class="badge green">Pedido para você</span>' : ""}</div>
+            <div class="ganho"><span>Você recebe<br><small class="muted">loja paga ${brl(s.valor)}</small></span><strong>${brl(s.promotor)}</strong></div>
+            <div class="acoes"><button class="btn btn-primary btn-sm" data-aceitar="${x.id}" ${mpOk() ? "" : "disabled"}>Aceitar turno</button></div></article>`;
+    }).join("") : vazio("🛒", "Sem ofertas por enquanto", pub.valorMin ? `Nenhuma proposta de ${brl(pub.valorMin)} ou mais agora. Ajuste o mínimo em Menu → Preferências.` : "Novas demandas da região aparecem aqui na hora."));
+}
+$("filtro-setor").addEventListener("click", (e) => { const b = e.target.closest(".pill"); if (!b) return; filtroSetor = b.dataset.s; document.querySelectorAll("#filtro-setor .pill").forEach((x) => x.classList.toggle("sel", x === b)); renderOfertas(); });
+$("btn-ordenar").addEventListener("click", () => { ordem = ordem === "valor" ? "data" : "valor"; $("btn-ordenar").textContent = ordem === "valor" ? "Maior valor ↓" : "Mais cedo ↑"; renderOfertas(); });
+
+async function aceitar(id, b) {
+    b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
+    try { await updateDoc(doc(db, "solicitacoes", id), { status: "aceita", promotorUid: usuario.uid, promotorNome: nomeProm(), aceitoEm: serverTimestamp() }); ok("Turno aceito! Ele já está na sua escala."); irPara("tab-agenda"); }
+    catch (e) { console.error(e); erro(e.code === "permission-denied" ? "Não foi possível aceitar: outro promotor pode ter pegado, ou falta conectar o Mercado Pago." : "Não foi possível aceitar."); b.disabled = false; b.textContent = "Aceitar turno"; }
+}
+
+// ---------- turnos / agenda ----------
+function cartaoTurno(t) {
+    const st = t.status, pago = estaPago(t), cancel = st === "cancelada";
+    const acoes = [];
+    if (st === "aceita") acoes.push(`<button class="btn btn-primary btn-sm" data-qr="${t.id}">💳 Cobrar (QR)</button>`, `<button class="btn btn-danger btn-sm" data-desistir="${t.id}">Desistir</button>`);
+    if (!cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-chat="${t.id}">💬 Chat</button>`);
+    const rot = cancel ? ["Cancelado", "red"] : pago ? ["Recebido", "green"] : ["Aguardando pagamento", "blue"];
+    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(t.loja)}</h4><div class="meta">${fmtData(t.data)} · ${esc(t.entrada)}–${esc(t.saida)} · ${esc(t.foco)}</div></div>
+        <div class="center"><div class="valor">${brl(meu(t))}</div><span class="badge ${rot[1]}" style="margin-top:4px">${rot[0]}</span></div></div>
+        ${acoes.length ? `<div class="acoes">${acoes.join("")}</div>` : ""}</article>`;
+}
+function renderProximos() {
+    const l = turnos.filter((t) => t.status === "aceita" && t.data >= hojeLocal()).slice(0, 4);
+    $("lista-proximos").innerHTML = l.length ? l.map(cartaoTurno).join("") : vazio("📅", "Nenhum turno agendado", "Aceite turnos em Ofertas e eles aparecem aqui.");
+}
+function renderAgenda() { $("lista-agenda").innerHTML = diaSel ? "" : turnos.filter((t) => t.status !== "cancelada" && !estaPago(t)).map(cartaoTurno).join("") || vazio("📅", "Nenhum turno por aqui", "Os turnos aceitos aparecem neste espaço."); }
+function renderCalendario() {
+    const ano = dataCal.getFullYear(), mes = dataCal.getMonth(), hoje = hojeLocal();
+    $("cal-titulo").textContent = dataCal.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
+    const ini = (new Date(ano, mes, 1).getDay() + 6) % 7, total = new Date(ano, mes + 1, 0).getDate(), com = new Set(turnos.filter((t) => t.status !== "cancelada").map((t) => t.data));
+    let h = "<div></div>".repeat(ini);
+    for (let d = 1; d <= total; d++) { const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`; h += `<button class="cal-day${iso === hoje ? " today" : ""}${iso === diaSel ? " selected" : ""}${com.has(iso) ? " tem" : ""}" data-dia="${iso}" aria-label="${d}">${d}</button>`; }
+    $("cal-grid").innerHTML = h;
+}
+function renderDia() {
+    const l = turnos.filter((t) => t.data === diaSel && t.status !== "cancelada");
+    $("cal-label").textContent = "Turnos de " + new Date(diaSel + "T12:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    $("lista-agenda").innerHTML = l.length ? l.map(cartaoTurno).join("") : vazio("📅", "Nenhum turno neste dia", "Escolha outra data ou veja as ofertas.");
+}
+$("cal-grid").addEventListener("click", (e) => { const b = e.target.closest("[data-dia]"); if (!b) return; diaSel = diaSel === b.dataset.dia ? "" : b.dataset.dia; renderCalendario(); if (diaSel) renderDia(); else { $("cal-label").textContent = "Escolha uma data para ver seus turnos."; renderAgenda(); } });
+$("cal-prev").addEventListener("click", () => { dataCal = new Date(dataCal.getFullYear(), dataCal.getMonth() - 1, 1); renderCalendario(); });
+$("cal-next").addEventListener("click", () => { dataCal = new Date(dataCal.getFullYear(), dataCal.getMonth() + 1, 1); renderCalendario(); });
+
+// ---------- QR de cobrança ----------
+function abrirQR(t) {
+    const link = `${baseSite()}pagar.html?id=${encodeURIComponent(t.id)}`, s = calcularSplit(valorCentavos(t)); qrAtual = { link, t };
+    $("qr-box").innerHTML = ""; if (window.QRCode) new QRCode($("qr-box"), { text: link, width: 200, height: 200 }); else $("qr-box").textContent = "QR indisponível — use o link.";
+    $("qr-total").textContent = `A loja paga ${brl(s.total)}`; $("qr-liquido").textContent = `Você recebe ${brl(s.promotor)} (${100 - s.pct}% do turno de ${brl(s.valor)})`;
+    abrir("sheet-qr");
+}
+$("qr-copiar").addEventListener("click", () => { navigator.clipboard?.writeText(qrAtual.link); ok("Link de pagamento copiado!"); });
+$("qr-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent(`Serviço de reposição concluído em ${qrAtual.t.loja}. Pague aqui: ${qrAtual.link}`), "_blank", "noopener"));
+
+// ---------- carteira ----------
+function renderCarteira() {
+    const pagos = turnos.filter(estaPago), aceitos = turnos.filter((t) => t.status === "aceita");
+    const recebido = pagos.reduce((a, t) => a + (t.pagamento?.split?.promotor ?? meu(t)), 0), receber = aceitos.reduce((a, t) => a + meu(t), 0);
+    $("c-recebido").textContent = $("i-recebido").textContent = brl(recebido); $("c-receber").textContent = $("i-receber").textContent = brl(receber); $("c-qtd").textContent = pagos.length;
+    const meses = [], agora = new Date();
+    for (let i = 5; i >= 0; i--) { const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1); meses.push({ k: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, rot: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), v: 0 }); }
+    pagos.forEach((t) => { const m = meses.find((x) => x.k === (t.data || "").slice(0, 7)); if (m) m.v += t.pagamento?.split?.promotor ?? meu(t); });
+    const max = Math.max(...meses.map((m) => m.v), 1);
+    $("c-barras").innerHTML = meses.map((m) => `<div class="b ${m.v ? "" : "zero"}" title="${brl(m.v)}"><span>${m.v ? brl(m.v).replace(/\s?R\$\s?/, "").replace(",00", "") : ""}</span><i style="height:${Math.max(3, m.v / max * 72)}px"></i>${m.rot}</div>`).join("");
+    $("c-extrato").innerHTML = pagos.length ? pagos.slice().reverse().map((t) => `<div class="item"><div class="ico">💸</div><div class="grow"><strong>${esc(t.loja)}</strong><div class="muted small">${fmtData(t.data)} · ${esc(t.foco)}${t.avaliacao ? ` · <span class="stars">${"★".repeat(t.avaliacao.estrelas)}</span>` : ""}</div></div><div class="val" style="color:var(--green)">+ ${brl(t.pagamento?.split?.promotor ?? meu(t))}</div></div>`).join("") : vazio("💸", "Seus ganhos aparecem aqui", "Cada turno pago entra neste histórico.");
+    $("card-mp").innerHTML = mpOk()
+        ? `<div class="row"><div class="avatar" style="background:var(--green-soft);color:var(--green)">✓</div><div class="grow"><h4>Mercado Pago conectado</h4><p class="muted small">Você recebe sua parte direto na sua conta, no momento do pagamento.</p></div></div>`
+        : `<div class="row"><div class="avatar" style="background:var(--red-soft);color:var(--red)">!</div><div class="grow"><h4>Conecte o Mercado Pago</h4><p class="muted small">Sem isso não dá para aceitar turnos: é por ele que o pagamento é dividido e cai na sua conta.</p></div></div><button class="btn btn-primary mt" data-acao="mp">🔗 Conectar Mercado Pago</button>`;
+}
+$("btn-csv").addEventListener("click", () => {
+    const pagos = turnos.filter(estaPago); if (!pagos.length) return toast("Ainda não há ganhos para exportar.");
+    baixarCSV("abastece-ja-ganhos.csv", [["Data do serviço", "Loja", "Setor", "Valor do turno", "Você recebeu", "Pago em"], ...pagos.map((t) => [fmtData(t.data), t.loja, t.foco, (valorCentavos(t) / 100).toFixed(2).replace(".", ","), ((t.pagamento?.split?.promotor ?? meu(t)) / 100).toFixed(2).replace(".", ","), fmtDataHora(t.pagaEm)])]);
+});
+async function conectarMP(b) {
+    if (b) { b.disabled = true; }
+    try { const { url } = await chamarFuncao("mpConectarUrl"); location.href = url; }
+    catch (e) { console.error(e); erro(e.code === "backend-nao-configurado" ? "O backend de pagamento ainda não foi publicado (FUNCTIONS_BASE em config.js)." : "Não foi possível iniciar a conexão com o Mercado Pago."); if (b) b.disabled = false; }
+}
+
+// ---------- chat ----------
+function renderConversas() {
+    const l = turnos.filter((t) => t.status !== "cancelada");
+    $("lista-conversas").innerHTML = l.length ? l.map((t) => `<div class="card conversa" data-chat="${t.id}" role="button" tabindex="0"><div class="avatar">${esc((t.loja || "L")[0])}</div><div class="grow"><h4>${esc(t.loja)}</h4><div class="muted small">${fmtData(t.data)} · ${esc(t.entrada)}–${esc(t.saida)}</div></div><span class="seta muted">›</span></div>`).join("") : vazio("💬", "Nenhuma conversa ainda", "Quando você aceitar um turno, o chat com a loja aparece aqui.");
+}
+function abrirChat(t) {
+    chatPedido = t; $("chat-titulo").textContent = t.loja; $("chat-box").innerHTML = skeleton(1); chatUn?.();
+    chatUn = onSnapshot(query(collection(db, "solicitacoes", t.id, "mensagens"), orderBy("criadoEm")), (s) => {
+        const box = $("chat-box");
+        box.innerHTML = s.docs.length ? s.docs.map((d) => { const m = d.data(), eu = m.de === usuario.uid; return `<div class="msg ${eu ? "msg-me" : "msg-other"}">${esc(m.texto)}<small>${fmtDataHora(m.criadoEm)}</small></div>`; }).join("") : '<p class="muted small center" style="margin:auto">Diga olá 👋 e combine os detalhes.</p>';
+        box.scrollTop = box.scrollHeight;
+    }, () => { $("chat-box").innerHTML = '<p class="muted small center">Não foi possível carregar a conversa.</p>'; });
+    abrir("sheet-chat");
+}
+$("chat-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t || !chatPedido) return; $("chat-input").value = "";
+    try { await addDoc(collection(db, "solicitacoes", chatPedido.id, "mensagens"), { de: usuario.uid, texto: t, criadoEm: serverTimestamp() }); } catch (err) { erro("Mensagem não enviada."); $("chat-input").value = t; }
+});
+
+// ---------- formulários do menu ----------
+async function salvar(colecao, dados, msg, sheet) {
+    try { await setDoc(doc(db, colecao, usuario.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); ok(msg); if (sheet) fechar(sheet); return true; }
+    catch (e) { console.error(e); erro("Não foi possível salvar. Verifique as regras do Firestore."); return false; }
+}
+$("btn-salvar-perfil").addEventListener("click", async () => {
+    const cpf = soDigitos($("d-cpf").value); $("e-cpf").textContent = ""; $("d-cpf").classList.remove("invalido");
+    if ($("d-nome").value.trim().length < 3) return erro("Informe seu nome completo.");
+    if (cpf && !cpfValido(cpf)) { $("e-cpf").textContent = "CPF inválido. Confira os 11 dígitos."; $("d-cpf").classList.add("invalido"); return $("d-cpf").focus(); }
+    const a = await salvar("profissionais", { nome: $("d-nome").value.trim(), cidade: $("d-cidade").value.trim(), bio: $("d-bio").value.trim() }, "Dados salvos ✓");
+    const b = await salvar("profissionais_privado", { cpf, nascimento: $("d-nasc").value, telefone: $("d-tel").value.trim() }, "Dados salvos ✓", "sheet-perfil");
+    if (a && b) { pub.nome = $("d-nome").value.trim(); pub.cidade = $("d-cidade").value.trim(); pub.bio = $("d-bio").value.trim(); priv = { ...priv, cpf, nascimento: $("d-nasc").value, telefone: $("d-tel").value.trim() }; pintarPerfil(); }
+});
+$("btn-salvar-pix").addEventListener("click", async () => {
+    const chave = $("x-chave").value.trim(); if (!chave) return erro("Informe a chave Pix.");
+    if (await salvar("profissionais_privado", { pix: { tipo: $("x-tipo").value, chave } }, "Chave Pix salva ✓", "sheet-pix")) { priv.pix = { tipo: $("x-tipo").value, chave }; pintarPerfil(); }
+});
+$("btn-salvar-prefs").addEventListener("click", async () => {
+    const min = reaisParaCentavos($("pf-min").value), esp = SETORES.find((s) => s.v === $("pf-esp").value);
+    if (await salvar("profissionais", { valorMin: min, especialidade: esp?.label || "", disponibilidade: { inicio: $("pf-ini").value, fim: $("pf-fim").value } }, "Preferências salvas ✓", "sheet-prefs")) { pub.valorMin = min; pub.especialidade = esp?.label; renderOfertas(); }
+});
+$("btn-copiar").addEventListener("click", () => { navigator.clipboard?.writeText($("link-indicar").value); ok("Link copiado!"); });
+$("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Quer pegar turnos de reposição e receber direto no Mercado Pago? Cadastre-se no Abastece Já: " + $("link-indicar").value), "_blank", "noopener"));
+$("btn-ativar-notif").addEventListener("click", async () => (await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador."));
+$("theme-toggle").addEventListener("change", alternarTema);
+$("btn-instalar").addEventListener("click", instalarApp);
+
+// ---------- cliques globais (delegação) ----------
+document.addEventListener("click", async (e) => {
+    const g = (a) => e.target.closest(`[${a}]`);
+    let el;
+    if ((el = g("data-aceitar"))) aceitar(el.dataset.aceitar, el);
+    else if ((el = g("data-qr"))) { const t = turnos.find((x) => x.id === el.dataset.qr); if (t) abrirQR(t); }
+    else if ((el = g("data-chat"))) { const t = turnos.find((x) => x.id === el.dataset.chat); if (t) abrirChat(t); }
+    else if ((el = g("data-desistir"))) {
+        const t = turnos.find((x) => x.id === el.dataset.desistir); if (!t || !confirm(`Desistir do turno em ${t.loja}? Ele volta para a fila de ofertas.`)) return;
+        try { await updateDoc(doc(db, "solicitacoes", t.id), { status: "aberta", promotorUid: deleteField(), promotorNome: deleteField(), aceitoEm: deleteField() }); ok("Você saiu do turno. Ele voltou para a fila."); } catch (err) { erro("Não foi possível desistir agora."); }
+    }
+    if ((el = g("data-acao")) && el.dataset.acao === "mp") { e.preventDefault(); conectarMP(el.tagName === "BUTTON" ? el : null); }
+    if ((el = g("data-abrir"))) { e.preventDefault(); abrir(el.dataset.abrir); }
+    if ((el = g("data-fechar"))) fechar(el.dataset.fechar);
+    if (e.target.classList?.contains("app-overlay")) fechar(e.target.id);
+});
+document.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[role=button]")) { e.preventDefault(); e.target.click(); } });
+
+function irPara(id) {
+    document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
+    document.querySelectorAll(".nav-item").forEach((i) => i.classList.toggle("active", i.dataset.tab === id)); window.scrollTo(0, 0);
+}
+$("nav-personal").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });
