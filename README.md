@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/33716638/README.md)
 # Abastece Já
 
 App web (PWA) que liga **lojas** a **promotores/repositores** freelancers, com **pagamento dividido automaticamente** e **nota** a cada serviço.
@@ -49,6 +50,20 @@ Valor do turno = o que a loja combinou pagar (ex.: R$ 100,00).
 
 ### Quem já estava cadastrado
 Os dados sensíveis (CPF, Pix, telefone) saíram de `profissionais` e foram para `profissionais_privado` (só o dono lê); o documento do promotor agora é sempre `profissionais/{uid do Google}`. Promotores antigos precisam entrar de novo, completar os dados e ser aprovados de novo. Pedidos antigos continuam aparecendo (o app entende `valor` em reais).
+
+
+## Correção: loja não conseguia entrar com o Google
+
+**Causa:** o `index.html` (painel da loja) estava na versão nova, mas o `script.js` era o antigo. Os IDs não batiam (`btn-login-aluno` x `btn-login`, `check-termos-aluno` x `check-termos`, mais ~45 outros), então nada ligava o clique do botão ao login, e o botão ficava desabilitado para sempre. Além disso, `functions/`, `icons/`, `test/` e `nota.html` não tinham subido para o repositório.
+
+**O que foi feito:**
+- `script.js` reescrito para casar com o `index.html` novo (login, pedidos, agenda, carteira, chat, avaliação, dados da empresa).
+- `nota.html` criado (nota de serviço imprimível / salvar em PDF).
+- Estrutura restaurada: `functions/` (com `package.json`), `icons/`, `test/`.
+- `sw.js`: um arquivo faltando não derruba mais a instalação do cache offline.
+- Removidos os arquivos legados (`comum.js`, `financeiro.js`, `chat.js`, `polish.css`, `style-personal.css`). A taxa fixa agora existe em um só lugar (`config.js`, espelhado em `functions/split.js`); antes havia R$ 3,00 e R$ 5,00 em arquivos diferentes.
+
+**Ao subir para o GitHub:** arraste as **pastas** inteiras (não só os arquivos), senão `functions/` e `icons/` se perdem de novo.
 
 ## Estrutura
 
