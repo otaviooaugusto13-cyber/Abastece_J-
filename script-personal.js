@@ -3,8 +3,8 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, updateDoc, deleteField, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao } from "./firebase.js";
-import { WHATSAPP_SUPORTE } from "./config.js";
+import { auth, db, googleProvider } from "./firebase.js";
+import { WHATSAPP_SUPORTE, FUNCTIONS_BASE } from "./config.js";
 import { brl, calcularSplit, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
@@ -93,13 +93,13 @@ function pintarPerfil() {
     ];
     const feitos = itens.filter((i) => i.ok).length, pct = Math.round(feitos / itens.length * 100);
     $("card-onboarding").hidden = feitos === itens.length;
-    $("ob-pct").textContent = pct + "%"; $("ob-bar").style.width = pct + "%";
+    $("ob-pct").textContent = pct + "\%"; $("ob-bar").style.width = pct + "%";
     $("ob-lista").innerHTML = itens.map((i) => `<div class="todo ${i.ok ? "feito" : ""}" ${i.abrir ? `data-abrir="${i.abrir}"` : ""} ${i.acao ? `data-acao="${i.acao}"` : ""} role="${i.ok || (!i.abrir && !i.acao) ? "listitem" : "button"}"><span class="c">${i.ok ? "✓" : ""}</span><span>${i.t}</span>${!i.ok && (i.abrir || i.acao) ? '<span class="go">›</span>' : ""}</div>`).join("");
     // sheets
-    $("d-nome").value = pub.nome || ""; $("d-cpf").value = priv.cpf ? mascaraCPF(priv.cpf) : ""; $("d-nasc").value = priv.nascimento || ""; $("d-tel").value = priv.telefone || ""; $("d-cidade").value = pub.cidade || ""; $("d-bio").value = pub.bio || "";
-    $("x-tipo").value = priv.pix?.tipo || "CPF"; $("x-chave").value = priv.pix?.chave || "";
+    $("d-nome").value = pub.nome \vert{}\vert{} ""; $("d-cpf").value = priv.cpf ? mascaraCPF(priv.cpf) : ""; $("d-nasc").value = priv.nascimento \vert{}\vert{} ""; $("d-tel").value = priv.telefone || ""; $("d-cidade").value = pub.cidade \vert{}\vert{} ""; $("d-bio").value = pub.bio || "";
+    $("x-tipo").value = priv.pix?.tipo \vert{}\vert{} "CPF"; $("x-chave").value = priv.pix?.chave || "";
     if (pub.especialidade) { const o = SETORES.find((s) => s.label === pub.especialidade || s.v === pub.especialidade); if (o) $("pf-esp").value = o.v; }
-    $("pf-ini").value = pub.disponibilidade?.inicio || "06:00"; $("pf-fim").value = pub.disponibilidade?.fim || "22:00";
+    $("pf-ini").value = pub.disponibilidade?.inicio \vert{}\vert{} "06:00"; $("pf-fim").value = pub.disponibilidade?.fim || "22:00";
     $("pf-min").value = pub.valorMin ? (pub.valorMin / 100).toFixed(2).replace(".", ",") : "";
 }
 function montarSetoresPrefs() {
@@ -214,10 +214,29 @@ $("btn-csv").addEventListener("click", () => {
     const pagos = turnos.filter(estaPago); if (!pagos.length) return toast("Ainda não há ganhos para exportar.");
     baixarCSV("abastece-ja-ganhos.csv", [["Data do serviço", "Loja", "Setor", "Valor do turno", "Você recebeu", "Pago em"], ...pagos.map((t) => [fmtData(t.data), t.loja, t.foco, (valorCentavos(t) / 100).toFixed(2).replace(".", ","), ((t.pagamento?.split?.promotor ?? meu(t)) / 100).toFixed(2).replace(".", ","), fmtDataHora(t.pagaEm)])]);
 });
+
 async function conectarMP(b) {
-    if (b) { b.disabled = true; }
-    try { const { url } = await chamarFuncao("mpConectarUrl"); location.href = url; }
-    catch (e) { console.error(e); erro(e.code === "backend-nao-configurado" ? "O backend de pagamento ainda não foi publicado (FUNCTIONS_BASE em config.js)." : "Não foi possível iniciar a conexão com o Mercado Pago."); if (b) b.disabled = false; }
+    if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Conectando…'; }
+    try {
+        const resposta = await fetch(`${FUNCTIONS_BASE}/mpConectarUrl`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${await usuario.getIdToken()}`
+            },
+            body: JSON.stringify({ uid: usuario.uid })
+        });
+        const dados = await resposta.json();
+        if (dados.url) {
+            window.location.href = dados.url;
+        } else {
+            throw new Error(dados.erro || "URL de conexão não retornada");
+        }
+    } catch (e) {
+        console.error(e);
+        erro("Não foi possível iniciar a conexão com o Mercado Pago.");
+        if (b) { b.disabled = false; b.textContent = "🔗 Conectar Mercado Pago"; }
+    }
 }
 
 // ---------- chat ----------
@@ -235,7 +254,7 @@ function abrirChat(t) {
     abrir("sheet-chat");
 }
 $("chat-form").addEventListener("submit", async (e) => {
-    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t || !chatPedido) return; $("chat-input").value = "";
+    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t \vert{}\vert{} !chatPedido) return; $("chat-input").value = "";
     try { await addDoc(collection(db, "solicitacoes", chatPedido.id, "mensagens"), { de: usuario.uid, texto: t, criadoEm: serverTimestamp() }); } catch (err) { erro("Mensagem não enviada."); $("chat-input").value = t; }
 });
 
@@ -262,7 +281,7 @@ $("btn-salvar-prefs").addEventListener("click", async () => {
 });
 $("btn-copiar").addEventListener("click", () => { navigator.clipboard?.writeText($("link-indicar").value); ok("Link copiado!"); });
 $("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Quer pegar turnos de reposição e receber direto no Mercado Pago? Cadastre-se no Abastece Já: " + $("link-indicar").value), "_blank", "noopener"));
-$("btn-ativar-notif").addEventListener("click", async () => (await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador."));
+$("btn-ativar-notif").addEventListener("click", async () => (await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações du navegador."));
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
 
