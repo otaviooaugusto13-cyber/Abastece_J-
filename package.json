@@ -1,6 +1,7 @@
 {
   "name": "abastece-ja-functions",
   "private": true,
+  "type": "commonjs",
   "engines": { "node": "20" },
   "main": "index.js",
   "dependencies": {
@@ -9,3 +10,4 @@
     "mercadopago": "^2.0.0"
   }
 }
+{"type":"module"}
