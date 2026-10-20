@@ -45,4 +45,4 @@ export const FIREBASE_CONFIG = {
 // Depois do `firebase deploy --only functions`, a URL base é:
 //   https://REGIAO-PROJETO.cloudfunctions.net
 // Deixe vazio enquanto o backend não estiver no ar: o app avisa em vez de quebrar.
-export const FUNCTIONS_BASE = "https://abastece-j.onrender.com";
+export const FUNCTIONS_BASE = "https://abastece-j.onrender.com"; 
