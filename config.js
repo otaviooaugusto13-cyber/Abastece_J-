@@ -24,11 +24,11 @@ export const EMPRESA = {
     razaoSocial: "ABASTECE JÁ INTERMEDIAÇÃO DE SERVIÇOS LTDA",
     cnpj: "00.000.000/0001-00",
     cidade: "Itapira / SP",
-    email: "suporte@abastece-ja.com.br"
+    email: "otaviooaugusto13@gmail.com"
 };
 
 // ---- Contato / suporte -------------------------------------
-export const WHATSAPP_SUPORTE = "5519999999999"; // só dígitos, com 55 + DDD
+export const WHATSAPP_SUPORTE = "551995350637"; // só dígitos, com 55 + DDD
 
 // ---- Firebase (chave pública por natureza; segurança vem das regras) ----
 export const FIREBASE_CONFIG = {
