@@ -5,7 +5,7 @@
 import { collection, doc, addDoc, setDoc, getDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, db, googleProvider } from "./firebase.js";
-import { WHATSAPP_SUPORTE, VALOR_HORA_SUGERIDO_CENTAVOS } from "./config.js";
+import { WHATSAPP_SUPORTE, VALOR_HORA_SUGERIDO_CENTAVOS, FUNCTIONS_BASE } from "./config.js";
 import { brl, calcularSplit, reaisParaCentavos, validarValor, esc, fmtData, fmtDataHora, hojeLocal, horasEntre, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
@@ -82,12 +82,12 @@ function pintarPerfil() {
         if (usuario.photoURL) a.innerHTML = `<img src="${esc(usuario.photoURL)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:inherit;object-fit:cover">`;
     }
     $("aviso-fiscal").hidden = !!(perfil.razaoSocial && perfil.documento);
-    $("f-razao").value = perfil.razaoSocial || ""; $("f-doc").value = perfil.documento ? mascaraDoc(perfil.documento) : "";
-    $("f-end").value = perfil.endereco || ""; $("f-email").value = perfil.email || usuario.email || "";
+    $("f-razao").value = perfil.razaoSocial \vert{}\vert{} ""; $("f-doc").value = perfil.documento ? mascaraDoc(perfil.documento) : "";
+    $("f-end").value = perfil.endereco \vert{}\vert{} ""; $("f-email").value = perfil.email || usuario.email || "";
     $("f-tel").value = perfil.telefone ? mascaraTelefone(perfil.telefone) : ""; if (perfil.ramo) $("f-ramo").value = perfil.ramo;
     $("pref-setor").innerHTML = SETORES.map((s) => `<option value="${esc(s.v)}">${esc(s.label)}</option>`).join("");
     if (perfil.prefs?.setor) $("pref-setor").value = perfil.prefs.setor;
-    $("pref-entrada").value = perfil.prefs?.entrada || "08:00"; $("pref-saida").value = perfil.prefs?.saida || "12:00";
+    $("pref-entrada").value = perfil.prefs?.entrada \vert{}\vert{} "08:00"; $("pref-saida").value = perfil.prefs?.saida || "12:00";
     $("link-indicar").value = baseSite() + "landing.html";
 }
 
@@ -124,7 +124,7 @@ function montarSetores() {
 }
 function iniciarFormulario() {
     $("p-data").min = hojeLocal(); if (!$("p-data").value || $("p-data").value < hojeLocal()) $("p-data").value = hojeLocal();
-    $("p-entrada").value = perfil.prefs?.entrada || "08:00"; $("p-saida").value = perfil.prefs?.saida || "12:00";
+    $("p-entrada").value = perfil.prefs?.entrada \vert{}\vert{} "08:00"; $("p-saida").value = perfil.prefs?.saida || "12:00";
     if (perfil.prefs?.setor) setorSel = perfil.prefs.setor;
     montarSetores(); atualizarSplit();
 }
@@ -142,7 +142,7 @@ function atualizarSplit() {
     const s = calcularSplit(c);
     $("sc-valor").textContent = brl(s.valor); $("sc-taxa").textContent = brl(s.taxaFixa); $("sc-total").textContent = brl(s.total);
     $("sc-prom").textContent = brl(s.promotor); $("sc-app").textContent = brl(s.app);
-    $("sb-p").style.width = (s.promotor / s.total) * 100 + "%"; $("sb-a").style.width = (s.app / s.total) * 100 + "%";
+    $("sb-p").style.width = (s.promotor / s.total) * 100 + "\%"; $("sb-a").style.width = (s.app / s.total) * 100 + "%";
 }
 $("p-valor").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^\d.,]/g, ""); $("e-valor").textContent = ""; atualizarSplit(); });
 $("p-valor").addEventListener("blur", () => { const c = reaisParaCentavos($("p-valor").value); $("e-valor").textContent = c > 0 ? validarValor(c) : ""; });
@@ -181,7 +181,7 @@ $("btn-enviar").addEventListener("click", async () => {
 
 function repetir(p) {
     setorSel = p.foco || setorSel; montarSetores();
-    $("p-local").value = p.loja || ""; $("p-entrada").value = p.entrada || "08:00"; $("p-saida").value = p.saida || "12:00";
+    $("p-local").value = p.loja || ""; $("p-entrada").value = p.entrada \vert{}\vert{} "08:00"; $("p-saida").value = p.saida || "12:00";
     $("p-data").value = hojeLocal(); $("p-valor").value = (valorCentavos(p) / 100).toFixed(2).replace(".", ","); atualizarSplit();
     irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth" }); toast("Dados copiados. Escolha o dia e envie.", "ok");
 }
@@ -293,7 +293,7 @@ function renderConversas() {
 }
 function pararChat() { chatUn?.(); chatUn = null; chatPedido = null; }
 function abrirChat(p) {
-    pararChat(); chatPedido = p; $("chat-titulo").textContent = p.promotorNome || "Promotor"; $("chat-box").innerHTML = skeleton(1);
+    pararChat(); chatPedido = p; $("chat-titulo").textContent = p.promotorNome \vert{}\vert{} "Promotor"; $("chat-box").innerHTML = skeleton(1);
     chatUn = onSnapshot(query(collection(db, "solicitacoes", p.id, "mensagens"), orderBy("criadoEm")), (s) => {
         const box = $("chat-box");
         box.innerHTML = s.docs.length ? s.docs.map((d) => { const m = d.data(); return `<div class="msg ${m.de === usuario.uid ? "msg-me" : "msg-other"}">${esc(m.texto)}<small>${fmtDataHora(m.criadoEm)}</small></div>`; }).join("") : '<p class="muted small center" style="margin:auto">Diga olá 👋 e combine os detalhes do turno.</p>';
@@ -302,7 +302,7 @@ function abrirChat(p) {
     abrir("sheet-chat");
 }
 $("chat-form").addEventListener("submit", async (e) => {
-    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t || !chatPedido) return; $("chat-input").value = "";
+    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t \vert{}\vert{} !chatPedido) return; $("chat-input").value = "";
     try { await addDoc(collection(db, "solicitacoes", chatPedido.id, "mensagens"), { de: usuario.uid, texto: t, criadoEm: serverTimestamp() }); }
     catch (err) { console.error(err); erro("Mensagem não enviada."); $("chat-input").value = t; }
 });
