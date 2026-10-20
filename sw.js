@@ -1,5 +1,5 @@
 // Service worker: o app abre mesmo com internet ruim. Dados (Firestore) nunca são cacheados aqui.
-const VERSAO = "abastece-v3";
+const VERSAO = "abastece-v4";
 const BASE = ["./", "index.html", "promotor.html", "pagar.html", "nota.html", "landing.html", "style.css", "style-landing.css", "config.js", "core.js", "ui.js", "firebase.js", "script.js", "script-personal.js", "manifest.json", "icons/icon-192.png"];
 // allSettled: se um arquivo faltar, o resto continua sendo guardado (antes, um 404 derrubava a instalação inteira).
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSAO).then((c) => Promise.allSettled(BASE.map((u) => c.add(u)))).then(() => self.skipWaiting())); });
