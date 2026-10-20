@@ -92,7 +92,7 @@ exports.mpConectarUrl = onRequest(opts, envelope(async (req, res) => {
   if (!prof.exists) throw new Falha(403, "cadastro de promotor não encontrado");
   const state = `${u.uid}.${assinar(u.uid)}`;
   const url = `https://auth.mercadopago.com.br/authorization?client_id=${MP_CLIENT_ID.value()}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(funcUrl("mpCallback"))}`;
-  res.json({ url });
+  res.redirect(url);
 }));
 
 exports.mpCallback = onRequest({ region: REGION, secrets: [MP_CLIENT_SECRET] }, async (req, res) => {
