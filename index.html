@@ -3,16 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ABASTECE JÁ - Painel do Contratante</title>
+    <title>Abastece Já — Painel do Contratante</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="polish.css">
+    <link rel="stylesheet" href="melhorias.css">
+    <meta name="description" content="Abastece Já: reposição sob demanda para o varejo. Peça um promotor em minutos.">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#d4af37">
 </head>
 <body>
 
     <!-- Botão Flutuante de Suporte WhatsApp -->
-    <a href="https://wa.me/5519999999999" target="_blank" id="btn-whatsapp-suporte" class="btn-whatsapp" title="Suporte via WhatsApp">
+    <a href="https://wa.me/5519999999999" target="_blank" rel="noopener" aria-label="Suporte pelo WhatsApp" id="btn-whatsapp-suporte" class="btn-whatsapp" title="Suporte via WhatsApp">
         <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
         </svg>
@@ -43,6 +47,8 @@
             </div>
 
             <!-- PEDIR PROMOTOR -->
+            <div id="alerta-doc" class="alerta-doc" style="display:none"><span>🧾</span><div><strong>Falta o CNPJ/CPF para a nota.</strong><br><a href="#" onclick="abrirOpcaoMenu('pagamento');return false;">Cadastrar agora ›</a></div></div>
+
             <div class="glass pedido-card" style="margin-bottom: 20px; border: 1px solid var(--gold);">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap:8px;">
                     <h3 style="margin: 0; color: var(--gold);">🛒 Solicitar promotor</h3>
@@ -70,10 +76,15 @@
 
                 <span class="pedido-label">3. Quanto você quer pagar? <small>(valor do turno)</small></span>
                 <div class="pedido-grid"><div class="full"><input type="number" id="solicitacao-valor" min="1" step="1" placeholder="Ex: 100" inputmode="decimal"></div></div>
-                <div class="resumo-valor" id="resumo-valor"><span>Promotor recebe (85%): <strong id="rv-prom">R$ 0,00</strong></span><span>Plataforma (15%): <strong id="rv-taxa">R$ 0,00</strong></span></div>
+                <div class="resumo-valor" id="resumo-valor" aria-live="polite">
+                    <div><span>Promotor recebe (<b class="r-pct-prom">80</b>%)</span><strong id="rv-prom">R$ 0,00</strong></div>
+                    <div><span>Comissão do app (<b class="r-pct-app">20</b>%)</span><strong id="rv-taxa">R$ 0,00</strong></div>
+                    <div><span>Taxa fixa por pedido</span><strong id="rv-fixa">R$ 0,00</strong></div>
+                    <div class="rv-total"><span>Total que a loja paga</span><strong id="rv-total">R$ 0,00</strong></div>
+                </div>
 
-                <button class="btn btn-primary" style="margin-top:16px;" onclick="solicitarTreinoModoUber()">🚀 Solicitar promotores na região</button>
-                <p class="muted-line" style="margin-top:10px;text-align:center;">Você só paga depois do serviço, escaneando o QR Code do promotor.</p>
+                <button id="btn-solicitar" class="btn btn-primary" style="margin-top:16px;" onclick="solicitarTreinoModoUber()">🚀 Solicitar promotores na região</button>
+                <p class="muted-line" style="margin-top:10px;text-align:center;">Você só paga depois do serviço, pelo link ou QR Code do promotor. A nota é emitida na hora.</p>
             </div>
 
             <div class="section-title">Radar de Promotores e Freelancers na Região</div>
@@ -94,6 +105,7 @@
 
         <div id="tab-pedidos" class="tab-content" style="padding-bottom:110px;">
             <div class="header-personal glass"><h2 style="margin:0;font-size:20px;">Meus Pedidos</h2></div>
+            <div id="filtros-pedidos" class="filtros" role="group" aria-label="Filtrar pedidos"><button class="on" data-f="todos">Todos</button><button data-f="abertos">Em andamento</button><button data-f="concluida">Pagos</button><button data-f="cancelada">Cancelados</button></div>
             <div id="lista-pedidos"><div class="empty-state"><div class="empty-icon">🛒</div><h4>Nenhum pedido ainda</h4><p>Solicite um promotor na aba Início e acompanhe o andamento aqui.</p></div></div>
         </div>
 
@@ -118,14 +130,18 @@
                 <div class="finance-header">Resumo de gastos</div>
                 <div class="finance-values">
                     <div class="finance-item"><span>Pedidos abertos</span><h3 id="cart-abertos">0</h3></div>
+                    <div class="finance-item"><span>Pago neste mês</span><h3 id="cart-mes">R$ 0,00</h3></div>
                     <div class="finance-item"><span>Total pago</span><h3 id="cart-total" style="color:var(--gold);">R$ 0,00</h3></div>
                 </div>
-                <p class="muted-line">Os pagamentos dos turnos concluídos aparecem aqui.</p>
+                <p class="muted-line">Valores com taxa de serviço inclusa.</p>
             </div>
+            <div class="section-title">Notas emitidas</div>
+            <div id="lista-notas" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+            <button id="btn-exportar" class="btn btn-outline" style="display:none;margin-bottom:15px" onclick="exportarNotasCSV()">⬇ Exportar notas (CSV para o contador)</button>
             <div class="glass" style="padding:20px;text-align:center;margin-bottom:15px;border-left:4px solid var(--gold);">
                 <div style="font-size:32px;margin-bottom:8px;">💳</div>
-                <h3 style="font-size:15px;margin-bottom:6px;">Forma de pagamento</h3>
-                <p class="muted-line" style="margin-bottom:14px;">Cadastre como a loja paga os promotores.</p>
+                <h3 style="font-size:15px;margin-bottom:6px;">Dados para a nota</h3>
+                <p class="muted-line" style="margin-bottom:14px;">CNPJ/CPF e razão social que aparecem na nota de cada turno.</p>
                 <button class="btn btn-primary" onclick="abrirOpcaoMenu('pagamento')">Cadastrar</button>
             </div>
         </div>
@@ -182,7 +198,7 @@
 
             <div class="section-title">Mais opções</div>
             <div class="glass-list" style="margin-bottom:15px;">
-                <div class="menu-option-item" onclick="abrirOpcaoMenu('pagamento')"><div class="option-left"><span>💳</span><span>Forma de pagamento</span></div><span class="option-arrow">›</span></div>
+                <div class="menu-option-item" onclick="abrirOpcaoMenu('pagamento')"><div class="option-left"><span>💳</span><span>Dados para a nota / pagamento</span></div><span class="option-arrow">›</span></div>
                 <div class="menu-option-item" onclick="abrirOpcaoMenu('preferencias')"><div class="option-left"><span>💼</span><span>Preferências de pedido</span></div><span class="option-arrow">›</span></div>
                 <div class="menu-option-item" onclick="abrirOpcaoMenu('indicar')"><div class="option-left"><span>🎁</span><span>Indicar lojas</span></div><span class="option-arrow">›</span></div>
                 <div class="menu-option-item" onclick="abrirOpcaoMenu('notificacoes')"><div class="option-left"><span>🔔</span><span>Notificações</span></div><span class="option-arrow">›</span></div>
@@ -225,8 +241,8 @@
     
     <div id="subscreen-pagamento" class="app-overlay sub-overlay" style="display:none">
         <div class="sub-inner">
-            <div class="sub-head"><button onclick="fecharSubtela('subscreen-pagamento')" aria-label="Voltar">❮</button><h2>Forma de pagamento</h2></div>
-            <label class="fld">Método preferido</label><select id="pg-metodo"><option>Pix</option><option>Cartão de crédito</option><option>Boleto (faturado)</option></select><label class="fld">CNPJ / CPF para nota</label><input type="text" id="pg-doc" placeholder="00.000.000/0000-00" inputmode="numeric"><button class="btn btn-primary" onclick="salvarPagamento()">Salvar</button>
+            <div class="sub-head"><button onclick="fecharSubtela('subscreen-pagamento')" aria-label="Voltar">❮</button><h2>Dados para a nota</h2></div>
+            <label class="fld">Método preferido</label><select id="pg-metodo"><option>Pix</option><option>Cartão de crédito</option></select><label class="fld">CNPJ / CPF para nota</label><input type="text" id="pg-doc" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="off"><label class="fld">Razão social / nome na nota</label><input type="text" id="pg-nome" placeholder="Ex: Mercado Bom Preço Ltda" autocomplete="organization"><button class="btn btn-primary" onclick="salvarPagamento()">Salvar</button>
         </div>
     </div>
     <div id="subscreen-preferencias" class="app-overlay sub-overlay" style="display:none">
@@ -244,7 +260,7 @@
     <div id="subscreen-notificacoes" class="app-overlay sub-overlay" style="display:none">
         <div class="sub-inner">
             <div class="sub-head"><button onclick="fecharSubtela('subscreen-notificacoes')" aria-label="Voltar">❮</button><h2>Notificações</h2></div>
-            <label class="sw-row"><span>Promotor aceitou meu pedido</span><input type="checkbox" checked></label><label class="sw-row"><span>Mensagens no chat</span><input type="checkbox" checked></label><label class="sw-row"><span>Check-in e conclusão do turno</span><input type="checkbox" checked></label><button class="btn btn-primary" onclick="fecharSubtela('subscreen-notificacoes');toast('✅ Notificações salvas!')">Salvar</button>
+            <label class="sw-row"><span>Promotor aceitou meu pedido</span><input type="checkbox" checked onchange="alternarNotificacoes(this)"></label><label class="sw-row"><span>Mensagens no chat</span><input type="checkbox" checked></label><label class="sw-row"><span>Check-in e conclusão do turno</span><input type="checkbox" checked></label><button class="btn btn-primary" onclick="fecharSubtela('subscreen-notificacoes');toast('✅ Notificações salvas!')">Salvar</button>
         </div>
     </div>
     <div id="subscreen-ajuda" class="app-overlay sub-overlay" style="display:none">
@@ -263,67 +279,13 @@
             </p>
             <h4 style="font-size: 13px; color: var(--gold); margin-top: 10px;">1. Intermediação de Serviços</h4>
             <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
-                As transações são processadas via gateway seguro de pagamento. A plataforma retém a taxa operacional para manutenção do sistema de geolocalização.
+                O pagamento é processado pelo Mercado Pago. Do valor do turno, 80% vai ao promotor e 20% ao aplicativo; além disso, cobra-se uma taxa fixa de serviço por pedido, informada antes da confirmação. A cada pagamento aprovado a plataforma emite o recibo/nota do serviço.
             </p>
             <button class="btn btn-primary" style="margin-top: 20px; width: 100%;" onclick="aceitarTermosAlunoModal()">Li e Concordo</button>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const checkTermos = document.getElementById('check-termos-aluno');
-            const btnLogin = document.getElementById('btn-login-aluno');
 
-            if (checkTermos && btnLogin) {
-                checkTermos.addEventListener('change', () => {
-                    if (checkTermos.checked) {
-                        btnLogin.disabled = false;
-                        btnLogin.style.opacity = '1';
-                        btnLogin.style.cursor = 'pointer';
-                    } else {
-                        btnLogin.disabled = true;
-                        btnLogin.style.opacity = '0.5';
-                        btnLogin.style.cursor = 'not-allowed';
-                    }
-                });
-            }
-        });
-
-        window.abrirModalTermosAluno = function() {
-            document.getElementById('modal-termos-aluno').classList.add('active');
-        }
-
-        window.aceitarTermosAlunoModal = function() {
-            const checkTermos = document.getElementById('check-termos-aluno');
-            const btnLogin = document.getElementById('btn-login-aluno');
-            if (checkTermos) checkTermos.checked = true;
-            if (btnLogin) {
-                btnLogin.disabled = false;
-                btnLogin.style.opacity = '1';
-                btnLogin.style.cursor = 'pointer';
-            }
-            document.getElementById('modal-termos-aluno').classList.remove('active');
-        }
-    </script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const grid = document.getElementById('setor-grid');
-            if (grid) grid.addEventListener('click', (e) => {
-                const b = e.target.closest('.setor-chip'); if (!b) return;
-                grid.querySelectorAll('.setor-chip').forEach(c => { c.classList.remove('sel'); c.setAttribute('aria-checked', 'false'); });
-                b.classList.add('sel'); b.setAttribute('aria-checked', 'true');
-                document.getElementById('solicitacao-foco').value = b.dataset.v;
-            });
-            const v = document.getElementById('solicitacao-valor');
-            const brl = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            if (v) v.addEventListener('input', () => {
-                const n = parseFloat(v.value) || 0;
-                document.getElementById('rv-prom').textContent = brl(n * 0.85);
-                document.getElementById('rv-taxa').textContent = brl(n * 0.15);
-            });
-        });
-    </script>
 
     <!-- O módulo precisa carregar ANTES do Maps, pois o Maps chama window.initMap -->
     <script type="module" src="script.js"></script>
