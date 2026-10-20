@@ -1,373 +1,380 @@
-// ==========================================================================
-// ABASTECE JÁ — App do contratante (loja)
-// ==========================================================================
-import { collection, addDoc, doc, setDoc, getDoc, getDocs, updateDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// ============================================================
+// ABASTECE JÁ — painel da LOJA (contratante)
+// Mesmo padrão do script-personal.js: firebase.js + core.js + ui.js + config.js
+// ============================================================
+import { collection, doc, addDoc, setDoc, getDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, $, esc, brl, fmtData, hojeLocal, vazio, skeleton, toast, docValido, mascaraDoc, mascaraTel, aplicarMascara, iniciarTema, alternarTema, mensagemErroAuth, notificar, pedirPermissaoNotificar } from "./comum.js";
-import { calcularRepasse, TAXA_PROMOTOR, TAXA_APP, TAXA_FIXA_CENTAVOS } from "./financeiro.js";
-import { abrirChat } from "./chat.js";
+import { auth, db, googleProvider } from "./firebase.js";
+import { WHATSAPP_SUPORTE, VALOR_HORA_SUGERIDO_CENTAVOS } from "./config.js";
+import { brl, calcularSplit, reaisParaCentavos, validarValor, esc, fmtData, fmtDataHora, hojeLocal, horasEntre, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
+import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
-let usuarioAtual = null, perfilLoja = {}, mapRadar, userMarker;
-let pedidos = [], notas = [], filtroPedidos = "todos", dataCalendario = new Date();
-let cancelarPedidos = null, cancelarNotas = null;
-const statusAnterior = new Map();
-const ROTULO = { aberta: "Aguardando promotor", aceita: "Aceito", concluida: "Pago ✓", cancelada: "Cancelado" };
-const pct = (n) => Math.round(n * 100);
+// ---------- estado ----------
+let usuario = null, perfil = {}, pedidos = [], promotores = [];
+let filtro = "ativos", setorSel = SETORES[0].v, preferido = "", dataCal = new Date(), diaSel = "";
+let pedidosUn = null, promUn = null, chatUn = null, chatPedido = null, avPedido = null, avEstrelas = 0, primeira = true;
+const statusAnt = new Map();
+const R = textoRegra();
+const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
+const btnLoginHtml = $("btn-login").innerHTML;
 
-iniciarTema();
+iniciarTema(); registrarSW();
+ligarMascaras({ doc: mascaraDoc, tel: mascaraTelefone });
 
-// ==========================================================================
+// ---------- textos que dependem da regra de taxas (nunca desatualizam) ----------
+$("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
+$("ajuda-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (loja).")}`;
+$("ajuda-split").textContent = `${R.curto} ${R.exemplo}`;
+$("termos-texto").innerHTML = `<strong>1. O serviço.</strong> A plataforma conecta a sua loja a promotores autônomos. Eles não têm vínculo empregatício com a plataforma nem com a loja.<br><br>
+  <strong>2. Valores e taxas.</strong> ${esc(R.curto)} ${esc(R.exemplo)}<br><br>
+  <strong>3. Pagamento.</strong> Você só paga depois do serviço, por Pix ou cartão, pelo Mercado Pago. A divisão entre promotor e plataforma é automática.<br><br>
+  <strong>4. Cancelamento.</strong> Pode cancelar sem custo enquanto o pedido não foi pago.<br><br>
+  <strong>5. Nota.</strong> A cada pagamento a plataforma emite uma nota de serviço em nome da sua empresa. Ela é um comprovante e não substitui NFS-e.`;
+
+// ============================================================
 // LOGIN / LOGOUT
-// ==========================================================================
-function setLoginLoading(on) {
-    const btn = $("btn-login-aluno"); if (!btn) return;
-    btn.dataset.label = btn.dataset.label || btn.innerHTML;
-    btn.disabled = on; btn.innerHTML = on ? '<span class="spinner"></span> Entrando...' : btn.dataset.label;
-}
-async function loginGoogleAluno() {
-    if (!$("check-termos-aluno").checked) return toast("Aceite os Termos de Uso para continuar.", "erro");
-    setLoginLoading(true);
+// ============================================================
+const msgAuth = (e) => ({
+    "auth/unauthorized-domain": "Domínio não autorizado no Firebase (Authentication → Settings → Domínios autorizados).",
+    "auth/operation-not-allowed": "Login com Google não está ativado no Firebase.",
+    "auth/network-request-failed": "Sem conexão com a internet.",
+    "auth/popup-closed-by-user": null, "auth/cancelled-popup-request": null
+})[e.code] ?? `Não foi possível entrar com o Google. (${e.code || "erro"})`;
+
+const resetarLogin = () => { const b = $("btn-login"); b.innerHTML = btnLoginHtml; b.disabled = !$("check-termos").checked; };
+$("check-termos").addEventListener("change", (e) => ($("btn-login").disabled = !e.target.checked));
+$("link-termos").addEventListener("click", (e) => { e.preventDefault(); abrir("sheet-termos"); });
+$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("btn-login").disabled = false; fechar("sheet-termos"); });
+$("btn-login").addEventListener("click", async () => {
+    const b = $("btn-login"); b.disabled = true; b.innerHTML = '<span class="spinner"></span> Entrando…';
     try { await signInWithPopup(auth, googleProvider); }
-    catch (error) {
-        if (error.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e) { error = e; } }
-        const msg = mensagemErroAuth(error); if (msg) toast(msg, "erro");
-        setLoginLoading(false);
+    catch (e) {
+        if (e.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e2) { e = e2; } }
+        const m = msgAuth(e); if (m) erro(m);
+        resetarLogin();
     }
-}
-async function logoutAluno() {
-    if (!confirm("Deseja sair da conta?")) return;
-    cancelarPedidos?.(); cancelarNotas?.();
-    try { await signOut(auth); } catch (e) { console.error(e); }
-}
-getRedirectResult(auth).catch((e) => { const m = mensagemErroAuth(e); if (m) toast(m, "erro"); });
+});
+getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); resetarLogin(); });
+$("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair da conta?")) { parar(); await signOut(auth); } });
 
-onAuthStateChanged(auth, (user) => user ? mostrarApp(user) : mostrarLogin());
+const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+function parar() { pedidosUn?.(); promUn?.(); chatUn?.(); pedidosUn = promUn = chatUn = null; primeira = true; statusAnt.clear(); }
 
-function mostrarLogin() { usuarioAtual = null; setLoginLoading(false); navTo("screen-login"); }
+onAuthStateChanged(auth, async (u) => {
+    usuario = u;
+    if (!u) { parar(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
+    try { await carregarPerfil(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Verifique se as regras do Firestore foram publicadas."); }
+    pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar();
+});
 
-async function mostrarApp(user) {
-    usuarioAtual = user;
-    const nome = user.displayName || user.email.split("@")[0];
-    $("display-name-home").innerText = nome.split(" ")[0];
-    $("display-name-profile").innerText = nome;
-    $("main-user-avatar").innerText = $("display-avatar-profile").innerText = nome.charAt(0).toUpperCase();
-    if (user.photoURL) { const i = $("img-aluno-perfil-preview"); i.src = user.photoURL; i.style.display = "block"; $("display-avatar-profile").style.display = "none"; }
-    navTo("screen-main");
-    const base = location.origin + location.pathname.replace(/[^/]*$/, "");
-    $("input-link-indicacao").value = base + "index.html";
-    const d = $("solicitacao-data"); d.min = hojeLocal(); if (!d.value) d.value = hojeLocal();
-    $("lista-pedidos").innerHTML = skeleton(3);
-    $("lista-personais-reais").innerHTML = skeleton(2);
-    await carregarPerfilLoja();
-    renderPromotores();
-    renderCalendario();
-    ouvirPedidos();
-    ouvirNotas();
-    atualizarResumoValor();
-    if (window.google && !mapRadar) initMap();
+async function carregarPerfil(u) {
+    const ref = doc(db, "contratantes", u.uid), s = await getDoc(ref);
+    if (s.exists()) return (perfil = s.data());
+    perfil = { uid: u.uid, email: u.email || "", nome: u.displayName || "", termosEm: serverTimestamp() };
+    await setDoc(ref, { ...perfil, criadoEm: serverTimestamp() });
 }
 
-// ==========================================================================
-// NAVEGAÇÃO
-// ==========================================================================
-function navTo(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active")); $(id).classList.add("active"); window.scrollTo(0, 0); }
-function switchTab(tabId, el) {
-    document.querySelectorAll(".tab-content").forEach((t) => t.classList.remove("active"));
-    $(tabId).classList.add("active");
-    document.querySelectorAll(".nav-item").forEach((i) => { i.classList.remove("active"); i.removeAttribute("aria-current"); });
-    if (el) { el.classList.add("active"); el.setAttribute("aria-current", "page"); }
-    window.scrollTo(0, 0);
-    if (tabId === "tab-home" && window.google && !mapRadar) initMap();
+function pintarPerfil() {
+    const nome = perfil.razaoSocial || usuario.displayName || (usuario.email || "loja").split("@")[0];
+    $("nome-home").textContent = nome.split(" ")[0]; $("nome-menu").textContent = nome;
+    for (const id of ["avatar-home", "avatar-menu"]) {
+        const a = $(id); a.textContent = nome.charAt(0).toUpperCase();
+        if (usuario.photoURL) a.innerHTML = `<img src="${esc(usuario.photoURL)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:inherit;object-fit:cover">`;
+    }
+    $("aviso-fiscal").hidden = !!(perfil.razaoSocial && perfil.documento);
+    $("f-razao").value = perfil.razaoSocial || ""; $("f-doc").value = perfil.documento ? mascaraDoc(perfil.documento) : "";
+    $("f-end").value = perfil.endereco || ""; $("f-email").value = perfil.email || usuario.email || "";
+    $("f-tel").value = perfil.telefone ? mascaraTelefone(perfil.telefone) : ""; if (perfil.ramo) $("f-ramo").value = perfil.ramo;
+    $("pref-setor").innerHTML = SETORES.map((s) => `<option value="${esc(s.v)}">${esc(s.label)}</option>`).join("");
+    if (perfil.prefs?.setor) $("pref-setor").value = perfil.prefs.setor;
+    $("pref-entrada").value = perfil.prefs?.entrada || "08:00"; $("pref-saida").value = perfil.prefs?.saida || "12:00";
+    $("link-indicar").value = baseSite() + "landing.html";
 }
 
-// ==========================================================================
-// FORMULÁRIO DE PEDIDO + PRÉVIA DO SPLIT (80% / 20% + taxa fixa)
-// ==========================================================================
-function atualizarResumoValor() {
-    const r = calcularRepasse(parseFloat($("solicitacao-valor").value) || 0);
-    $("rv-prom").textContent = brl(r.promotor); $("rv-taxa").textContent = brl(r.comissao);
-    $("rv-fixa").textContent = brl(r.taxaFixa); $("rv-total").textContent = brl(r.totalLoja);
+// ============================================================
+// DADOS EM TEMPO REAL
+// ============================================================
+function escutar() {
+    parar();
+    $("lista-pedidos").innerHTML = skeleton(3); $("lista-promotores").innerHTML = skeleton(2);
+    pedidosUn = onSnapshot(query(collection(db, "solicitacoes"), where("uid", "==", usuario.uid)), (snap) => {
+        pedidos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        if (!primeira) pedidos.forEach((p) => {
+            const a = statusAnt.get(p.id);
+            if (a === "aberta" && p.status === "aceita") notificar("Promotor confirmado 🎉", `${p.promotorNome || "Um promotor"} aceitou o pedido em ${p.loja}.`);
+            if (a && !estaPago({ status: a }) && estaPago(p)) notificar("Pagamento confirmado ✓", `A nota do pedido em ${p.loja} já está disponível.`);
+        });
+        pedidos.forEach((p) => statusAnt.set(p.id, p.status)); primeira = false;
+        renderTudo();
+    }, (e) => { pedidos = []; renderTudo(); if (e.code === "permission-denied") erro("Sem permissão para ler os pedidos. Publique as regras do Firestore."); else console.warn(e); });
+    promUn = onSnapshot(query(collection(db, "profissionais"), where("status", "==", "ativo")), (snap) => {
+        promotores = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderPromotores();
+    }, () => { promotores = []; renderPromotores(); });
+}
+
+const sp = (p) => { try { return p.pagamento?.split ?? calcularSplit(valorCentavos(p)); } catch (e) { return { valor: 0, total: 0, promotor: 0, app: 0, taxaFixa: 0 }; } };
+const ordemData = (a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`);
+function renderTudo() { renderHome(); renderPedidos(); renderCalendario(); diaSel ? renderDia() : renderAgenda(); renderCarteira(); renderConversas(); }
+
+// ============================================================
+// NOVO PEDIDO
+// ============================================================
+function montarSetores() {
+    $("setor-grid").innerHTML = SETORES.map((s) => `<button type="button" class="chip${s.v === setorSel ? " sel" : ""}" role="radio" aria-checked="${s.v === setorSel}" data-setor="${esc(s.v)}"><span class="ico">${s.ico}</span>${esc(s.label)}</button>`).join("");
 }
 function iniciarFormulario() {
-    $("setor-grid").addEventListener("click", (e) => {
-        const b = e.target.closest(".setor-chip"); if (!b) return;
-        document.querySelectorAll("#setor-grid .setor-chip").forEach((c) => { c.classList.remove("sel"); c.setAttribute("aria-checked", "false"); });
-        b.classList.add("sel"); b.setAttribute("aria-checked", "true");
-        $("solicitacao-foco").value = b.dataset.v;
-    });
-    $("solicitacao-valor").addEventListener("input", atualizarResumoValor);
-    aplicarMascara("pg-doc", mascaraDoc); aplicarMascara("aluno-input-telefone", mascaraTel);
-    document.querySelectorAll(".r-pct-prom").forEach((e) => (e.textContent = pct(TAXA_PROMOTOR)));
-    document.querySelectorAll(".r-pct-app").forEach((e) => (e.textContent = pct(TAXA_APP)));
-    document.querySelectorAll(".r-fixa").forEach((e) => (e.textContent = brl(TAXA_FIXA_CENTAVOS / 100)));
-    $("filtros-pedidos").addEventListener("click", (e) => {
-        const b = e.target.closest("button[data-f]"); if (!b) return;
-        filtroPedidos = b.dataset.f;
-        document.querySelectorAll("#filtros-pedidos button").forEach((x) => x.classList.toggle("on", x === b));
-        renderPedidos();
-    });
-    ["lista-pedidos", "lista-agenda", "lista-conversas"].forEach((id) => $(id).addEventListener("click", acaoPedido));
+    $("p-data").min = hojeLocal(); if (!$("p-data").value || $("p-data").value < hojeLocal()) $("p-data").value = hojeLocal();
+    $("p-entrada").value = perfil.prefs?.entrada || "08:00"; $("p-saida").value = perfil.prefs?.saida || "12:00";
+    if (perfil.prefs?.setor) setorSel = perfil.prefs.setor;
+    montarSetores(); atualizarSplit();
 }
-document.addEventListener("DOMContentLoaded", iniciarFormulario);
+$("setor-grid").addEventListener("click", (e) => { const b = e.target.closest("[data-setor]"); if (b) { setorSel = b.dataset.setor; montarSetores(); } });
 
-async function enviarSolicitacao(extra = {}) {
-    if (!usuarioAtual) return toast("Faça login primeiro.", "erro");
-    const local = $("solicitacao-local").value.trim();
-    const data = $("solicitacao-data").value, entrada = $("solicitacao-entrada").value, saida = $("solicitacao-saida").value;
-    const valor = parseFloat($("solicitacao-valor").value);
-    if (!local) { toast("Informe o nome/endereço da loja.", "erro"); return $("solicitacao-local").focus(); }
-    if (!data) return toast("Escolha o dia do serviço.", "erro");
-    if (data < hojeLocal()) return toast("O dia não pode ser anterior a hoje.", "erro");
-    if (!entrada || !saida || saida <= entrada) return toast("A saída precisa ser depois da entrada.", "erro");
-    if (!(valor >= 1 && valor <= 5000)) { toast("Informe um valor entre R$ 1 e R$ 5.000.", "erro"); return $("solicitacao-valor").focus(); }
-    if (!docValido(perfilLoja.pagamento?.documento)) {
-        toast("Cadastre o CNPJ/CPF da loja para que a nota seja emitida.", "erro");
-        return abrirOpcaoMenu("pagamento");
-    }
-    const btn = $("btn-solicitar"); btn.disabled = true;
+const limparErros = () => document.querySelectorAll(".msg-erro").forEach((e) => (e.textContent = ""));
+function atualizarSplit() {
+    const c = reaisParaCentavos($("p-valor").value), h = horasEntre($("p-entrada").value, $("p-saida").value);
+    const sug = Math.round((h * VALOR_HORA_SUGERIDO_CENTAVOS) / 500) * 500;
+    $("dica-valor").textContent = h ? `Turno de ${String(Math.round(h * 10) / 10).replace(".", ",")} h` : "";
+    $("usar-sugestao").hidden = !(sug > 0); $("usar-sugestao").textContent = `Usar sugestão (${brl(sug)})`; $("usar-sugestao").dataset.v = sug;
+    const valido = c > 0 && !validarValor(c);
+    $("split-card").hidden = !valido;
+    if (!valido) return;
+    const s = calcularSplit(c);
+    $("sc-valor").textContent = brl(s.valor); $("sc-taxa").textContent = brl(s.taxaFixa); $("sc-total").textContent = brl(s.total);
+    $("sc-prom").textContent = brl(s.promotor); $("sc-app").textContent = brl(s.app);
+    $("sb-p").style.width = (s.promotor / s.total) * 100 + "%"; $("sb-a").style.width = (s.app / s.total) * 100 + "%";
+}
+$("p-valor").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^\d.,]/g, ""); $("e-valor").textContent = ""; atualizarSplit(); });
+$("p-valor").addEventListener("blur", () => { const c = reaisParaCentavos($("p-valor").value); $("e-valor").textContent = c > 0 ? validarValor(c) : ""; });
+["p-entrada", "p-saida"].forEach((id) => $(id).addEventListener("input", atualizarSplit));
+$("usar-sugestao").addEventListener("click", (e) => { e.preventDefault(); $("p-valor").value = (Number(e.target.dataset.v) / 100).toFixed(2).replace(".", ","); atualizarSplit(); });
+
+function definirPreferido(nome) {
+    preferido = nome || ""; $("banner-preferido").hidden = !preferido; $("nome-preferido").textContent = preferido;
+    if (preferido) { irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth", block: "start" }); }
+}
+$("rm-preferido").addEventListener("click", () => definirPreferido(""));
+
+$("btn-enviar").addEventListener("click", async () => {
+    limparErros();
+    const loja = $("p-local").value.trim(), data = $("p-data").value, entrada = $("p-entrada").value, saida = $("p-saida").value, cents = reaisParaCentavos($("p-valor").value);
+    let falhou = false; const e = (id, m) => { $(id).textContent = m; falhou = true; };
+    if (loja.length < 3) e("e-local", "Informe o nome e o endereço da loja.");
+    if (!data || data < hojeLocal()) e("e-data", "Escolha hoje ou uma data futura.");
+    if (!entrada || !saida || horasEntre(entrada, saida) <= 0) e("e-saida", "A saída precisa ser depois da entrada.");
+    else if (data === hojeLocal() && saida <= new Date().toTimeString().slice(0, 5)) e("e-saida", "Esse horário já passou hoje.");
+    const v = validarValor(cents); if (v) e("e-valor", v);
+    if (falhou) return erro("Confira os campos destacados.");
+
+    const b = $("btn-enviar"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Enviando…';
     try {
-        await addDoc(collection(db, "solicitacoes"), {
-            uid: usuarioAtual.uid, email: usuarioAtual.email, loja: local,
-            docNota: perfilLoja.pagamento.documento, nomeNota: perfilLoja.pagamento.nome || local,
-            data, entrada, saida, horario: `${entrada}–${saida}`, valor,
-            foco: $("solicitacao-foco").value, status: "aberta", criadoEm: serverTimestamp(), ...extra
-        });
-        toast("✅ Pedido enviado! Os promotores da região foram avisados.", "ok");
-        $("solicitacao-local").value = ""; $("solicitacao-valor").value = ""; atualizarResumoValor();
-        switchTab("tab-pedidos", document.querySelectorAll(".nav-item")[1]);
-    } catch (e) { console.error(e); toast("Não foi possível enviar o pedido. Tente de novo.", "erro"); }
-    btn.disabled = false;
-}
-const solicitarTreinoModoUber = () => enviarSolicitacao();
-const solicitarPromotorEspecifico = (nome) => enviarSolicitacao({ promotorPreferido: nome });
+        const novo = { uid: usuario.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, valorCentavos: cents, foco: setorSel, status: "aberta", criadoEm: serverTimestamp() };
+        if (preferido) novo.promotorPreferido = preferido;
+        await addDoc(collection(db, "solicitacoes"), novo);
+        ok("Pedido enviado! Avisamos quando um promotor aceitar.");
+        $("p-local").value = ""; $("p-valor").value = ""; definirPreferido(""); atualizarSplit();
+        filtro = "ativos"; marcarFiltro(); irPara("tab-pedidos");
+        if (!(perfil.razaoSocial && perfil.documento)) setTimeout(() => toast("Dica: complete os dados da empresa para a nota sair no seu nome."), 1800);
+    } catch (err) { console.error(err); erro(err.code === "permission-denied" ? "Pedido recusado pelas regras de segurança. Confira os dados." : "Não foi possível enviar o pedido. Tente de novo."); }
+    finally { b.disabled = false; b.innerHTML = html; }
+});
 
-// ==========================================================================
-// PEDIDOS EM TEMPO REAL
-// ==========================================================================
-function ouvirPedidos() {
-    cancelarPedidos?.();
-    cancelarPedidos = onSnapshot(query(collection(db, "solicitacoes"), where("uid", "==", usuarioAtual.uid)), (snap) => {
-        pedidos = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.criadoEm?.seconds || 9e9) - (a.criadoEm?.seconds || 9e9));
-        pedidos.forEach((p) => {                                  // avisa quando algo muda sozinho
-            const ant = statusAnterior.get(p.id);
-            if (ant && ant !== p.status) {
-                if (p.status === "aceita") notificar("Promotor a caminho!", `${p.promotorNome || "Um promotor"} aceitou seu pedido.`);
-                if (p.status === "concluida") notificar("Pagamento confirmado", "Sua nota já está disponível na Carteira.");
-            }
-            statusAnterior.set(p.id, p.status);
-        });
-        renderPedidos(); renderCarteira(); renderConversas(); renderProximo();
-        if ($("selected-date-label").dataset.iso) selecionarDia(+$("selected-date-label").dataset.dia);
-        renderCalendario();
-    }, (e) => { console.warn("Pedidos:", e.code); $("lista-pedidos").innerHTML = vazio("⚠️", "Não foi possível carregar", "Verifique sua conexão e as regras do Firestore."); });
-}
-function ouvirNotas() {
-    cancelarNotas?.();
-    cancelarNotas = onSnapshot(query(collection(db, "notas"), where("contratanteUid", "==", usuarioAtual.uid)), (snap) => {
-        notas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.emitidaEm?.seconds || 0) - (a.emitidaEm?.seconds || 0));
-        renderCarteira();
-    }, (e) => console.warn("Notas:", e.code));
+function repetir(p) {
+    setorSel = p.foco || setorSel; montarSetores();
+    $("p-local").value = p.loja || ""; $("p-entrada").value = p.entrada || "08:00"; $("p-saida").value = p.saida || "12:00";
+    $("p-data").value = hojeLocal(); $("p-valor").value = (valorCentavos(p) / 100).toFixed(2).replace(".", ","); atualizarSplit();
+    irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth" }); toast("Dados copiados. Escolha o dia e envie.", "ok");
 }
 
-function acoesPedido(p) {
-    const a = [];
-    if (p.status === "aceita") {
-        a.push(`<a class="btn-pagar-pedido" href="pagar.html?id=${encodeURIComponent(p.id)}">💳 Pagar ${brl(calcularRepasse(p.valor).totalLoja)}</a>`);
-        a.push(`<button class="btn-mini" data-acao="chat" data-id="${p.id}">💬 Chat</button>`);
-    }
-    if (p.status === "concluida") {
-        a.push(`<a class="btn-mini" href="nota.html?id=${encodeURIComponent(p.id)}">🧾 Nota</a>`);
-        a.push(`<button class="btn-mini" data-acao="chat" data-id="${p.id}">💬 Chat</button>`);
-        if (!p.avaliacao) a.push(`<button class="btn-mini destaque" data-acao="avaliar" data-id="${p.id}">⭐ Avaliar</button>`);
-    }
-    if (p.status === "aberta" || p.status === "aceita") a.push(`<button class="btn-mini perigo" data-acao="cancelar" data-id="${p.id}">Cancelar</button>`);
-    return a.length ? `<div class="pedido-acoes">${a.join("")}</div>` : "";
-}
-function cartaoPedido(p) {
-    const st = p.status || "aberta";
-    const etapa = st === "concluida" ? 3 : st === "aceita" ? 2 : st === "cancelada" ? 0 : 1;
-    const barra = `<div class="steps-line">${[1, 2, 3].map((n) => `<span class="${etapa >= n ? "on" : ""}"></span>`).join("")}</div>`;
-    const quem = p.promotorNome ? ` · ${esc(p.promotorNome)}` : "";
-    const estrelas = p.avaliacao ? ` · ${"★".repeat(p.avaliacao.nota)}${"☆".repeat(5 - p.avaliacao.nota)}` : "";
-    return `<article class="glass agenda-slot slot-${st === "concluida" ? "concluida" : st === "aberta" ? "livre" : st === "cancelada" ? "cancelada" : "ocupado"}" style="flex-wrap:wrap">
-        <div class="pedido-linha"><div class="slot-info-name">${esc(p.loja)}</div>
-        <div class="slot-info-desc">${fmtData(p.data)} · ${esc(p.horario)} · ${esc(p.foco)} · ${brl(p.valor)}${quem}${estrelas}</div>${acoesPedido(p)}</div>
-        <span class="badge badge-gold">${ROTULO[st] || st}</span>${barra}</article>`;
-}
-function renderPedidos() {
-    const lista = pedidos.filter((p) => filtroPedidos === "todos" || (filtroPedidos === "abertos" ? p.status === "aberta" || p.status === "aceita" : p.status === filtroPedidos));
-    $("lista-pedidos").innerHTML = lista.length ? lista.map(cartaoPedido).join("") : vazio("🛒", "Nada por aqui", filtroPedidos === "todos" ? "Solicite um promotor na aba Início e acompanhe o andamento aqui." : "Nenhum pedido neste filtro.");
-}
-function renderProximo() {
-    const s = pedidos.filter((p) => p.status === "aberta" || p.status === "aceita").sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`))[0];
-    $("card-proximo-treino-conteudo").innerHTML = s
-        ? `<p style="font-size:14px;font-weight:600">${esc(s.loja)}</p><p class="muted-line">${fmtData(s.data)} · ${esc(s.horario)} · ${s.status === "aceita" ? "com " + esc(s.promotorNome) : "aguardando promotor"}</p>`
-        : '<p class="muted-line">Nenhum abastecimento agendado.</p>';
-}
-function renderConversas() {
-    const com = pedidos.filter((p) => p.promotorUid && p.status !== "cancelada");
-    $("lista-conversas").innerHTML = com.length ? com.map((p) => `<button class="glass conversa-item" data-acao="chat" data-id="${p.id}"><div class="avatar">${esc((p.promotorNome || "P").charAt(0))}</div><div><strong>${esc(p.promotorNome)}</strong><br><small class="muted-line">${esc(p.loja)} · ${fmtData(p.data)}</small></div><span class="option-arrow">›</span></button>`).join("")
-        : vazio("💬", "Nenhuma conversa ainda", "Quando um promotor aceitar sua solicitação, o chat aparece aqui.");
-}
-
-async function acaoPedido(e) {
-    const b = e.target.closest("[data-acao]"); if (!b) return;
-    const p = pedidos.find((x) => x.id === b.dataset.id); if (!p) return;
-    if (b.dataset.acao === "chat") return abrirChat(p.id, p.promotorNome || "Promotor", `${p.loja} · ${fmtData(p.data)}`);
-    if (b.dataset.acao === "avaliar") return abrirAvaliacao(p);
-    if (b.dataset.acao === "cancelar") {
-        if (!confirm(p.status === "aceita" ? "O promotor já aceitou este turno. Cancelar mesmo assim?" : "Cancelar este pedido?")) return;
-        try { await updateDoc(doc(db, "solicitacoes", p.id), { status: "cancelada", canceladoEm: serverTimestamp() }); toast("Pedido cancelado."); }
-        catch (err) { console.error(err); toast("Não foi possível cancelar.", "erro"); }
-    }
-}
-
-// ---------- avaliação (estrelas) ----------
-function abrirAvaliacao(p) {
-    let m = $("modal-avaliar");
-    if (!m) { m = document.createElement("div"); m.id = "modal-avaliar"; m.className = "app-overlay"; document.body.appendChild(m); }
-    let nota = 0;
-    m.innerHTML = `<div class="glass modal-box" style="text-align:center"><h3 style="color:var(--gold)">Como foi o turno?</h3><p class="muted-line" style="margin:6px 0 14px">${esc(p.promotorNome)} · ${esc(p.loja)}</p>
-        <div class="estrelas" role="radiogroup" aria-label="Nota">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="false" aria-label="${n} estrelas" data-n="${n}">★</button>`).join("")}</div>
-        <button class="btn btn-primary" id="av-ok" disabled style="margin-top:16px">Enviar avaliação</button><button class="btn btn-outline" id="av-x" style="margin-top:8px">Agora não</button></div>`;
-    m.classList.add("active");
-    m.querySelector(".estrelas").onclick = (e) => { const s = e.target.closest("button"); if (!s) return; nota = +s.dataset.n;
-        m.querySelectorAll(".estrelas button").forEach((x) => { x.classList.toggle("on", +x.dataset.n <= nota); x.setAttribute("aria-checked", +x.dataset.n === nota); }); $("av-ok").disabled = false; };
-    $("av-x").onclick = () => m.classList.remove("active");
-    $("av-ok").onclick = async () => {
-        try { await updateDoc(doc(db, "solicitacoes", p.id), { avaliacao: { nota, em: hojeLocal() } }); toast("Obrigado pela avaliação! ⭐", "ok"); }
-        catch (e) { console.error(e); toast("Não foi possível enviar a avaliação.", "erro"); }
-        m.classList.remove("active");
-    };
-}
-
-// ==========================================================================
+// ============================================================
 // PROMOTORES DISPONÍVEIS
-// ==========================================================================
-async function renderPromotores() {
-    const lista = $("lista-personais-reais"); let ativos = [];
-    try { ativos = (await getDocs(query(collection(db, "profissionais"), where("status", "==", "ativo")))).docs.map((d) => d.data()); }
-    catch (e) { console.warn("Promotores:", e.code); }
-    ativos.sort((a, b) => (b.notaMedia || 0) - (a.notaMedia || 0));
-    lista.innerHTML = ativos.length ? ativos.map((p) => `<div class="glass trainer-card card-gold"><div class="trainer-header">
-        <div class="avatar-container story-ring"><div class="avatar">${esc((p.nome || "P").charAt(0))}</div></div>
-        <div class="trainer-info"><h4>${esc(p.nome)}${p.notaQtd ? ` <span class="nota-chip">★ ${Number(p.notaMedia).toFixed(1)} <small>(${p.notaQtd})</small></span>` : ""}</h4><p>${esc(p.especialidade || "Reposição e abastecimento")}</p>
-        <div class="trainer-status status-online"><span class="dot"></span>Disponível</div></div></div>
-        <div class="trainer-actions"><button class="btn-action btn-fill" data-nome="${esc(p.nome)}" onclick="solicitarPromotorEspecifico(this.dataset.nome)">Solicitar</button></div></div>`).join("")
-        : vazio("🧑‍🔧", "Nenhum promotor ativo ainda", "Faça seu pedido acima: os promotores da região recebem a proposta.");
+// ============================================================
+function renderPromotores() {
+    const l = promotores.slice().sort((a, b) => (b.ratingMedia || 0) - (a.ratingMedia || 0) || (b.ratingQtd || 0) - (a.ratingQtd || 0)).slice(0, 12);
+    $("lista-promotores").innerHTML = l.length ? l.map((p) => {
+        const nome = p.nome || "Promotor", foto = p.fotoGoogle ? `<img src="${esc(p.fotoGoogle)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:inherit;object-fit:cover">` : esc(nome[0].toUpperCase());
+        const nota = p.ratingQtd ? `<span class="stars">★ ${String(p.ratingMedia).replace(".", ",")}</span> <span class="muted small">(${p.ratingQtd})</span>` : '<span class="muted small">Novo na plataforma</span>';
+        return `<article class="card conversa"><div class="avatar">${foto}</div><div class="grow"><h4>${esc(nome)}</h4><div class="small">${nota}</div><div class="muted small">${esc(p.especialidade || "Reposição geral")}${p.cidade ? " · " + esc(p.cidade) : ""}</div></div><button class="btn btn-ghost btn-sm" data-chamar="${esc(nome)}">Chamar</button></article>`;
+    }).join("") : vazio("👷", "Nenhum promotor cadastrado ainda", "Envie o pedido mesmo assim: ele aparece para todos os promotores aprovados da região.");
 }
 
-// ==========================================================================
-// CARTEIRA + NOTAS
-// ==========================================================================
-function renderCarteira() {
-    $("cart-abertos").innerText = pedidos.filter((p) => p.status === "aberta" || p.status === "aceita").length;
-    const pagos = notas.length ? notas : pedidos.filter((p) => p.status === "concluida").map((p) => ({ totalPago: calcularRepasse(p.valor).totalLoja, emitidaEm: p.pagoEm }));
-    $("cart-total").innerText = brl(pagos.reduce((s, n) => s + (n.totalPago || 0), 0));
-    const agora = new Date();
-    $("cart-mes").innerText = brl(pagos.filter((n) => { const d = n.emitidaEm?.toDate?.(); return d && d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear(); }).reduce((s, n) => s + (n.totalPago || 0), 0));
-    $("lista-notas").innerHTML = notas.length ? notas.map((n) => `<a class="glass nota-item" href="nota.html?id=${encodeURIComponent(n.solicitacaoId)}"><div><strong>Nota nº ${esc(n.numero)}</strong><br><small class="muted-line">${esc(n.loja)} · ${fmtData(n.data)}</small></div><div style="text-align:right"><strong>${brl(n.totalPago)}</strong><br><small class="muted-line">ver / imprimir ›</small></div></a>`).join("")
-        : '<p class="muted-line" style="text-align:center;padding:10px">As notas dos turnos pagos aparecem aqui.</p>';
-    $("btn-exportar").style.display = notas.length ? "block" : "none";
+// ============================================================
+// INÍCIO / PEDIDOS
+// ============================================================
+function renderHome() {
+    const aPagar = pedidos.filter((p) => p.status === "aceita").length;
+    $("dot-pedidos").hidden = !aPagar; $("dot-pedidos").textContent = aPagar;
+    const prox = pedidos.filter((p) => (p.status === "aceita" || p.status === "aberta") && p.data >= hojeLocal()).sort(ordemData)[0], el = $("card-proximo");
+    el.hidden = !prox; if (!prox) return;
+    el.innerHTML = `<div class="lbl">Próximo turno</div><div class="row between"><div><h4>${esc(prox.loja)}</h4><div class="muted small">${fmtData(prox.data)} · ${esc(prox.horario || "")} · ${esc(prox.foco)}</div></div>${selo(prox)}</div>
+        <div class="muted small mt">${prox.status === "aceita" ? `👷 ${esc(prox.promotorNome || "Promotor")} confirmado.` : "Aguardando um promotor aceitar."}</div>`;
 }
-function exportarNotasCSV() {
-    const cab = ["Numero", "Data do servico", "Loja", "Promotor", "Valor do turno", "Taxa fixa", "Total pago"];
-    const linhas = notas.map((n) => [n.numero, n.data, n.loja, n.promotorNome, n.valorTurno, n.taxaFixa, n.totalPago].map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";"));
-    const blob = new Blob(["\ufeff" + [cab.join(";"), ...linhas].join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `notas-abastece-ja-${hojeLocal()}.csv`; a.click(); URL.revokeObjectURL(a.href);
+const selo = (p) => { const [t, c] = p.status === "cancelada" ? ["Cancelado", "red"] : estaPago(p) ? ["Pago ✓", "green"] : p.status === "aceita" ? ["Aceito · pagar", "blue"] : ["Aguardando promotor", ""]; return `<span class="badge ${c}">${t}</span>`; };
+function linhaTempo(p) {
+    const idx = estaPago(p) ? 2 : p.status === "aceita" ? 1 : 0, nomes = ["Pedido", "Aceito", "Pago"];
+    return `<div class="timeline">${nomes.map((n, i) => `<div class="passo ${i < idx || (idx === 2 && i === 2) ? "ok" : i === idx ? "on" : ""}"><div class="bola"></div>${n}</div>${i < 2 ? `<div class="fio ${i < idx ? "on" : ""}"></div>` : ""}`).join("")}</div>`;
 }
-
-// ==========================================================================
-// PERFIL / PAGAMENTO / PREFERÊNCIAS
-// ==========================================================================
-async function carregarPerfilLoja() {
-    try {
-        const s = await getDoc(doc(db, "contratantes", usuarioAtual.uid));
-        if (s.exists()) {
-            perfilLoja = s.data();
-            if (perfilLoja.ramo) $("aluno-select-objetivo").value = perfilLoja.ramo;
-            if (perfilLoja.telefone) $("aluno-input-telefone").value = perfilLoja.telefone;
-            if (perfilLoja.pagamento) { $("pg-metodo").value = perfilLoja.pagamento.metodo || "Pix"; $("pg-doc").value = perfilLoja.pagamento.documento || ""; $("pg-nome").value = perfilLoja.pagamento.nome || ""; }
-            if (perfilLoja.preferencias) { $("pref-setor").value = perfilLoja.preferencias.setor; $("pref-turno").value = perfilLoja.preferencias.turno; }
-        }
-    } catch (e) { console.warn("Perfil:", e.code); }
-    $("alerta-doc").style.display = docValido(perfilLoja.pagamento?.documento) ? "none" : "flex";
+function cartao(p) {
+    const s = sp(p), pago = estaPago(p), cancel = p.status === "cancelada", acoes = [];
+    if (p.status === "aceita") acoes.push(`<a class="btn btn-primary btn-sm" href="pagar.html?id=${encodeURIComponent(p.id)}">💳 Pagar agora</a>`);
+    if (pago && p.notaId) acoes.push(`<a class="btn btn-primary btn-sm" href="nota.html?id=${encodeURIComponent(p.notaId)}">🧾 Ver nota</a>`);
+    if (p.status === "paga" && !p.avaliacao) acoes.push(`<button class="btn btn-ghost btn-sm" data-avaliar="${p.id}">⭐ Avaliar</button>`);
+    if (p.promotorUid && !cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-chat="${p.id}">💬 Chat</button>`);
+    if (pago || cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-repetir="${p.id}">🔁 Repetir</button>`);
+    if (p.status === "aberta" || p.status === "aceita") acoes.push(`<button class="btn btn-danger btn-sm" data-cancelar="${p.id}">Cancelar</button>`);
+    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(p.loja)}</h4><div class="meta">${fmtData(p.data)} · ${esc(p.horario || "")} · ${esc(p.foco)}</div>${p.promotorNome ? `<div class="meta">👷 ${esc(p.promotorNome)}${p.avaliacao ? ` · <span class="stars">${"★".repeat(p.avaliacao.estrelas)}</span>` : ""}</div>` : ""}</div>
+        <div class="center"><div class="valor">${brl(s.total)}</div>${selo(p)}</div></div>${cancel ? "" : linhaTempo(p)}${acoes.length ? `<div class="acoes">${acoes.join("")}</div>` : ""}</article>`;
 }
-async function salvarCampos(dados, msg, subId) {
-    try { await setDoc(doc(db, "contratantes", usuarioAtual.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); Object.assign(perfilLoja, dados); toast(msg, "ok"); if (subId) fecharSubtela(subId); }
-    catch (e) { console.error(e); toast("Não foi possível salvar. Verifique as regras do Firestore.", "erro"); }
-    $("alerta-doc").style.display = docValido(perfilLoja.pagamento?.documento) ? "none" : "flex";
-}
-const salvarPerfilAluno = () => salvarCampos({ nome: usuarioAtual.displayName || "", email: usuarioAtual.email, ramo: $("aluno-select-objetivo").value, telefone: $("aluno-input-telefone").value.trim() }, "✅ Dados da loja salvos!");
-function salvarPagamento() {
-    const documento = $("pg-doc").value.trim();
-    if (!docValido(documento)) return toast("CNPJ ou CPF inválido. Confira os números.", "erro");
-    salvarCampos({ pagamento: { metodo: $("pg-metodo").value, documento, nome: $("pg-nome").value.trim() } }, "✅ Dados para a nota salvos!", "subscreen-pagamento");
-}
-const salvarPreferencias = () => salvarCampos({ preferencias: { setor: $("pref-setor").value, turno: $("pref-turno").value } }, "✅ Preferências salvas!", "subscreen-preferencias");
-function atualizarFotoPerfilAluno(ev) {
-    const f = ev.target.files[0]; if (!f) return;
-    if (f.size > 4e6) return toast("Imagem muito grande (máx. 4 MB).", "erro");
-    const r = new FileReader(); r.onload = (e) => { const i = $("img-aluno-perfil-preview"); i.src = e.target.result; i.style.display = "block"; $("display-avatar-profile").style.display = "none"; }; r.readAsDataURL(f);
+function marcarFiltro() { document.querySelectorAll("#filtro-pedidos .pill").forEach((b) => b.classList.toggle("sel", b.dataset.f === filtro)); }
+$("filtro-pedidos").addEventListener("click", (e) => { const b = e.target.closest(".pill"); if (b) { filtro = b.dataset.f; marcarFiltro(); renderPedidos(); } });
+function renderPedidos() {
+    let l = pedidos.slice();
+    if (filtro === "ativos") l = l.filter((p) => p.status === "aberta" || p.status === "aceita").sort(ordemData);
+    else { if (filtro === "pagos") l = l.filter(estaPago); l.sort((a, b) => ordemData(b, a)); }
+    $("lista-pedidos").innerHTML = l.length ? l.map(cartao).join("") : vazio("📋", filtro === "pagos" ? "Nenhum pagamento ainda" : "Nenhum pedido por aqui", filtro === "pagos" ? "Os pedidos pagos e suas notas aparecem aqui." : "Faça seu primeiro pedido na aba Início.", filtro === "pagos" ? "" : '<button class="btn btn-primary" data-ir="tab-home">Solicitar promotor</button>');
 }
 
-const abrirOpcaoMenu = (n) => { const e = $("subscreen-" + n); if (e) { e.style.display = "block"; e.querySelector("input,select,button")?.focus(); } };
-const fecharSubtela = (id) => { $(id).style.display = "none"; };
-function copiarLinkIndicacao() { const i = $("input-link-indicacao"); i.select(); navigator.clipboard?.writeText(i.value); toast("📋 Link copiado!", "ok"); }
-const compartilharWhatsApp = () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Conheça o ABASTECE JÁ: promotores e repositores sob demanda para o varejo. " + $("input-link-indicacao").value), "_blank");
-const alternarNotificacoes = (el) => { if (el.checked) pedirPermissaoNotificar(); };
-
-// ==========================================================================
-// CALENDÁRIO (marca dias com turno)
-// ==========================================================================
+// ============================================================
+// AGENDA
+// ============================================================
 function renderCalendario() {
-    const ano = dataCalendario.getFullYear(), mes = dataCalendario.getMonth(), hoje = new Date();
-    $("calendar-month-year").innerText = dataCalendario.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
-    const primeiro = (new Date(ano, mes, 1).getDay() + 6) % 7, total = new Date(ano, mes + 1, 0).getDate();
-    const comTurno = new Set(pedidos.filter((p) => p.status !== "cancelada").map((p) => p.data));
-    let html = "<div></div>".repeat(primeiro);
-    for (let d = 1; d <= total; d++) {
-        const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const ehHoje = d === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear();
-        html += `<button type="button" class="cal-day${ehHoje ? " today" : ""}${comTurno.has(iso) ? " has-turno" : ""}" onclick="selecionarDia(${d})" aria-label="Dia ${d}${comTurno.has(iso) ? ", com turno" : ""}">${d}</button>`;
+    const ano = dataCal.getFullYear(), mes = dataCal.getMonth(), hoje = hojeLocal();
+    $("cal-titulo").textContent = dataCal.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase());
+    const ini = (new Date(ano, mes, 1).getDay() + 6) % 7, total = new Date(ano, mes + 1, 0).getDate(), com = new Set(pedidos.filter((p) => p.status !== "cancelada").map((p) => p.data));
+    let h = "<div></div>".repeat(ini);
+    for (let d = 1; d <= total; d++) { const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`; h += `<button class="cal-day${iso === hoje ? " today" : ""}${iso === diaSel ? " selected" : ""}${com.has(iso) ? " tem" : ""}" data-dia="${iso}" aria-label="${d}">${d}</button>`; }
+    $("cal-grid").innerHTML = h;
+}
+function renderAgenda() {
+    $("cal-label").textContent = "Escolha uma data para ver os turnos.";
+    const l = pedidos.filter((p) => (p.status === "aberta" || p.status === "aceita") && p.data >= hojeLocal()).sort(ordemData);
+    $("lista-agenda").innerHTML = l.length ? l.map(cartao).join("") : vazio("📅", "Agenda livre", "Os turnos pedidos aparecem aqui, em ordem de data.");
+}
+function renderDia() {
+    const l = pedidos.filter((p) => p.data === diaSel && p.status !== "cancelada").sort(ordemData);
+    $("cal-label").textContent = "Turnos de " + new Date(diaSel + "T12:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    $("lista-agenda").innerHTML = l.length ? l.map(cartao).join("") : vazio("📅", "Nenhum turno neste dia", "Escolha outra data ou faça um novo pedido.");
+}
+$("cal-grid").addEventListener("click", (e) => { const b = e.target.closest("[data-dia]"); if (!b) return; diaSel = diaSel === b.dataset.dia ? "" : b.dataset.dia; renderCalendario(); diaSel ? renderDia() : renderAgenda(); });
+$("cal-prev").addEventListener("click", () => { dataCal = new Date(dataCal.getFullYear(), dataCal.getMonth() - 1, 1); renderCalendario(); });
+$("cal-next").addEventListener("click", () => { dataCal = new Date(dataCal.getFullYear(), dataCal.getMonth() + 1, 1); renderCalendario(); });
+
+// ============================================================
+// CARTEIRA
+// ============================================================
+function renderCarteira() {
+    const pagos = pedidos.filter(estaPago).sort((a, b) => ordemData(b, a)), aceitos = pedidos.filter((p) => p.status === "aceita");
+    $("c-total").textContent = brl(pagos.reduce((a, p) => a + sp(p).total, 0));
+    $("c-pendente").textContent = brl(aceitos.reduce((a, p) => a + sp(p).total, 0)); $("c-qtd").textContent = pagos.length;
+    const meses = [], agora = new Date();
+    for (let i = 5; i >= 0; i--) { const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1); meses.push({ k: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, rot: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), v: 0 }); }
+    pagos.forEach((p) => { const m = meses.find((x) => x.k === (p.data || "").slice(0, 7)); if (m) m.v += sp(p).total; });
+    const max = Math.max(...meses.map((m) => m.v), 1);
+    $("c-barras").innerHTML = meses.map((m) => `<div class="b ${m.v ? "" : "zero"}" title="${brl(m.v)}"><span>${m.v ? brl(m.v).replace(/\s?R\$\s?/, "").replace(",00", "") : ""}</span><i style="height:${Math.max(3, (m.v / max) * 72)}px"></i>${m.rot}</div>`).join("");
+    $("c-extrato").innerHTML = pagos.length ? pagos.map((p) => {
+        const corpo = `<div class="ico">🧾</div><div class="grow"><strong>${esc(p.loja)}</strong><div class="muted small">${fmtData(p.data)} · ${esc(p.foco)}${p.notaNumero ? ` · Nota ${String(p.notaNumero).padStart(6, "0")}` : ""}</div></div><div class="val">− ${brl(sp(p).total)}</div>`;
+        return p.notaId ? `<a class="item" href="nota.html?id=${encodeURIComponent(p.notaId)}" style="color:inherit;text-decoration:none">${corpo}</a>` : `<div class="item">${corpo}</div>`;
+    }).join("") : vazio("🧾", "Suas notas aparecem aqui", "Cada pedido pago gera uma nota para a sua contabilidade.");
+}
+$("btn-csv").addEventListener("click", () => {
+    const pagos = pedidos.filter(estaPago).sort(ordemData); if (!pagos.length) return toast("Ainda não há pagamentos para exportar.");
+    const n = (c) => (c / 100).toFixed(2).replace(".", ",");
+    baixarCSV("abastece-ja-pagamentos.csv", [["Nota", "Data do serviço", "Loja", "Setor", "Promotor", "Valor do turno", "Taxa de serviço", "Total pago", "Pago em"],
+        ...pagos.map((p) => { const s = sp(p); return [p.notaNumero ? String(p.notaNumero).padStart(6, "0") : "", fmtData(p.data), p.loja, p.foco, p.promotorNome || "", n(s.valor), n(s.taxaFixa), n(s.total), fmtDataHora(p.pagaEm)]; })]);
+});
+
+// ============================================================
+// CHAT
+// ============================================================
+function renderConversas() {
+    const l = pedidos.filter((p) => p.promotorUid && p.status !== "cancelada").sort((a, b) => ordemData(b, a));
+    $("lista-conversas").innerHTML = l.length ? l.map((p) => `<div class="card conversa" data-chat="${p.id}" role="button" tabindex="0"><div class="avatar">${esc((p.promotorNome || "P")[0].toUpperCase())}</div><div class="grow"><h4>${esc(p.promotorNome || "Promotor")}</h4><div class="muted small">${esc(p.loja)} · ${fmtData(p.data)}</div></div><span class="seta muted">›</span></div>`).join("")
+        : vazio("💬", "Nenhuma conversa ainda", "Quando um promotor aceitar seu pedido, o chat com ele aparece aqui.");
+}
+function pararChat() { chatUn?.(); chatUn = null; chatPedido = null; }
+function abrirChat(p) {
+    pararChat(); chatPedido = p; $("chat-titulo").textContent = p.promotorNome || "Promotor"; $("chat-box").innerHTML = skeleton(1);
+    chatUn = onSnapshot(query(collection(db, "solicitacoes", p.id, "mensagens"), orderBy("criadoEm")), (s) => {
+        const box = $("chat-box");
+        box.innerHTML = s.docs.length ? s.docs.map((d) => { const m = d.data(); return `<div class="msg ${m.de === usuario.uid ? "msg-me" : "msg-other"}">${esc(m.texto)}<small>${fmtDataHora(m.criadoEm)}</small></div>`; }).join("") : '<p class="muted small center" style="margin:auto">Diga olá 👋 e combine os detalhes do turno.</p>';
+        box.scrollTop = box.scrollHeight;
+    }, () => { $("chat-box").innerHTML = '<p class="muted small center">Não foi possível carregar a conversa.</p>'; });
+    abrir("sheet-chat");
+}
+$("chat-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); const t = $("chat-input").value.trim(); if (!t || !chatPedido) return; $("chat-input").value = "";
+    try { await addDoc(collection(db, "solicitacoes", chatPedido.id, "mensagens"), { de: usuario.uid, texto: t, criadoEm: serverTimestamp() }); }
+    catch (err) { console.error(err); erro("Mensagem não enviada."); $("chat-input").value = t; }
+});
+
+// ============================================================
+// AVALIAÇÃO
+// ============================================================
+function pintarEstrelas() { $("av-stars").innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" class="${n <= avEstrelas ? "on" : ""}" data-e="${n}" role="radio" aria-checked="${n === avEstrelas}" aria-label="${n} estrela${n > 1 ? "s" : ""}">★</button>`).join(""); }
+function abrirAvaliacao(p) { avPedido = p; avEstrelas = 0; $("av-texto").value = ""; $("av-sub").textContent = `Como foi o serviço com ${p.promotorNome || "o promotor"}?`; pintarEstrelas(); abrir("sheet-avaliar"); }
+$("av-stars").addEventListener("click", (e) => { const b = e.target.closest("[data-e]"); if (b) { avEstrelas = Number(b.dataset.e); pintarEstrelas(); } });
+$("btn-enviar-av").addEventListener("click", async () => {
+    if (!avEstrelas) return erro("Escolha de 1 a 5 estrelas.");
+    const b = $("btn-enviar-av"); b.disabled = true;
+    try { await updateDoc(doc(db, "solicitacoes", avPedido.id), { avaliacao: { estrelas: avEstrelas, comentario: $("av-texto").value.trim(), em: serverTimestamp() } }); ok("Obrigado pela avaliação!"); fechar("sheet-avaliar"); }
+    catch (err) { console.error(err); erro("Não foi possível enviar a avaliação."); }
+    finally { b.disabled = false; }
+});
+
+// ============================================================
+// MENU: dados da empresa, preferências, indicação, notificações
+// ============================================================
+async function salvarPerfil(dados, msg, sheet) {
+    try { await setDoc(doc(db, "contratantes", usuario.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); perfil = { ...perfil, ...dados }; ok(msg); if (sheet) fechar(sheet); pintarPerfil(); return true; }
+    catch (e) { console.error(e); erro("Não foi possível salvar. Verifique as regras do Firestore."); return false; }
+}
+$("btn-salvar-fiscal").addEventListener("click", async () => {
+    $("e-doc").textContent = ""; $("f-doc").classList.remove("invalido");
+    const razao = $("f-razao").value.trim(), documento = soDigitos($("f-doc").value), email = $("f-email").value.trim();
+    if (razao.length < 3) return erro("Informe a razão social ou o nome da empresa.");
+    if (!docValido(documento)) { $("e-doc").textContent = "CNPJ ou CPF inválido. Confira os dígitos."; $("f-doc").classList.add("invalido"); return $("f-doc").focus(); }
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) return erro("E-mail inválido.");
+    await salvarPerfil({ razaoSocial: razao, documento, endereco: $("f-end").value.trim(), email, telefone: soDigitos($("f-tel").value), ramo: $("f-ramo").value }, "Dados da empresa salvos ✓", "sheet-fiscal");
+});
+$("btn-salvar-prefs").addEventListener("click", async () => {
+    if (await salvarPerfil({ prefs: { setor: $("pref-setor").value, entrada: $("pref-entrada").value, saida: $("pref-saida").value } }, "Preferências salvas ✓", "sheet-prefs")) { setorSel = $("pref-setor").value; iniciarFormulario(); }
+});
+$("btn-copiar").addEventListener("click", () => { navigator.clipboard?.writeText($("link-indicar").value); ok("Link copiado!"); });
+$("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Precisa de promotor ou repositor? Peça pelo Abastece Já e pague só depois do serviço: " + $("link-indicar").value), "_blank", "noopener"));
+$("btn-ativar-notif").addEventListener("click", async () => ((await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador.")));
+$("theme-toggle").addEventListener("change", alternarTema);
+$("btn-instalar").addEventListener("click", instalarApp);
+
+// ============================================================
+// NAVEGAÇÃO E CLIQUES (delegação)
+// ============================================================
+function irPara(id) {
+    document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
+    document.querySelectorAll(".nav-item").forEach((i) => i.classList.toggle("active", i.dataset.tab === id));
+    window.scrollTo(0, 0);
+}
+$("bottom-nav").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });
+
+document.addEventListener("click", async (e) => {
+    const g = (a) => e.target.closest(`[${a}]`), achar = (id) => pedidos.find((p) => p.id === id);
+    let el;
+    if ((el = g("data-abrir"))) { e.preventDefault(); abrir(el.dataset.abrir); }
+    else if ((el = g("data-fechar"))) { fechar(el.dataset.fechar); if (el.dataset.fechar === "sheet-chat") pararChat(); }
+    else if (e.target.classList?.contains("app-overlay")) { fechar(e.target.id); if (e.target.id === "sheet-chat") pararChat(); }
+    else if ((el = g("data-ir"))) irPara(el.dataset.ir);
+    else if ((el = g("data-chamar"))) definirPreferido(el.dataset.chamar);
+    else if ((el = g("data-chat"))) { const p = achar(el.dataset.chat); if (p) abrirChat(p); }
+    else if ((el = g("data-avaliar"))) { const p = achar(el.dataset.avaliar); if (p) abrirAvaliacao(p); }
+    else if ((el = g("data-repetir"))) { const p = achar(el.dataset.repetir); if (p) repetir(p); }
+    else if ((el = g("data-cancelar"))) {
+        const p = achar(el.dataset.cancelar); if (!p) return;
+        if (!confirm(p.status === "aceita" ? `Cancelar o pedido em ${p.loja}? O promotor que já aceitou será avisado.` : `Cancelar o pedido em ${p.loja}?`)) return;
+        el.disabled = true;
+        try { await updateDoc(doc(db, "solicitacoes", p.id), { status: "cancelada", canceladoEm: serverTimestamp() }); ok("Pedido cancelado."); }
+        catch (err) { console.error(err); erro("Não foi possível cancelar. Se já foi pago, fale com o suporte."); el.disabled = false; }
     }
-    $("calendar-days-grid").innerHTML = html;
-}
-const mudarMesCalendario = (n) => { dataCalendario = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth() + n, 1); renderCalendario(); };
-function selecionarDia(d) {
-    const dt = new Date(dataCalendario.getFullYear(), dataCalendario.getMonth(), d);
-    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const lb = $("selected-date-label"); lb.dataset.iso = iso; lb.dataset.dia = d;
-    lb.innerText = "Turnos de " + dt.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-    const dia = pedidos.filter((p) => p.data === iso);
-    $("lista-agenda").innerHTML = dia.length ? dia.map(cartaoPedido).join("") : vazio("📅", "Nenhum turno neste dia", "Pedidos para esta data aparecem aqui.");
-}
-
-// ==========================================================================
-// GOOGLE MAPS (radar centrado em você)
-// ==========================================================================
-function initMap() {
-    const el = $("mapa-quadrado");
-    if (!el || mapRadar || !window.google || !$("screen-main").classList.contains("active")) return;
-    mapRadar = new google.maps.Map(el, { zoom: 14, center: { lat: -22.4389, lng: -46.8258 }, disableDefaultUI: true, styles: [
-        { elementType: "geometry", stylers: [{ color: "#1a1a24" }] }, { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a24" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c38" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e1626" }] }] });
-    navigator.geolocation?.getCurrentPosition((pos) => {
-        const eu = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        mapRadar.setCenter(eu);
-        userMarker = new google.maps.Marker({ position: eu, map: mapRadar, title: "Você", icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: "#ffd700", fillOpacity: 1, strokeWeight: 2, strokeColor: "#ffffff" } });
-    }, () => {});
-}
-
-// ==========================================================================
-// TERMOS
-// ==========================================================================
-const abrirModalTermosAluno = () => $("modal-termos-aluno").classList.add("active");
-function aceitarTermosAlunoModal() { $("check-termos-aluno").checked = true; $("btn-login-aluno").disabled = false; $("modal-termos-aluno").classList.remove("active"); }
-document.addEventListener("DOMContentLoaded", () => $("check-termos-aluno")?.addEventListener("change", (e) => { $("btn-login-aluno").disabled = !e.target.checked; }));
-
-Object.assign(window, { mudarMesCalendario, selecionarDia, abrirOpcaoMenu, fecharSubtela, salvarPagamento, salvarPreferencias, copiarLinkIndicacao, compartilharWhatsApp, toast, initMap,
-    loginGoogleAluno, logoutAluno, navTo, switchTab, toggleTheme: alternarTema, solicitarTreinoModoUber, solicitarPromotorEspecifico, salvarPerfilAluno,
-    atualizarFotoPerfilAluno, abrirModalTermosAluno, aceitarTermosAlunoModal, exportarNotasCSV, alternarNotificacoes });
-if (window.google?.maps) initMap();
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") pararChat();
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[role=button]")) { e.preventDefault(); e.target.click(); }
+});
