@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Nota de serviço — Abastece Já</title>
+    <meta name="theme-color" content="#07090e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .nota-wrap { padding: 20px 14px 60px; }
+        .nota-acoes { max-width: 760px; margin: 0 auto 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .nota-acoes .btn { width: auto; flex: 1; min-width: 150px; }
+        .nota .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .nota .selo-pago { display: inline-block; border: 2px solid #15803d; color: #15803d; border-radius: 6px; padding: 2px 10px; font-weight: 800; font-size: 12px; letter-spacing: .08em; transform: rotate(-4deg); }
+        .nota p { margin: 2px 0; line-height: 1.5; }
+        @media (max-width: 560px) { .nota .grade { grid-template-columns: 1fr; } .nota { padding: 20px 16px; } }
+        @media print {
+            body, body.light-theme { background: #fff !important; }
+            .no-print, #toast-area { display: none !important; }
+            .nota-wrap { padding: 0; }
+            .nota { box-shadow: none; max-width: none; padding: 0; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="nota-wrap">
+    <div class="nota-acoes no-print" id="acoes" hidden>
+        <button class="btn btn-primary" id="btn-imprimir">🖨 Imprimir / salvar em PDF</button>
+        <a class="btn btn-ghost" href="index.html">← Voltar ao painel</a>
+    </div>
+
+    <div id="estado" class="auth-loader" style="justify-content:center;margin-top:60px"><span class="spinner"></span> Carregando nota…</div>
+
+    <div id="login" class="auth-card no-print" hidden style="margin:40px auto">
+        <h2 class="auth-title">Entre para ver a nota</h2>
+        <p class="auth-sub">Use a conta Google da loja que fez o pedido.</p>
+        <button class="btn btn-google-login" id="btn-entrar">Continuar com Google</button>
+    </div>
+
+    <article class="nota" id="nota" hidden></article>
+</div>
+
+<script type="module">
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { auth, db, googleProvider } from "./firebase.js";
+import { EMPRESA } from "./config.js";
+import { brl, esc, fmtData, fmtDataHora, mascaraDoc, soDigitos } from "./core.js";
+import { $, iniciarTema, registrarSW } from "./ui.js";
+iniciarTema(); registrarSW();
+
+const id = new URLSearchParams(location.search).get("id");
+const mostrar = (q) => { $("estado").hidden = q !== "estado"; $("login").hidden = q !== "login"; $("nota").hidden = q !== "nota"; $("acoes").hidden = q !== "nota"; };
+const falha = (t) => { $("estado").hidden = false; $("estado").innerHTML = `<span>${esc(t)} <a href="index.html">Voltar ao painel</a></span>`; $("login").hidden = $("nota").hidden = $("acoes").hidden = true; };
+const METODO = { bank_transfer: "Pix", pix: "Pix", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", account_money: "Saldo Mercado Pago", ticket: "Boleto" };
+const docFmt = (d) => (d ? mascaraDoc(d) : "—");
+// CPF do prestador aparece parcialmente (privacidade); CNPJ aparece completo.
+const docPrestador = (d) => { const x = soDigitos(d); return x.length === 11 ? `•••.${x.slice(3, 6)}.${x.slice(6, 9)}-••` : docFmt(x); };
+
+$("btn-imprimir").onclick = () => window.print();
+$("btn-entrar").onclick = () => signInWithPopup(auth, googleProvider).catch(() => {});
+
+onAuthStateChanged(auth, async (u) => {
+    if (!id) return falha("Link inválido: nota não encontrada.");
+    if (!u) return mostrar("login");
+    mostrar("estado");
+    try {
+        const s = await getDoc(doc(db, "notas", id));
+        if (!s.exists()) return falha("Nota não encontrada.");
+        render(s.data());
+    } catch (e) {
+        console.error(e);
+        falha(e.code === "permission-denied" ? "Esta nota pertence a outra conta. Entre com a conta da loja." : "Não foi possível carregar a nota.");
+    }
+});
+
+function render(n) {
+    const v = n.valores || {}, t = n.tomador || {}, p = n.prestador || {}, sv = n.servico || {}, pg = n.pagamento || {};
+    document.title = `Nota ${n.numeroFmt} — Abastece Já`;
+    $("nota").innerHTML = `
+        <div class="cab">
+            <div><h1>${esc(EMPRESA.razaoSocial)}</h1><p>CNPJ ${esc(EMPRESA.cnpj)} · ${esc(EMPRESA.cidade)}</p><p>${esc(EMPRESA.email)}</p></div>
+            <div class="num"><span>NOTA DE SERVIÇO · SÉRIE ${esc(n.serie || "A1")}</span><strong>Nº ${esc(n.numeroFmt)}</strong><span>Emitida em ${esc(fmtDataHora(n.emitidaEm))}</span><br><span class="selo-pago">PAGO</span></div>
+        </div>
+        <div class="grade">
+            <div class="bloco"><h3>Tomador (contratante)</h3><p><strong>${esc(t.razaoSocial || "—")}</strong></p><p>${esc(docFmt(t.documento))}</p><p>${esc(t.endereco || "")}</p><p>${esc(t.email || "")}</p></div>
+            <div class="bloco"><h3>Prestador (profissional autônomo)</h3><p><strong>${esc(p.nome || "—")}</strong></p><p>${esc(docPrestador(p.documento))}</p></div>
+        </div>
+        <div class="bloco"><h3>Serviço</h3>
+            <table>
+                <thead><tr><th>Descrição</th><th class="r">Valor</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>${esc(sv.descricao || "Reposição/abastecimento")}</strong><br><span style="color:#555">${esc(sv.loja || "")} · ${esc(fmtData(sv.data))} · ${esc(sv.horario || "")}</span></td><td class="r">${brl(v.valor)}</td></tr>
+                    <tr><td>Taxa de serviço da plataforma (intermediação)</td><td class="r">${brl(v.taxaFixa)}</td></tr>
+                </tbody>
+                <tfoot><tr><td>Total pago</td><td class="r">${brl(v.total)}</td></tr></tfoot>
+            </table>
+        </div>
+        <div class="grade">
+            <div class="bloco"><h3>Pagamento</h3><p>Forma: ${esc(METODO[pg.metodo] || pg.metodo || "—")}</p><p>Mercado Pago nº ${esc(pg.mpPaymentId || "—")}</p></div>
+            <div class="bloco"><h3>Divisão do pagamento (automática)</h3><p>Promotor (${100 - (v.pct ?? 20)}% do serviço): <strong>${brl(v.promotor)}</strong></p><p>Plataforma (${v.pct ?? 20}% + taxa fixa): <strong>${brl(v.app)}</strong></p></div>
+        </div>
+        <div class="aviso"><strong>Importante:</strong> este documento é um comprovante de serviço emitido pela plataforma e não substitui a NFS-e ou nota fiscal do prestador, quando exigida. Consulte sua contabilidade.</div>
+        <p class="rodape">Documento gerado eletronicamente. Código: ${esc(id)}</p>`;
+    mostrar("nota");
+}
+</script>
+</body>
+</html>
