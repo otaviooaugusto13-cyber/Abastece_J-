@@ -1,74 +1,97 @@
 rules_version = '2';
-// ABASTECE JÁ — regras do Firestore.  Deploy: firebase deploy --only firestore:rules
-// Princípio: o NAVEGADOR nunca decide dinheiro. Valor pago, "concluida" e notas só o servidor grava.
+// Regras de segurança do Abastece Já.
+// Princípio: o navegador NUNCA escreve dinheiro (status "paga", nota, split, tokens). Só as Cloud Functions.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function logado() { return request.auth != null; }
-    function ehAdmin() { return logado() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
-    function mudou() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function dono(uid) { return logado() && request.auth.uid == uid; }
+    function promotorAtivo() {
+      return logado() && exists(/databases/$(database)/documents/profissionais/$(request.auth.uid))
+        && get(/databases/$(database)/documents/profissionais/$(request.auth.uid)).data.status == 'ativo';
+    }
+    // Só quem já conectou o Mercado Pago pode aceitar turnos (senão a loja não conseguiria pagar).
+    function promotorPronto() {
+      return promotorAtivo()
+        && get(/databases/$(database)/documents/profissionais/$(request.auth.uid)).data.get('mpConectado', false) == true;
+    }
+    function soMudou(campos) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos); }
 
-    // Promotores: perfil público (lista de disponíveis). Dados sensíveis ficam em /privado.
-    match /profissionais/{id} {
-      allow read: if logado();
-      allow create: if logado() && id == request.auth.uid
-                    && request.resource.data.status == 'pendente'
-                    && request.resource.data.uid == request.auth.uid
-                    && !('mpConectado' in request.resource.data);
-      allow update: if (logado() && (id == request.auth.uid || resource.data.get('email', '') == request.auth.token.email)
-                    && mudou().hasOnly(['nome','bio','cidade','valorMin','especialidade','disponibilidade','refCode','fotoGoogle','atualizadoEm','uid','email','setores']))
-                    || ehAdmin();
-    }
-    match /privado/{id} {                    // CPF, Pix, banco, telefone — só o dono (e o admin)
-      allow read, write: if logado() && (id == request.auth.uid || ehAdmin());
-    }
-    match /contratantes/{uid} {
-      allow read, write: if logado() && uid == request.auth.uid;
-      allow read: if ehAdmin();
-    }
-
+    // ---------- Pedidos ----------
     match /solicitacoes/{id} {
-      allow read: if logado() && (resource.data.uid == request.auth.uid
-                  || resource.data.promotorUid == request.auth.uid
-                  || resource.data.status == 'aberta' || ehAdmin());
-      allow create: if logado() && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.status == 'aberta'
-                    && request.resource.data.valor is number
-                    && request.resource.data.valor >= 1 && request.resource.data.valor <= 5000
-                    && !('pagoEm' in request.resource.data) && !('split' in request.resource.data);
+      allow read: if logado() && (
+        resource.data.uid == request.auth.uid ||
+        resource.data.get('promotorUid', '') == request.auth.uid ||
+        (resource.data.status == 'aberta' && promotorAtivo()));
+
+      allow create: if logado()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'aberta'
+        && request.resource.data.keys().hasOnly(['uid','loja','data','entrada','saida','horario','valorCentavos','valor','foco','status','criadoEm','promotorPreferido','observacao'])
+        && request.resource.data.valorCentavos is int
+        && request.resource.data.valorCentavos >= 3000 && request.resource.data.valorCentavos <= 200000
+        && request.resource.data.loja is string && request.resource.data.loja.size() > 1 && request.resource.data.loja.size() <= 160;
+
       allow update: if logado() && (
-          // promotor aceita um pedido ainda aberto
-          (resource.data.status == 'aberta' && request.resource.data.status == 'aceita'
-            && request.resource.data.promotorUid == request.auth.uid
-            && mudou().hasOnly(['status','promotorChave','promotorUid','promotorNome','aceitoEm']))
-          // promotor registra check-in / check-out
-          || (resource.data.get('promotorUid', '') == request.auth.uid && resource.data.status == 'aceita'
-            && mudou().hasOnly(['checkinEm','checkoutEm']))
-          // loja cancela enquanto não foi paga
-          || (resource.data.uid == request.auth.uid && resource.data.status in ['aberta','aceita']
-            && request.resource.data.status == 'cancelada' && mudou().hasOnly(['status','canceladoEm']))
-          // loja avalia depois de pago
-          || (resource.data.uid == request.auth.uid && resource.data.status == 'concluida'
-            && mudou().hasOnly(['avaliacao']))
-        );
-      match /mensagens/{mid} {               // chat do pedido: só as duas partes
-        allow read: if logado() && (get(/databases/$(database)/documents/solicitacoes/$(id)).data.uid == request.auth.uid
-                    || get(/databases/$(database)/documents/solicitacoes/$(id)).data.get('promotorUid', '') == request.auth.uid);
-        allow create: if logado() && request.resource.data.de == request.auth.uid
-                      && request.resource.data.texto is string && request.resource.data.texto.size() <= 500
-                      && (get(/databases/$(database)/documents/solicitacoes/$(id)).data.uid == request.auth.uid
-                          || get(/databases/$(database)/documents/solicitacoes/$(id)).data.get('promotorUid', '') == request.auth.uid);
+        // promotor aprovado aceita um pedido aberto
+        (resource.data.status == 'aberta' && promotorPronto()
+          && request.resource.data.status == 'aceita' && request.resource.data.promotorUid == request.auth.uid
+          && soMudou(['status','promotorUid','promotorNome','aceitoEm']))
+        // promotor desiste antes do serviço: o pedido volta para a fila
+        || (resource.data.status == 'aceita' && resource.data.get('promotorUid','') == request.auth.uid
+          && request.resource.data.status == 'aberta' && !('promotorUid' in request.resource.data)
+          && soMudou(['status','promotorUid','promotorNome','aceitoEm']))
+        // loja cancela enquanto não pagou
+        || (resource.data.uid == request.auth.uid && resource.data.status in ['aberta','aceita']
+          && request.resource.data.status == 'cancelada' && soMudou(['status','canceladoEm']))
+        // loja avalia o promotor uma única vez, depois de pagar
+        || (resource.data.uid == request.auth.uid && resource.data.status == 'paga' && !('avaliacao' in resource.data)
+          && soMudou(['avaliacao']) && request.resource.data.avaliacao.estrelas is int
+          && request.resource.data.avaliacao.estrelas >= 1 && request.resource.data.avaliacao.estrelas <= 5)
+      );
+      allow delete: if false;
+
+      // Chat do pedido: só as duas partes
+      match /mensagens/{mid} {
+        function parte() {
+          let s = get(/databases/$(database)/documents/solicitacoes/$(id)).data;
+          return logado() && (s.uid == request.auth.uid || s.get('promotorUid','') == request.auth.uid);
+        }
+        allow read: if parte();
+        allow create: if parte() && request.resource.data.de == request.auth.uid
+          && request.resource.data.keys().hasOnly(['de','texto','criadoEm'])
+          && request.resource.data.texto is string && request.resource.data.texto.size() > 0 && request.resource.data.texto.size() <= 500;
+        allow update, delete: if false;
       }
     }
 
-    match /notas/{id} {                      // gravadas só pelo servidor
-      allow read: if logado() && (resource.data.contratanteUid == request.auth.uid
-                  || resource.data.promotorUid == request.auth.uid || ehAdmin());
+    // ---------- Notas (somente leitura para as partes) ----------
+    match /notas/{id} {
+      allow read: if logado() && (resource.data.contratanteUid == request.auth.uid || resource.data.promotorUid == request.auth.uid);
       allow write: if false;
     }
-    match /indicacoes/{id} { allow read: if logado() && (resource.data.para == request.auth.uid || ehAdmin()); allow write: if false; }
-    match /admins/{id} { allow read: if logado() && id == request.auth.uid; allow write: if false; }
-    match /segredos/{id} { allow read, write: if false; }
-    match /mpOauthState/{id} { allow read, write: if false; }
+
+    // ---------- Lojas / contratantes ----------
+    match /contratantes/{uid} { allow read, write: if dono(uid); }
+
+    // ---------- Promotores ----------
+    // Perfil "público" (a loja vê nome, nota, especialidade). Nada sensível aqui.
+    match /profissionais/{uid} {
+      allow read: if logado();
+      allow create: if dono(uid) && request.resource.data.status == 'pendente'
+        && request.resource.data.keys().hasOnly(['nome','email','uid','status','indicadoPor','criadoEm','fotoGoogle','especialidade']);
+      allow update: if dono(uid) && soMudou(['nome','especialidade','bio','cidade','valorMin','disponibilidade','fotoGoogle','refCode','atualizadoEm'])
+        && (!('refCode' in resource.data) || request.resource.data.get('refCode','') == resource.data.refCode);
+      allow delete: if false;
+    }
+    // Dados sensíveis do promotor: CPF, banco, Pix, telefone. Só ele lê.
+    match /profissionais_privado/{uid} { allow read, write: if dono(uid); }
+
+    // Credenciais do Mercado Pago, contadores: ninguém no navegador.
+    match /mp_tokens/{uid}  { allow read, write: if false; }
+    match /contadores/{id}  { allow read, write: if false; }
+    match /indicacoes/{id}  { allow read: if logado() && resource.data.para == request.auth.uid; allow write: if false; }
+
+    match /{outro=**} { allow read, write: if false; }
   }
 }
