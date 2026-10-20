@@ -153,8 +153,7 @@ app.all("/mpConectarUrl", envelope(async (req, res) => {
 
   const redirectUri = `${getBaseUrl(req)}/mpCallback`;
   const state = `${uid}.${assinar(uid)}`;
-  const url = `https://auth.mercadopago.com.br/authorization?client_id=${MP_CLIENT_ID}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-  res.json({ url });
+const url = `https://auth.mercadopago.com.br/authorization?client_id=${MP_CLIENT_ID}&response_type=code&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;  res.json({ url });
 }));
 
 app.get("/mpCallback", async (req, res) => {
