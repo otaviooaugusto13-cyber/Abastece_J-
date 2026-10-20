@@ -7,7 +7,19 @@
 //  3. /webhookMP e /confirmarPagamento → confirma pagamento, marca "paga" e gera NOTA
 //  4. /onAvaliacao → recalcula a nota média do promotor
 // ============================================================
+const express = require('express');
+const path = require('path');
+const app = express();
 
+// IMPORTANTE: Diz para o Render servir os arquivos do front-end que estão na pasta pai (raiz do projeto)
+app.use(express.static(path.join(__dirname, '../')));
+
+// Suas rotas de API do Mercado Pago continuam aqui embaixo normal...
+app.post('/mpConectarUrl', (req, res) => {
+    // lógica do mercado pago...
+});
+
+// ... resto do seu código ...
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
