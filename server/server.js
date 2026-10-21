@@ -45,7 +45,7 @@ const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || "";
 const MP_CLIENT_ID = process.env.MP_CLIENT_ID || "";
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || ""; // token da conta da PLATAFORMA (cadastro de cartões)
 const APP_URL = process.env.APP_URL || "";
-const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").toLowerCase());
+const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
 const PORT = process.env.PORT || 3000;
 const MP_API = "https://api.mercadopago.com";
 const TESTE_LOJA = "teste-loja", TESTE_PROMOTOR = "teste-promotor";
@@ -394,13 +394,15 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     const atual = (await tx.get(ref)).data();
     if (atual.status === "paga" || atual.status === "concluida") return atual.notaId || null;
     const contRef = db.collection("contadores").doc("notas");
-    const proximo = ((await tx.get(contRef)).data()?.ultimo || 0) + 1;
-    tx.set(contRef, { ultimo: proximo });
-    const [ctnt, profPriv, prof] = await Promise.all([
+    // Firestore exige TODAS as leituras antes das escritas dentro da transação
+    const [cont, ctnt, profPriv, prof] = await Promise.all([
+      tx.get(contRef),
       tx.get(db.collection("contratantes").doc(atual.uid)),
       tx.get(db.collection("profissionais_privado").doc(atual.promotorUid)),
       tx.get(db.collection("profissionais").doc(atual.promotorUid))
     ]);
+    const proximo = (cont.data()?.ultimo || 0) + 1;
+    tx.set(contRef, { ultimo: proximo });
     const c = ctnt.data() || {}, pp = profPriv.data() || {}, p = prof.data() || {};
     const nRef = db.collection("notas").doc();
     tx.set(nRef, {
