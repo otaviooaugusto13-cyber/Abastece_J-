@@ -3,9 +3,9 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, updateDoc, deleteField, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao } from "./firebase.js";
-import { WHATSAPP_SUPORTE } from "./config.js";
-import { brl, calcularSplit, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
+import { auth, db, googleProvider, chamarFuncao, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { WHATSAPP_SUPORTE, VALOR_HORA_PROMOTOR_CENTAVOS, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA } from "./config.js";
+import { brl, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
 let usuario = null, pub = {}, priv = {}, ofertas = [], turnos = [], filtroSetor = "", ordem = "valor";
@@ -16,17 +16,12 @@ const vistos = new Set(), statusAnt = new Map();
 iniciarTema(); registrarSW();
 ligarMascaras({ cpf: mascaraCPF, tel: mascaraTelefone });
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
-const R = textoRegra();
 $("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
 $("ajuda-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (promotor).")}`;
-$("benef-split").textContent = `Você fica com ${100 - 20}% de cada turno, sem mensalidade`;
-$("ajuda-split").textContent = `${R.curto} ${R.exemplo} O valor cai direto na sua conta Mercado Pago; a taxa do próprio Mercado Pago (Pix/cartão) é descontada por ele.`;
-$("nota-taxa-mp").textContent = "Os valores mostrados são o que a plataforma repassa a você (80% do turno). O Mercado Pago pode descontar a taxa de processamento dele (ex.: Pix) do valor recebido.";
-$("termos-texto").innerHTML = `<strong>1. Autonomia.</strong> Você é prestador independente; escolhe os turnos que aceita. Não há vínculo empregatício com a plataforma ou com as lojas.<br><br>
-  <strong>2. Pagamento e taxas.</strong> ${esc(R.curto)} A divisão é feita automaticamente pelo Mercado Pago no momento do pagamento, direto na sua conta conectada. Taxas de processamento do Mercado Pago são dele.<br><br>
-  <strong>3. Aprovação.</strong> Seu cadastro passa por análise antes de liberar as ofertas.<br><br>
-  <strong>4. Compromisso.</strong> Aceitou, compareça. Se não puder, use “Desistir” com antecedência para o turno voltar à fila.<br><br>
-  <strong>5. Obrigações fiscais.</strong> Seus ganhos podem ter obrigações tributárias (MEI/autônomo). A nota emitida pela plataforma é um comprovante e não substitui NFS-e.`;
+$("benef-split").textContent = `Receba ${brl(VALOR_HORA_PROMOTOR_CENTAVOS)} por hora trabalhada, sem mensalidade`;
+$("ajuda-split").textContent = `Você recebe ${brl(VALOR_HORA_PROMOTOR_CENTAVOS)} por hora trabalhada, direto na sua conta Mercado Pago, no momento do pagamento. Cada turno tem no máximo ${HORAS_MAX_TURNO} horas e você pode fazer até ${MAX_VEZES_SEMANA_LOJA} turnos por semana na mesma loja.`;
+$("nota-taxa-mp").textContent = "Os valores mostrados são o que você recebe pelas horas trabalhadas. O Mercado Pago pode descontar a taxa de processamento dele (ex.: Pix) do valor recebido.";
+$("termos-texto").innerHTML = textoTermos("promotor");
 
 // ---------- indicação (?ref=) ----------
 try { const r = new URLSearchParams(location.search).get("ref"); if (r) localStorage.setItem("abastece_ref", r.replace(/[^\w-]/g, "").slice(0, 40)); } catch (e) {}
@@ -44,6 +39,11 @@ $("btn-login").addEventListener("click", async () => {
     const b = $("btn-login"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Entrando…';
     try { await signInWithPopup(auth, googleProvider); }
     catch (e) { if (e.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e2) { e = e2; } } const m = msgAuth(e); if (m) erro(m); b.disabled = false; b.innerHTML = html; }
+});
+testeAtivo().then((a) => { $("bloco-teste").hidden = !a; });
+$("btn-login-teste").addEventListener("click", async () => {
+    const b = $("btn-login-teste"); b.disabled = true;
+    try { await loginDeTeste("promotor"); } catch (e) { console.error(e); erro("Não foi possível entrar no modo de teste."); b.disabled = false; }
 });
 getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); });
 $("btn-sair").addEventListener("click", async () => { if (!confirm("Deseja sair do portal?")) return; offUn?.(); turnosUn?.(); chatUn?.(); await signOut(auth); });
@@ -66,6 +66,7 @@ async function entrar(u) {
     try { priv = (await getDoc(doc(db, "profissionais_privado", u.uid))).data() || {}; } catch (e) { priv = {}; }
     if (!pub.refCode) { pub.refCode = novoCodigo(); updateDoc(ref, { refCode: pub.refCode }).catch(() => {}); }
     document.querySelectorAll(".screen").forEach((x) => x.classList.toggle("active", x.id === "screen-dashboard"));
+    $("btn-teste-reset").hidden = !(await contaDeTeste());
     montarSetoresPrefs(); pintarPerfil(); escutar(); window.scrollTo(0, 0);
 }
 
@@ -82,7 +83,7 @@ function pintarPerfil() {
     $("sub-home").textContent = ativo() ? (mpOk() ? "Tudo pronto para pegar turnos." : "Conecte o Mercado Pago para aceitar turnos.") : "Seu cadastro está em análise.";
     $("i-rating").innerHTML = pub.ratingQtd ? `<span class="stars" style="font-size:20px">★</span> ${pub.ratingMedia.toFixed(1)} <small class="muted" style="font-size:12px">(${pub.ratingQtd})</small>` : "—";
     $("link-indicar").value = `${baseSite()}promotor.html?ref=${pub.refCode || ""}`;
-    $("indicar-txt").textContent = `Mande seu link para um amigo promotor. Quando ele concluir o primeiro turno, a comissão da plataforma desse turno (os ${20}%) vira bônus para você. Depois disso, tudo segue o padrão normal.`;
+    $("indicar-txt").textContent = `Mande seu link para um amigo promotor. Quando ele concluir o primeiro turno, você ganha um bônus de indicação. Depois disso, tudo segue o padrão normal.`;
     // onboarding
     const itens = [
         { ok: true, t: "Cadastro criado" },
@@ -112,19 +113,19 @@ function escutar() {
     offUn?.(); turnosUn?.();
     $("lista-ofertas").innerHTML = skeleton(3); $("lista-proximos").innerHTML = skeleton(2);
     offUn = onSnapshot(query(collection(db, "solicitacoes"), where("status", "==", "aberta")), (snap) => {
-        if (ativo()) snap.docChanges().forEach((c) => { if (c.type === "added" && !prim.o && !vistos.has(c.doc.id) && mpOk()) { const x = c.doc.data(); if (valorFiltro(x)) notificar("Nova oferta 🔔", `${x.loja} · ${brl(calcularSplit(valorCentavos(x)).promotor)} para você`); } vistos.add(c.doc.id); });
+        if (ativo()) snap.docChanges().forEach((c) => { if (c.type === "added" && !prim.o && !vistos.has(c.doc.id) && mpOk()) { const x = c.doc.data(); if (valorFiltro(x)) notificar("Nova oferta 🔔", `${x.loja} · ${brl(valorPromotor(x))} para você`); } vistos.add(c.doc.id); });
         prim.o = false;
         ofertas = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderOfertas();
     }, (e) => { ofertas = []; renderOfertas(); if (e.code !== "permission-denied") console.warn(e.code); });
     turnosUn = onSnapshot(query(collection(db, "solicitacoes"), where("promotorUid", "==", usuario.uid)), (snap) => {
         turnos = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
-        if (!prim.t) turnos.forEach((t) => { const a = statusAnt.get(t.id); if (a === "aceita" && estaPago(t)) notificar("Pagamento recebido 💸", `${t.loja} · ${brl(calcularSplit(valorCentavos(t)).promotor)} na sua conta.`); if (a && a !== "cancelada" && t.status === "cancelada") notificar("Turno cancelado", `${t.loja} cancelou o pedido.`); });
+        if (!prim.t) turnos.forEach((t) => { const a = statusAnt.get(t.id); if (a === "aceita" && estaPago(t)) notificar("Pagamento recebido 💸", `${t.loja} · ${brl(valorPromotor(t))} na sua conta.`); if (a && a !== "cancelada" && t.status === "cancelada") notificar("Turno cancelado", `${t.loja} cancelou o pedido.`); });
         turnos.forEach((t) => statusAnt.set(t.id, t.status)); prim.t = false;
         renderTudo();
     }, (e) => { turnos = []; renderTudo(); if (e.code === "permission-denied") erro("Sem permissão para ler turnos. Publique as regras do Firestore."); });
 }
-const valorFiltro = (x) => valorCentavos(x) >= (pub.valorMin || 0);
-const meu = (t) => calcularSplit(valorCentavos(t)).promotor;
+const valorFiltro = (x) => valorPromotor(x) >= (pub.valorMin || 0);
+const meu = (t) => valorPromotor(t);   // líquido do promotor: único valor exibido neste portal
 function renderTudo() { renderProximos(); renderAgenda(); renderCarteira(); renderCalendario(); renderConversas(); if (diaSel) renderDia(); }
 
 // ---------- ofertas ----------
@@ -133,13 +134,13 @@ function renderOfertas() {
     if (!usuario) return;
     if (!ativo()) { el.innerHTML = vazio("🔒", "Ofertas liberadas após aprovação", "Estamos analisando seu cadastro. Complete seus dados no Início para agilizar."); $("dot-ofertas").hidden = true; return; }
     let l = ofertas.filter((x) => x.data >= hojeLocal() && valorFiltro(x) && (!filtroSetor || x.foco === filtroSetor));
-    l.sort((a, b) => ordem === "valor" ? valorCentavos(b) - valorCentavos(a) : `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+    l.sort((a, b) => ordem === "valor" ? valorPromotor(b) - valorPromotor(a) : `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
     $("dot-ofertas").hidden = !l.length; $("dot-ofertas").textContent = l.length;
     const aviso = !mpOk() ? `<div class="banner red mb"><span class="ico">🔗</span><div><strong>Conecte o Mercado Pago para aceitar turnos.</strong><br><span class="muted small">É por ele que você recebe sua parte automaticamente.</span><br><a href="#" data-acao="mp">Conectar agora ›</a></div></div>` : "";
     el.innerHTML = aviso + (l.length ? l.map((x) => {
-        const s = calcularSplit(valorCentavos(x)), paraMim = x.promotorPreferido && x.promotorPreferido === nomeProm();
+        const paraMim = x.promotorPreferido && x.promotorPreferido === nomeProm();
         return `<article class="card pedido oferta"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div></div>${paraMim ? '<span class="badge green">Pedido para você</span>' : ""}</div>
-            <div class="ganho"><span>Você recebe<br><small class="muted">loja paga ${brl(s.valor)}</small></span><strong>${brl(s.promotor)}</strong></div>
+            <div class="ganho"><span>Você recebe<br><small class="muted">${x.minutos ? `${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h · ` : ""}${brl(VALOR_HORA_PROMOTOR_CENTAVOS)}/h</small></span><strong>${brl(valorPromotor(x))}</strong></div>
             <div class="acoes"><button class="btn btn-primary btn-sm" data-aceitar="${x.id}" ${mpOk() ? "" : "disabled"}>Aceitar turno</button></div></article>`;
     }).join("") : vazio("🛒", "Sem ofertas por enquanto", pub.valorMin ? `Nenhuma proposta de ${brl(pub.valorMin)} ou mais agora. Ajuste o mínimo em Menu → Preferências.` : "Novas demandas da região aparecem aqui na hora."));
 }
@@ -148,8 +149,13 @@ $("btn-ordenar").addEventListener("click", () => { ordem = ordem === "valor" ? "
 
 async function aceitar(id, b) {
     b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
-    try { await updateDoc(doc(db, "solicitacoes", id), { status: "aceita", promotorUid: usuario.uid, promotorNome: nomeProm(), aceitoEm: serverTimestamp() }); ok("Turno aceito! Ele já está na sua escala."); irPara("tab-agenda"); }
-    catch (e) { console.error(e); erro(e.code === "permission-denied" ? "Não foi possível aceitar: outro promotor pode ter pegado, ou falta conectar o Mercado Pago." : "Não foi possível aceitar."); b.disabled = false; b.textContent = "Aceitar turno"; }
+    try { await chamarFuncao("aceitarTurno", { solicitacaoId: id }); ok("Turno aceito! Ele já está na sua escala."); irPara("tab-agenda"); }
+    catch (e) {
+        console.error(e);
+        const m = { "limite-semanal": e.message, "turno-indisponivel": e.message, "promotor-sem-mp": "Conecte o Mercado Pago para aceitar turnos.", "promotor-inativo": "Seu cadastro ainda não foi aprovado." }[e.code];
+        erro(m || (e.code === 404 || e.code === "rota-inexistente" ? "O servidor não respondeu (404). Confira o endereço do serviço no Render." : "Não foi possível aceitar o turno. Tente de novo."));
+        b.disabled = false; b.textContent = "Aceitar turno";
+    }
 }
 
 // ---------- turnos / agenda ----------
@@ -187,9 +193,9 @@ $("cal-next").addEventListener("click", () => { dataCal = new Date(dataCal.getFu
 
 // ---------- QR de cobrança ----------
 function abrirQR(t) {
-    const link = `${baseSite()}pagar.html?id=${encodeURIComponent(t.id)}`, s = calcularSplit(valorCentavos(t)); qrAtual = { link, t };
+    const link = `${baseSite()}pagar.html?id=${encodeURIComponent(t.id)}`; qrAtual = { link, t };
     $("qr-box").innerHTML = ""; if (window.QRCode) new QRCode($("qr-box"), { text: link, width: 200, height: 200 }); else $("qr-box").textContent = "QR indisponível — use o link.";
-    $("qr-total").textContent = `A loja paga ${brl(s.total)}`; $("qr-liquido").textContent = `Você recebe ${brl(s.promotor)} (${100 - s.pct}% do turno de ${brl(s.valor)})`;
+    $("qr-total").textContent = `Serviço em ${t.loja}`; $("qr-liquido").textContent = `Você recebe ${brl(valorPromotor(t))}`;
     abrir("sheet-qr");
 }
 $("qr-copiar").addEventListener("click", () => { navigator.clipboard?.writeText(qrAtual.link); ok("Link de pagamento copiado!"); });
@@ -198,21 +204,21 @@ $("qr-zap").addEventListener("click", () => window.open("https://api.whatsapp.co
 // ---------- carteira ----------
 function renderCarteira() {
     const pagos = turnos.filter(estaPago), aceitos = turnos.filter((t) => t.status === "aceita");
-    const recebido = pagos.reduce((a, t) => a + (t.pagamento?.split?.promotor ?? meu(t)), 0), receber = aceitos.reduce((a, t) => a + meu(t), 0);
+    const recebido = pagos.reduce((a, t) => a + meu(t), 0), receber = aceitos.reduce((a, t) => a + meu(t), 0);
     $("c-recebido").textContent = $("i-recebido").textContent = brl(recebido); $("c-receber").textContent = $("i-receber").textContent = brl(receber); $("c-qtd").textContent = pagos.length;
     const meses = [], agora = new Date();
     for (let i = 5; i >= 0; i--) { const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1); meses.push({ k: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, rot: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), v: 0 }); }
-    pagos.forEach((t) => { const m = meses.find((x) => x.k === (t.data || "").slice(0, 7)); if (m) m.v += t.pagamento?.split?.promotor ?? meu(t); });
+    pagos.forEach((t) => { const m = meses.find((x) => x.k === (t.data || "").slice(0, 7)); if (m) m.v += meu(t); });
     const max = Math.max(...meses.map((m) => m.v), 1);
     $("c-barras").innerHTML = meses.map((m) => `<div class="b ${m.v ? "" : "zero"}" title="${brl(m.v)}"><span>${m.v ? brl(m.v).replace(/\s?R\$\s?/, "").replace(",00", "") : ""}</span><i style="height:${Math.max(3, m.v / max * 72)}px"></i>${m.rot}</div>`).join("");
-    $("c-extrato").innerHTML = pagos.length ? pagos.slice().reverse().map((t) => `<div class="item"><div class="ico">💸</div><div class="grow"><strong>${esc(t.loja)}</strong><div class="muted small">${fmtData(t.data)} · ${esc(t.foco)}${t.avaliacao ? ` · <span class="stars">${"★".repeat(t.avaliacao.estrelas)}</span>` : ""}</div></div><div class="val" style="color:var(--green)">+ ${brl(t.pagamento?.split?.promotor ?? meu(t))}</div></div>`).join("") : vazio("💸", "Seus ganhos aparecem aqui", "Cada turno pago entra neste histórico.");
+    $("c-extrato").innerHTML = pagos.length ? pagos.slice().reverse().map((t) => `<div class="item"><div class="ico">💸</div><div class="grow"><strong>${esc(t.loja)}</strong><div class="muted small">${fmtData(t.data)} · ${esc(t.foco)}${t.avaliacao ? ` · <span class="stars">${"★".repeat(t.avaliacao.estrelas)}</span>` : ""}</div></div><div class="val" style="color:var(--green)">+ ${brlmeu(t)}</div></div>`).join("") : vazio("💸", "Seus ganhos aparecem aqui", "Cada turno pago entra neste histórico.");
     $("card-mp").innerHTML = mpOk()
         ? `<div class="row"><div class="avatar" style="background:var(--green-soft);color:var(--green)">✓</div><div class="grow"><h4>Mercado Pago conectado</h4><p class="muted small">Você recebe sua parte direto na sua conta, no momento do pagamento.</p></div></div>`
         : `<div class="row"><div class="avatar" style="background:var(--red-soft);color:var(--red)">!</div><div class="grow"><h4>Conecte o Mercado Pago</h4><p class="muted small">Sem isso não dá para aceitar turnos: é por ele que o pagamento é dividido e cai na sua conta.</p></div></div><button class="btn btn-primary mt" data-acao="mp">🔗 Conectar Mercado Pago</button>`;
 }
 $("btn-csv").addEventListener("click", () => {
     const pagos = turnos.filter(estaPago); if (!pagos.length) return toast("Ainda não há ganhos para exportar.");
-    baixarCSV("abastece-ja-ganhos.csv", [["Data do serviço", "Loja", "Setor", "Valor do turno", "Você recebeu", "Pago em"], ...pagos.map((t) => [fmtData(t.data), t.loja, t.foco, (valorCentavos(t) / 100).toFixed(2).replace(".", ","), ((t.pagamento?.split?.promotor ?? meu(t)) / 100).toFixed(2).replace(".", ","), fmtDataHora(t.pagaEm)])]);
+    baixarCSV("abastece-ja-ganhos.csv", [["Data do serviço", "Loja", "Setor", "Horário", "Você recebeu", "Pago em"], ...pagos.map((t) => [fmtData(t.data), t.loja, t.foco, t.horario || "", (meu(t) / 100).toFixed(2).replace(".", ","), fmtDataHora(t.pagaEm)])]);
 });
 async function conectarMP(b) {
     if (b) { b.disabled = true; }
@@ -263,6 +269,10 @@ $("btn-salvar-prefs").addEventListener("click", async () => {
 $("btn-copiar").addEventListener("click", () => { navigator.clipboard?.writeText($("link-indicar").value); ok("Link copiado!"); });
 $("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Quer pegar turnos de reposição e receber direto no Mercado Pago? Cadastre-se no Abastece Já: " + $("link-indicar").value), "_blank", "noopener"));
 $("btn-ativar-notif").addEventListener("click", async () => (await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador."));
+$("btn-teste-reset").addEventListener("click", async () => {
+    if (!confirm("Apagar os pedidos, notas e o cartão das contas de teste?")) return;
+    try { const r = await chamarFuncao("teste/resetar"); ok(`Dados de teste zerados (${r.pedidosRemovidos} pedido(s)).`); } catch (e) { erro("Não foi possível zerar os dados de teste."); }
+});
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
 
