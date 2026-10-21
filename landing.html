@@ -94,15 +94,15 @@
 
                 <div class="calc" aria-labelledby="calc-title">
                     <h3 id="calc-title">Simule um turno</h3>
-                    <label for="calc-valor">Valor do turno (R$)</label>
-                    <input id="calc-valor" type="number" inputmode="decimal" min="30" max="2000" step="1" value="100">
-                    <p id="calc-erro" class="calc-erro" role="alert" hidden>Informe um valor entre R$&nbsp;30,00 e R$&nbsp;2.000,00.</p>
+                    <label for="calc-valor">Duração do turno (horas)</label>
+                    <input id="calc-valor" type="number" inputmode="decimal" min="1" max="6" step="0.5" value="4">
+                    <p id="calc-erro" class="calc-erro" role="alert" hidden>Informe uma duração entre 1 e 6 horas.</p>
                     <dl class="calc-out">
-                        <div class="row total"><dt>Sua loja paga</dt><dd id="calc-total">R$&nbsp;105,00</dd></div>
-                        <div class="row"><dt>Promotor recebe (80%)</dt><dd id="calc-prom">R$&nbsp;80,00</dd></div>
-                        <div class="row"><dt>Plataforma (20% + taxa fixa de R$&nbsp;5,00)</dt><dd id="calc-app">R$&nbsp;25,00</dd></div>
+                        <div class="row"><dt>Valor do serviço</dt><dd id="calc-servico">R$&nbsp;144,33</dd></div>
+                        <div class="row"><dt>Taxa de serviço (fixa)</dt><dd id="calc-taxa">R$&nbsp;5,00</dd></div>
+                        <div class="row total"><dt>Sua loja paga</dt><dd id="calc-total">R$&nbsp;149,33</dd></div>
                     </dl>
-                    <p class="calc-note">A divisão é automática no pagamento. A taxa de processamento do Mercado Pago (Pix ou cartão) é descontada por ele.</p>
+                    <p class="calc-note">Turnos de até 6 horas. Pagamento só depois do serviço, por Pix ou cartão. Detalhes nos Termos de Uso.</p>
                 </div>
             </div>
         </div>
@@ -199,21 +199,22 @@
 </a>
 
 <script>
-// Simulador: mesma regra de config.js / functions/split.js (20% + taxa fixa de R$ 5,00)
+// Simulador: mesma regra de config.js / server/split.js (valor por hora + taxa de serviço fixa de R$ 5,00)
 (function () {
-    var PCT = 20, TAXA = 500, MIN = 3000, MAX = 200000;
+    var HORA = 3500, PCT = 3, TAXA = 500, MAX_H = 6, MIN_V = 3000;
     var $ = function (id) { return document.getElementById(id); };
     var brl = function (c) { return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/\s/g, "\u00a0"); };
+    function bruto(liq) { var g0 = Math.ceil(liq * 100 / (100 - PCT)); for (var g = Math.max(1, g0 - 3); g <= g0 + 3; g++) if (g - Math.round(g * PCT / 100) >= liq) return g; return g0 + 3; }
     function calcular() {
-        var c = Math.round(parseFloat(String($("calc-valor").value).replace(",", ".")) * 100);
-        var ok = c >= MIN && c <= MAX;
+        var h = parseFloat(String($("calc-valor").value).replace(",", ".")), m = Math.round(h * 60);
+        var v = m > 0 ? bruto(Math.round(m * HORA / 60)) : 0;
+        var ok = m > 0 && m <= MAX_H * 60 && v >= MIN_V;
         $("calc-erro").hidden = ok;
         $("calc-valor").setAttribute("aria-invalid", ok ? "false" : "true");
         if (!ok) return;
-        var comissao = Math.round(c * PCT / 100);
-        $("calc-total").textContent = brl(c + TAXA);
-        $("calc-prom").textContent = brl(c - comissao);
-        $("calc-app").textContent = brl(comissao + TAXA);
+        $("calc-servico").textContent = brl(v);
+        $("calc-taxa").textContent = brl(TAXA);
+        $("calc-total").textContent = brl(v + TAXA);
     }
     $("calc-valor").addEventListener("input", calcular);
     calcular();
