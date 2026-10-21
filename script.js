@@ -4,17 +4,17 @@
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider } from "./firebase.js";
-import { WHATSAPP_SUPORTE, VALOR_HORA_SUGERIDO_CENTAVOS } from "./config.js";
-import { brl, calcularSplit, reaisParaCentavos, validarValor, esc, fmtData, fmtDataHora, hojeLocal, horasEntre, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoRegra } from "./core.js";
+import { auth, db, googleProvider, chamarFuncao, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { WHATSAPP_SUPORTE, TAXA_FIXA_CENTAVOS, HORAS_MAX_TURNO, MP_PUBLIC_KEY } from "./config.js";
+import { brl, calcularSplit, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
 // ---------- estado ----------
-let usuario = null, perfil = {}, pedidos = [], promotores = [];
+let usuario = null, perfil = {}, pedidos = [], promotores = [], cartaoLoja = null, ehTeste = false;
+const fin = new Map();   // valores que a LOJA enxerga (valor + taxa fixa + total), por pedido
 let filtro = "ativos", setorSel = SETORES[0].v, preferido = "", dataCal = new Date(), diaSel = "";
-let pedidosUn = null, promUn = null, chatUn = null, chatPedido = null, avPedido = null, avEstrelas = 0, primeira = true;
+let pedidosUn = null, promUn = null, cartaoUn = null, finUn = null, chatUn = null, chatPedido = null, avPedido = null, avEstrelas = 0, primeira = true;
 const statusAnt = new Map();
-const R = textoRegra();
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
 const btnLoginHtml = $("btn-login").innerHTML;
 
@@ -24,12 +24,8 @@ ligarMascaras({ doc: mascaraDoc, tel: mascaraTelefone });
 // ---------- textos que dependem da regra de taxas (nunca desatualizam) ----------
 $("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
 $("ajuda-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (loja).")}`;
-$("ajuda-split").textContent = `${R.curto} ${R.exemplo}`;
-$("termos-texto").innerHTML = `<strong>1. O serviço.</strong> A plataforma conecta a sua loja a promotores autônomos. Eles não têm vínculo empregatício com a plataforma nem com a loja.<br><br>
-  <strong>2. Valores e taxas.</strong> ${esc(R.curto)} ${esc(R.exemplo)}<br><br>
-  <strong>3. Pagamento.</strong> Você só paga depois do serviço, por Pix ou cartão, pelo Mercado Pago. A divisão entre promotor e plataforma é automática.<br><br>
-  <strong>4. Cancelamento.</strong> Pode cancelar sem custo enquanto o pedido não foi pago.<br><br>
-  <strong>5. Nota.</strong> A cada pagamento a plataforma emite uma nota de serviço em nome da sua empresa. Ela é um comprovante e não substitui NFS-e.`;
+$("ajuda-split").textContent = `Você paga o valor do serviço mais uma taxa de serviço fixa de ${brl(TAXA_FIXA_CENTAVOS)} por turno, só depois do serviço, por Pix ou cartão. O valor é calculado pelo horário do turno (máximo de ${HORAS_MAX_TURNO} horas). Os detalhes estão nos Termos de Uso.`;
+$("termos-texto").innerHTML = textoTermos("loja");
 
 // ============================================================
 // LOGIN / LOGOUT
@@ -54,16 +50,22 @@ $("btn-login").addEventListener("click", async () => {
         resetarLogin();
     }
 });
+testeAtivo().then((a) => { $("bloco-teste").hidden = !a; });
+$("btn-login-teste").addEventListener("click", async () => {
+    const b = $("btn-login-teste"); b.disabled = true;
+    try { await loginDeTeste("loja"); } catch (e) { console.error(e); erro("Não foi possível entrar no modo de teste."); b.disabled = false; }
+});
 getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); resetarLogin(); });
 $("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair da conta?")) { parar(); await signOut(auth); } });
 
 const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
-function parar() { pedidosUn?.(); promUn?.(); chatUn?.(); pedidosUn = promUn = chatUn = null; primeira = true; statusAnt.clear(); }
+function parar() { pedidosUn?.(); promUn?.(); cartaoUn?.(); finUn?.(); chatUn?.(); pedidosUn = promUn = cartaoUn = finUn = chatUn = null; primeira = true; statusAnt.clear(); fin.clear(); cartaoLoja = null; }
 
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
     if (!u) { parar(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
     try { await carregarPerfil(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Verifique se as regras do Firestore foram publicadas."); }
+    ehTeste = await contaDeTeste(); $("btn-teste-reset").hidden = !ehTeste; $("cartao-teste-dica").hidden = !ehTeste;
     pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar();
 });
 
@@ -107,12 +109,18 @@ function escutar() {
         pedidos.forEach((p) => statusAnt.set(p.id, p.status)); primeira = false;
         renderTudo();
     }, (e) => { pedidos = []; renderTudo(); if (e.code === "permission-denied") erro("Sem permissão para ler os pedidos. Publique as regras do Firestore."); else console.warn(e); });
+    cartaoUn = onSnapshot(doc(db, "cartoes", usuario.uid), (d) => { cartaoLoja = d.exists() && d.data().status === "ativo" ? d.data() : null; renderCartao(); }, () => { cartaoLoja = null; renderCartao(); });
+    finUn = onSnapshot(query(collection(db, "solicitacoes_financeiro"), where("uid", "==", usuario.uid)), (snap) => { fin.clear(); snap.docs.forEach((d) => fin.set(d.id, d.data())); renderTudo(); }, () => {});
     promUn = onSnapshot(query(collection(db, "profissionais"), where("status", "==", "ativo")), (snap) => {
         promotores = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderPromotores();
     }, () => { promotores = []; renderPromotores(); });
 }
 
-const sp = (p) => { try { return p.pagamento?.split ?? calcularSplit(valorCentavos(p)); } catch (e) { return { valor: 0, total: 0, promotor: 0, app: 0, taxaFixa: 0 }; } };
+// O que a LOJA enxerga de um pedido: valor do serviço + taxa fixa + total. Nunca repasse nem royalty.
+const sp = (p) => {
+    const f = fin.get(p.id); if (f && Number.isInteger(f.total)) return visaoLoja(f);
+    try { return visaoLoja(p.minutos ? calcularTurno(p.minutos) : calcularSplit(valorCentavos(p))); } catch (e) { return { valor: 0, taxaFixa: 0, total: 0 }; }
+};
 const ordemData = (a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`);
 function renderTudo() { renderHome(); renderPedidos(); renderCalendario(); diaSel ? renderDia() : renderAgenda(); renderCarteira(); renderConversas(); }
 
@@ -131,23 +139,19 @@ function iniciarFormulario() {
 $("setor-grid").addEventListener("click", (e) => { const b = e.target.closest("[data-setor]"); if (b) { setorSel = b.dataset.setor; montarSetores(); } });
 
 const limparErros = () => document.querySelectorAll(".msg-erro").forEach((e) => (e.textContent = ""));
+const fmtHoras = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h} h ${String(mm).padStart(2, "0")} min` : `${h} h`; };
+/** Resumo ao vivo: o valor sai do horário (nunca digitado). Mostra só valor do serviço + taxa fixa + total. */
 function atualizarSplit() {
-    const c = reaisParaCentavos($("p-valor").value), h = horasEntre($("p-entrada").value, $("p-saida").value);
-    const sug = Math.round((h * VALOR_HORA_SUGERIDO_CENTAVOS) / 500) * 500;
-    $("dica-valor").textContent = h ? `Turno de ${String(Math.round(h * 10) / 10).replace(".", ",")} h` : "";
-    $("usar-sugestao").hidden = !(sug > 0); $("usar-sugestao").textContent = `Usar sugestão (${brl(sug)})`; $("usar-sugestao").dataset.v = sug;
-    const valido = c > 0 && !validarValor(c);
+    const entrada = $("p-entrada").value, saida = $("p-saida").value, m = minutosEntre(entrada, saida), e = m ? validarTurno(entrada, saida) : "";
+    $("dica-valor").textContent = m ? `Turno de ${fmtHoras(m)} · máximo de ${HORAS_MAX_TURNO} horas` : `Turnos de até ${HORAS_MAX_TURNO} horas`;
+    $("e-saida").textContent = m && e ? e : "";
+    const valido = m > 0 && !e;
     $("split-card").hidden = !valido;
     if (!valido) return;
-    const s = calcularSplit(c);
-    $("sc-valor").textContent = brl(s.valor); $("sc-taxa").textContent = brl(s.taxaFixa); $("sc-total").textContent = brl(s.total);
-    $("sc-prom").textContent = brl(s.promotor); $("sc-app").textContent = brl(s.app);
-    $("sb-p").style.width = (s.promotor / s.total) * 100 + "%"; $("sb-a").style.width = (s.app / s.total) * 100 + "%";
+    const v = visaoLoja(calcularTurno(m));
+    $("sc-horas").textContent = fmtHoras(m); $("sc-valor").textContent = brl(v.valor); $("sc-taxa").textContent = brl(v.taxaFixa); $("sc-total").textContent = brl(v.total);
 }
-$("p-valor").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^\d.,]/g, ""); $("e-valor").textContent = ""; atualizarSplit(); });
-$("p-valor").addEventListener("blur", () => { const c = reaisParaCentavos($("p-valor").value); $("e-valor").textContent = c > 0 ? validarValor(c) : ""; });
 ["p-entrada", "p-saida"].forEach((id) => $(id).addEventListener("input", atualizarSplit));
-$("usar-sugestao").addEventListener("click", (e) => { e.preventDefault(); $("p-valor").value = (Number(e.target.dataset.v) / 100).toFixed(2).replace(".", ","); atualizarSplit(); });
 
 function definirPreferido(nome) {
     preferido = nome || ""; $("banner-preferido").hidden = !preferido; $("nome-preferido").textContent = preferido;
@@ -157,32 +161,37 @@ $("rm-preferido").addEventListener("click", () => definirPreferido(""));
 
 $("btn-enviar").addEventListener("click", async () => {
     limparErros();
-    const loja = $("p-local").value.trim(), data = $("p-data").value, entrada = $("p-entrada").value, saida = $("p-saida").value, cents = reaisParaCentavos($("p-valor").value);
+    const loja = $("p-local").value.trim(), data = $("p-data").value, entrada = $("p-entrada").value, saida = $("p-saida").value;
     let falhou = false; const e = (id, m) => { $(id).textContent = m; falhou = true; };
+    if (!cartaoLoja) { abrir("sheet-cartao"); return toast("Cadastre um cartão de crédito para solicitar um promotor.", "erro"); }
     if (loja.length < 3) e("e-local", "Informe o nome e o endereço da loja.");
     if (!data || data < hojeLocal()) e("e-data", "Escolha hoje ou uma data futura.");
-    if (!entrada || !saida || horasEntre(entrada, saida) <= 0) e("e-saida", "A saída precisa ser depois da entrada.");
+    const et = validarTurno(entrada, saida); if (et) e("e-saida", et);        // trava de 6 h também no navegador
     else if (data === hojeLocal() && saida <= new Date().toTimeString().slice(0, 5)) e("e-saida", "Esse horário já passou hoje.");
-    const v = validarValor(cents); if (v) e("e-valor", v);
     if (falhou) return erro("Confira os campos destacados.");
 
     const b = $("btn-enviar"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Enviando…';
     try {
-        const novo = { uid: usuario.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, valorCentavos: cents, foco: setorSel, status: "aberta", criadoEm: serverTimestamp() };
-        if (preferido) novo.promotorPreferido = preferido;
-        await addDoc(collection(db, "solicitacoes"), novo);
+        await chamarFuncao("criarPedido", { loja, data, entrada, saida, foco: setorSel, promotorPreferido: preferido || undefined });   // o servidor valida tudo de novo
         ok("Pedido enviado! Avisamos quando um promotor aceitar.");
-        $("p-local").value = ""; $("p-valor").value = ""; definirPreferido(""); atualizarSplit();
+        $("p-local").value = ""; definirPreferido(""); atualizarSplit();
         filtro = "ativos"; marcarFiltro(); irPara("tab-pedidos");
         if (!(perfil.razaoSocial && perfil.documento)) setTimeout(() => toast("Dica: complete os dados da empresa para a nota sair no seu nome."), 1800);
-    } catch (err) { console.error(err); erro(err.code === "permission-denied" ? "Pedido recusado pelas regras de segurança. Confira os dados." : "Não foi possível enviar o pedido. Tente de novo."); }
+    } catch (err) {
+        console.error(err);
+        if (err.code === "cartao-obrigatorio") { abrir("sheet-cartao"); erro(err.message); }
+        else if (err.code === "turno-invalido") { $("e-saida").textContent = err.message; erro(err.message); }
+        else if (err.code === "backend-nao-configurado") erro("O servidor ainda não está configurado (FUNCTIONS_BASE em config.js).");
+        else if (err.code === 404 || err.code === "rota-inexistente") erro("O servidor não respondeu (404). Confira o endereço do serviço no Render.");
+        else erro(err.message && err.message !== "falha" ? err.message : "Não foi possível enviar o pedido. Tente de novo.");
+    }
     finally { b.disabled = false; b.innerHTML = html; }
 });
 
 function repetir(p) {
     setorSel = p.foco || setorSel; montarSetores();
     $("p-local").value = p.loja || ""; $("p-entrada").value = p.entrada || "08:00"; $("p-saida").value = p.saida || "12:00";
-    $("p-data").value = hojeLocal(); $("p-valor").value = (valorCentavos(p) / 100).toFixed(2).replace(".", ","); atualizarSplit();
+    $("p-data").value = hojeLocal(); atualizarSplit();
     irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth" }); toast("Dados copiados. Escolha o dia e envie.", "ok");
 }
 
@@ -344,6 +353,58 @@ $("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.c
 $("btn-ativar-notif").addEventListener("click", async () => ((await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador.")));
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
+
+// ============================================================
+// CARTÃO DE CRÉDITO (obrigatório para solicitar/pagar)
+// ============================================================
+const luhn = (n) => { let soma = 0, alt = false; for (let i = n.length - 1; i >= 0; i--) { let d = +n[i]; if (alt) { d *= 2; if (d > 9) d -= 9; } soma += d; alt = !alt; } return n.length >= 13 && soma % 10 === 0; };
+const bandeira = (n) => /^4/.test(n) ? "Visa" : /^(5[1-5]|2[2-7])/.test(n) ? "Mastercard" : /^3[47]/.test(n) ? "Amex" : /^(636368|438935|504175|451416|636297|5067|4576|4011|506699)/.test(n) ? "Elo" : /^606282|^3841/.test(n) ? "Hipercard" : "Cartão";
+function renderCartao() {
+    $("aviso-cartao").hidden = !!cartaoLoja;
+    $("menu-cartao").textContent = cartaoLoja ? `· ${cartaoLoja.bandeira} •••• ${cartaoLoja.ultimos4}` : "· não cadastrado";
+    const box = $("cartao-atual"); box.hidden = !cartaoLoja; $("btn-remover-cartao").hidden = !cartaoLoja;
+    if (cartaoLoja) box.innerHTML = `<div class="row"><div class="avatar" style="background:var(--green-soft);color:var(--green)">✓</div><div class="grow"><h4>${esc(cartaoLoja.bandeira)} •••• ${esc(cartaoLoja.ultimos4)}</h4><p class="muted small">Validade ${String(cartaoLoja.mes).padStart(2, "0")}/${String(cartaoLoja.ano).slice(-2)}${cartaoLoja.simulado ? " · cartão de teste" : ""}</p></div></div>`;
+}
+$("k-num").addEventListener("input", (e) => { e.target.value = soDigitos(e.target.value).slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 "); });
+$("k-val").addEventListener("input", (e) => { const d = soDigitos(e.target.value).slice(0, 4); e.target.value = d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d; });
+$("k-cvv").addEventListener("input", (e) => { e.target.value = soDigitos(e.target.value).slice(0, 4); });
+let mpSdk = null;
+async function tokenDoCartao(c) {
+    if (!MP_PUBLIC_KEY) throw Object.assign(new Error("O cadastro de cartão ainda não foi habilitado (falta MP_PUBLIC_KEY em config.js)."), { code: "sem-public-key" });
+    if (!window.MercadoPago) await new Promise((ok2, err2) => { const sc = document.createElement("script"); sc.src = "https://sdk.mercadopago.com/js/v2"; sc.onload = ok2; sc.onerror = () => err2(Object.assign(new Error("Não foi possível carregar o Mercado Pago."), { code: "sdk" })); document.head.appendChild(sc); });
+    mpSdk = mpSdk || new window.MercadoPago(MP_PUBLIC_KEY, { locale: "pt-BR" });
+    const doc = soDigitos(perfil.documento || "");
+    const t = await mpSdk.createCardToken({ cardNumber: c.numero, cardholderName: c.nome, cardExpirationMonth: String(c.mes).padStart(2, "0"), cardExpirationYear: String(c.ano), securityCode: c.cvv, identificationType: doc.length === 14 ? "CNPJ" : "CPF", identificationNumber: doc || undefined });
+    return t.id;
+}
+$("btn-salvar-cartao").addEventListener("click", async () => {
+    ["e-k-num", "e-k-val", "e-k-cvv"].forEach((i) => ($(i).textContent = ""));
+    const numero = soDigitos($("k-num").value), nome = $("k-nome").value.trim(), cvv = $("k-cvv").value;
+    const [mm, aa] = $("k-val").value.split("/"), mes = Number(mm), ano = 2000 + Number(aa), agora = new Date();
+    let falhou = false; const e = (id, m) => { $(id).textContent = m; falhou = true; };
+    if (!luhn(numero)) e("e-k-num", "Número de cartão inválido. Confira os dígitos.");
+    if (!(mes >= 1 && mes <= 12) || !(ano >= 2000) || ano < agora.getFullYear() || (ano === agora.getFullYear() && mes < agora.getMonth() + 1)) e("e-k-val", "Validade inválida ou cartão vencido.");
+    if (cvv.length < 3) e("e-k-cvv", "CVV inválido.");
+    if (nome.length < 3) { falhou = true; erro("Informe o nome impresso no cartão."); }
+    if (falhou) return;
+    const b = $("btn-salvar-cartao"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Validando…';
+    try {
+        // Sandbox: manda só bandeira/últimos 4/validade. Produção: manda um TOKEN gerado pelo Mercado Pago (o número nunca passa pelo nosso servidor).
+        const corpo = ehTeste ? { simulado: true, bandeira: bandeira(numero), ultimos4: numero.slice(-4), mes, ano } : { cardToken: await tokenDoCartao({ numero, nome, mes, ano, cvv }) };
+        await chamarFuncao("cartao/registrar", corpo);
+        ["k-num", "k-val", "k-cvv", "k-nome"].forEach((i) => ($(i).value = ""));
+        ok("Cartão validado e cadastrado ✓"); fechar("sheet-cartao");
+    } catch (err) { console.error(err); erro(err.message && err.message !== "falha" ? err.message : "Não foi possível validar o cartão. Confira os dados."); }
+    finally { b.disabled = false; b.innerHTML = html; }
+});
+$("btn-remover-cartao").addEventListener("click", async () => {
+    if (!confirm("Remover o cartão? Sem cartão cadastrado não é possível solicitar nem pagar serviços.")) return;
+    try { await chamarFuncao("cartao/remover"); toast("Cartão removido."); } catch (e) { erro("Não foi possível remover o cartão."); }
+});
+$("btn-teste-reset").addEventListener("click", async () => {
+    if (!confirm("Apagar os pedidos, notas e o cartão das contas de teste?")) return;
+    try { const r = await chamarFuncao("teste/resetar"); ok(`Dados de teste zerados (${r.pedidosRemovidos} pedido(s)).`); } catch (e) { erro("Não foi possível zerar os dados de teste."); }
+});
 
 // ============================================================
 // NAVEGAÇÃO E CLIQUES (delegação)
