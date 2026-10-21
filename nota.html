@@ -93,15 +93,12 @@ function render(n) {
                 <thead><tr><th>Descrição</th><th class="r">Valor</th></tr></thead>
                 <tbody>
                     <tr><td><strong>${esc(sv.descricao || "Reposição/abastecimento")}</strong><br><span style="color:#555">${esc(sv.loja || "")} · ${esc(fmtData(sv.data))} · ${esc(sv.horario || "")}</span></td><td class="r">${brl(v.valor)}</td></tr>
-                    <tr><td>Taxa de serviço da plataforma (intermediação)</td><td class="r">${brl(v.taxaFixa)}</td></tr>
+                    <tr><td>Taxa de serviço</td><td class="r">${brl(v.taxaFixa)}</td></tr>
                 </tbody>
                 <tfoot><tr><td>Total pago</td><td class="r">${brl(v.total)}</td></tr></tfoot>
             </table>
         </div>
-        <div class="grade">
-            <div class="bloco"><h3>Pagamento</h3><p>Forma: ${esc(METODO[pg.metodo] || pg.metodo || "—")}</p><p>Mercado Pago nº ${esc(pg.mpPaymentId || "—")}</p></div>
-            <div class="bloco"><h3>Divisão do pagamento (automática)</h3><p>Promotor (${100 - (v.pct ?? 20)}% do serviço): <strong>${brl(v.promotor)}</strong></p><p>Plataforma (${v.pct ?? 20}% + taxa fixa): <strong>${brl(v.app)}</strong></p></div>
-        </div>
+        <div class="bloco"><h3>Pagamento</h3><p>Forma: ${esc(METODO[pg.metodo] || pg.metodo || "—")}${pg.simulado ? " (pagamento de teste)" : ""}</p><p>Mercado Pago nº ${esc(pg.mpPaymentId || "—")}</p></div>
         <div class="aviso"><strong>Importante:</strong> este documento é um comprovante de serviço emitido pela plataforma e não substitui a NFS-e ou nota fiscal do prestador, quando exigida. Consulte sua contabilidade.</div>
         <p class="rodape">Documento gerado eletronicamente. Código: ${esc(id)}</p>`;
     mostrar("nota");
