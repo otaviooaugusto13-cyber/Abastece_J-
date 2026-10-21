@@ -29,6 +29,12 @@
         </div>
         <label class="check-line"><input type="checkbox" id="check-termos"><span>Li e concordo com os <a href="#" id="link-termos">Termos de Uso e Taxas</a></span></label>
         <button id="btn-login" class="btn btn-google-login" disabled><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Continuar com Google</button>
+        <div id="bloco-teste" class="banner mt" hidden>
+            <span class="ico">🧪</span>
+            <div class="grow"><strong>Modo de teste (sandbox)</strong><br><span class="muted small">Entre sem Google e sem Mercado Pago para validar o fluxo.</span>
+                <button type="button" class="btn btn-ghost btn-sm mt" id="btn-login-teste">Entrar como Loja (teste)</button>
+                <a class="small" href="promotor.html" style="display:block;margin-top:8px">Ou entrar como Promotor (teste) ›</a></div>
+        </div>
         <div class="auth-links"><a href="landing.html">Conhecer a plataforma</a></div>
     </div>
 </div>
@@ -46,6 +52,11 @@
         <div id="aviso-fiscal" class="banner mb" hidden>
             <span class="ico">🧾</span>
             <div><strong>Complete os dados da empresa</strong><br><span class="muted small">A nota sai em nome da sua empresa. Falta CNPJ/CPF e razão social.</span><br><a href="#" data-abrir="sheet-fiscal">Completar agora ›</a></div>
+        </div>
+
+        <div id="aviso-cartao" class="banner red mb" hidden>
+            <span class="ico">💳</span>
+            <div><strong>Cadastre um cartão de crédito</strong><br><span class="muted small">É obrigatório ter um cartão válido para solicitar e pagar serviços.</span><br><a href="#" data-abrir="sheet-cartao">Cadastrar cartão ›</a></div>
         </div>
 
         <div id="card-proximo" class="card flat mb" hidden></div>
@@ -67,21 +78,18 @@
                 <div class="field"><label for="p-saida">Saída</label><input id="p-saida" type="time" value="12:00"><span class="msg-erro" id="e-saida"></span></div>
             </div>
 
-            <div class="field"><label for="p-valor">3. Quanto quer pagar pelo turno?</label>
-                <div class="input-money"><input id="p-valor" type="text" inputmode="decimal" placeholder="100,00" autocomplete="off"></div>
-                <div class="row between small"><span class="muted" id="dica-valor"></span><a href="#" id="usar-sugestao" hidden>Usar sugestão</a></div>
-                <span class="msg-erro" id="e-valor"></span></div>
+            <p class="muted small" id="dica-valor" style="margin:-4px 0 10px"></p>
 
             <div class="split-card" id="split-card" hidden>
-                <div class="linha"><span>Valor do turno</span><strong id="sc-valor">—</strong></div>
+                <div class="linha"><span>Duração do turno</span><strong id="sc-horas">—</strong></div>
+                <div class="linha"><span>Valor do serviço</span><strong id="sc-valor">—</strong></div>
                 <div class="linha"><span>Taxa de serviço (fixa)</span><strong id="sc-taxa">—</strong></div>
                 <div class="linha total"><span>Você paga</span><strong id="sc-total">—</strong></div>
-                <div class="split-bar" aria-hidden="true"><i class="p" id="sb-p"></i><i class="a" id="sb-a"></i></div>
-                <div class="legend"><span><b style="background:var(--green)"></b>Promotor recebe <strong id="sc-prom"></strong></span><span><b style="background:var(--gold)"></b>Plataforma <strong id="sc-app"></strong></span></div>
             </div>
+            <span class="msg-erro" id="e-valor"></span>
 
             <button class="btn btn-primary" id="btn-enviar">🚀 Solicitar promotores na região</button>
-            <p class="muted small center mt">O pagamento é feito depois, pelo app, com Pix ou cartão. A nota é gerada automaticamente.</p>
+            <p class="muted small center mt">Turnos de até 6 horas. O pagamento é feito depois, pelo app. A nota é gerada automaticamente.</p>
         </div>
 
         <div class="section-title">Promotores disponíveis</div>
@@ -137,6 +145,7 @@
             <div><h3 id="nome-menu">Loja</h3><span class="badge green" style="margin-top:6px">Loja ativa ✓</span></div>
         </div>
         <div class="menu-list mb">
+            <button class="menu-item" data-abrir="sheet-cartao"><span class="ico">💳</span><span>Cartão de crédito <small class="muted" id="menu-cartao"></small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-fiscal"><span class="ico">🧾</span><span>Dados da empresa (nota)</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">💼</span><span>Preferências de pedido</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Indicar lojas</span><span class="seta">›</span></button>
@@ -147,6 +156,7 @@
             <div class="sw-row"><span>Modo claro</span><label class="theme-switch"><input type="checkbox" id="theme-toggle" aria-label="Modo claro"><span class="slider"></span></label></div>
             <button class="btn btn-ghost btn-instalar" hidden id="btn-instalar" style="margin-top:12px">📲 Instalar o app no celular</button>
         </div>
+        <button class="btn btn-ghost mb" id="btn-teste-reset" hidden>🧪 Zerar dados de teste</button>
         <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
     </section>
 
@@ -173,6 +183,21 @@
     <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
     <div class="field"><label for="f-ramo">Ramo</label><select id="f-ramo"><option>Supermercado</option><option>Atacarejo</option><option>Distribuidora</option><option>Loja de conveniência</option><option>Indústria / marca</option></select></div>
     <button class="btn btn-primary" id="btn-salvar-fiscal">Salvar dados</button>
+</div></div>
+
+<div id="sheet-cartao" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Cartão de crédito</h2><button class="icon-btn" data-fechar="sheet-cartao" aria-label="Fechar">✕</button></div>
+    <div id="cartao-atual" class="card mb" hidden></div>
+    <p class="muted small mb" id="cartao-aviso">Obrigatório para solicitar e pagar serviços. O número completo não é guardado por nós.</p>
+    <div id="cartao-teste-dica" class="banner mb" hidden><span class="ico">🧪</span><div class="small">Sandbox: use o cartão de teste <strong>4509 9535 6623 3704</strong>, validade futura, CVV <strong>123</strong>. Nada é cobrado.</div></div>
+    <div class="field"><label for="k-nome">Nome impresso no cartão</label><input id="k-nome" type="text" autocomplete="cc-name" maxlength="60" placeholder="MARIA S SILVA"></div>
+    <div class="field"><label for="k-num">Número do cartão</label><input id="k-num" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23"><span class="msg-erro" id="e-k-num"></span></div>
+    <div class="grid-2">
+        <div class="field"><label for="k-val">Validade</label><input id="k-val" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5"><span class="msg-erro" id="e-k-val"></span></div>
+        <div class="field"><label for="k-cvv">CVV</label><input id="k-cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"><span class="msg-erro" id="e-k-cvv"></span></div>
+    </div>
+    <button class="btn btn-primary" id="btn-salvar-cartao">Validar e salvar cartão</button>
+    <button class="btn btn-ghost mt" id="btn-remover-cartao" hidden>Remover cartão</button>
 </div></div>
 
 <div id="sheet-prefs" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
