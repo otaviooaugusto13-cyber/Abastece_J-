@@ -1,3 +1,6 @@
+// ⚠️ LEGADO — NÃO USE. O backend oficial agora é server/server.js (Render).
+// Esta versão (Cloud Functions) ainda usa o modelo antigo de 80/20 e NÃO tem as regras novas
+// (6 h, 3x/semana, cartão, royalty 3%, R$ 35/h). Mantida só como referência.
 // ============================================================
 // ABASTECE JÁ — Cloud Functions (Firebase, plano Blaze)
 //
