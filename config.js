@@ -48,8 +48,8 @@ export const FIREBASE_CONFIG = {
 // ou em localhost, a API é a MESMA origem — assim nunca dá "Not Found" por URL digitada errada.
 // Em qualquer outro domínio (GitHub Pages etc.), usa a URL fixa abaixo: confira no painel do
 // Render o endereço EXATO do serviço (render.yaml cria "abastece-j", sem o "a" no final).
-const URL_RENDER = "https://abastece-j.onrender.com";
-const mesmaOrigem = typeof location !== "undefined" && /(^|\.)onrender\.com$|^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const URL_RENDER = "https://abastece-ja.onrender.com";
+const mesmaOrigem = typeof location !== "undefined" && /^(abastece-ja\.onrender\.com|localhost|127\.0\.0\.1)$/.test(location.hostname);
 export const FUNCTIONS_BASE = mesmaOrigem ? location.origin : URL_RENDER;
 
 // ---- Cadastro de cartão (produção) ---------------------------
