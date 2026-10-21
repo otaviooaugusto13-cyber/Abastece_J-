@@ -27,13 +27,13 @@
       <p class="auth-sub" id="p-detalhe"></p>
       <div class="split-card">
         <div class="linha"><span>Serviço de reposição</span><strong id="p-valor"></strong></div>
-        <div class="linha"><span>Taxa de serviço da plataforma</span><strong id="p-taxa"></strong></div>
+        <div class="linha"><span>Taxa de serviço</span><strong id="p-taxa"></strong></div>
         <div class="linha total"><span>Total a pagar</span><strong id="p-total"></strong></div>
-        <div class="split-bar" aria-hidden="true"><i class="p" id="sb-p"></i><i class="a" id="sb-a"></i></div>
-        <div class="legend"><span><b style="background:var(--green)"></b>Promotor <strong id="p-prom"></strong></span><span><b style="background:var(--gold)"></b>Plataforma <strong id="p-app"></strong></span></div>
       </div>
+      <div id="aviso-cartao" class="banner red mb" hidden><span class="ico">💳</span><div><strong>Cartão de crédito obrigatório</strong><br><span class="muted small">Cadastre um cartão válido para pagar este serviço.</span><br><a href="index.html">Cadastrar cartão ›</a></div></div>
       <button id="btn-pagar" class="btn btn-primary">💳 Pagar com Pix ou cartão</button>
-      <p class="small muted center mt">🔒 Pagamento processado pelo Mercado Pago. A divisão entre promotor e plataforma é automática e a nota é emitida assim que o pagamento é aprovado.</p>
+      <button id="btn-pagar-teste" class="btn btn-ghost mt" hidden>🧪 Simular pagamento aprovado (teste)</button>
+      <p class="small muted center mt">🔒 Pagamento processado pelo Mercado Pago. A nota é emitida assim que o pagamento é aprovado.</p>
     </div>
 
     <div id="estado-ok" hidden class="center">
@@ -56,8 +56,8 @@
 <script type="module">
 import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao } from "./firebase.js";
-import { calcularSplit, brl, fmtData, valorCentavos, estaPago } from "./core.js";
+import { auth, db, googleProvider, chamarFuncao, contaDeTeste } from "./firebase.js";
+import { calcularSplit, calcularTurno, visaoLoja, brl, fmtData, valorCentavos, estaPago } from "./core.js";
 import { $, iniciarTema, registrarSW } from "./ui.js";
 iniciarTema(); registrarSW();
 
@@ -65,7 +65,7 @@ const params = new URLSearchParams(location.search);
 const id = params.get("id"), paymentId = params.get("payment_id") || params.get("collection_id"), retorno = params.get("retorno");
 const mostrar = (q) => ["estado-carregando", "estado-login", "estado-pedido", "estado-ok", "estado-aguardando"].forEach((e) => ($(e).hidden = e !== q));
 const aviso = (t) => { $("msg").textContent = t; $("msg").hidden = false; };
-let pedido = null, parar = null;
+let pedido = null, parar = null, semCartao = false;
 
 function sucesso(p) { parar?.(); $("link-nota").href = p.notaId ? `nota.html?id=${encodeURIComponent(p.notaId)}` : "index.html"; if (!p.notaId) $("link-nota").textContent = "Voltar ao painel"; mostrar("estado-ok"); $("msg").hidden = true; }
 
@@ -81,11 +81,15 @@ onAuthStateChanged(auth, async (user) => {
     if (pedido.status === "cancelada") { mostrar(""); return aviso("Este pedido foi cancelado."); }
     if (pedido.status !== "aceita") { mostrar(""); return aviso("Ainda não há promotor neste pedido. O pagamento libera quando alguém aceitar."); }
 
-    const s = calcularSplit(valorCentavos(pedido));
+    // A loja vê só valor do serviço + taxa fixa + total (o servidor recalcula tudo na hora de cobrar).
+    let s; try { s = visaoLoja((await getDoc(doc(db, "solicitacoes_financeiro", id))).data() || {}); if (!Number.isInteger(s.total)) throw 0; }
+    catch (e) { s = visaoLoja(pedido.minutos ? calcularTurno(pedido.minutos) : calcularSplit(valorCentavos(pedido))); }
+    const teste = await contaDeTeste();
+    $("btn-pagar").hidden = teste; $("btn-pagar-teste").hidden = !teste;
+    try { const c = await getDoc(doc(db, "cartoes", user.uid)); semCartao = !(c.exists() && c.data().status === "ativo"); } catch (e) { semCartao = false; }
+    $("aviso-cartao").hidden = !semCartao; $("btn-pagar").disabled = $("btn-pagar-teste").disabled = semCartao;
     $("p-loja").textContent = pedido.loja; $("p-detalhe").textContent = `${fmtData(pedido.data)} · ${pedido.horario} · ${pedido.foco}${pedido.promotorNome ? " · " + pedido.promotorNome : ""}`;
     $("p-valor").textContent = brl(s.valor); $("p-taxa").textContent = brl(s.taxaFixa); $("p-total").textContent = brl(s.total);
-    $("p-prom").textContent = brl(s.promotor); $("p-app").textContent = brl(s.app);
-    $("sb-p").style.width = (s.promotor / s.total * 100) + "%"; $("sb-a").style.width = (s.app / s.total * 100) + "%";
 
     if (retorno === "success" || paymentId) {      // voltou do Mercado Pago
       mostrar("estado-aguardando");
@@ -100,6 +104,12 @@ onAuthStateChanged(auth, async (user) => {
 
 $("btn-entrar").onclick = () => signInWithPopup(auth, googleProvider).catch((e) => aviso("Não foi possível entrar (" + (e.code || "erro") + ")."));
 
+$("btn-pagar-teste").onclick = async () => {
+  const b = $("btn-pagar-teste"); b.disabled = true; b.innerHTML = '<span class="spinner"></span> Simulando…'; $("msg").hidden = true;
+  try { sucesso(await chamarFuncao("teste/pagar", { solicitacaoId: id })); }
+  catch (e) { console.error(e); aviso(e.message || "Não foi possível simular o pagamento."); b.disabled = false; b.innerHTML = "🧪 Simular pagamento aprovado (teste)"; }
+};
+
 $("btn-pagar").onclick = async () => {
   const b = $("btn-pagar"); b.disabled = true; b.innerHTML = '<span class="spinner"></span> Abrindo pagamento…'; $("msg").hidden = true;
   try {
@@ -108,8 +118,12 @@ $("btn-pagar").onclick = async () => {
     location.href = init_point;
   } catch (e) {
     console.error(e);
-    aviso(e.code === "backend-nao-configurado" ? "O pagamento ainda não foi conectado ao Mercado Pago (falta publicar as Cloud Functions e preencher FUNCTIONS_BASE em config.js)."
+    aviso(e.code === "cartao-obrigatorio" ? "Cadastre um cartão de crédito válido para pagar este serviço."
+        : e.code === "backend-nao-configurado" ? "O pagamento ainda não foi conectado ao Mercado Pago (falta publicar as Cloud Functions e preencher FUNCTIONS_BASE em config.js)."
         : e.code === "promotor-sem-mp" ? "Este promotor ainda não conectou a conta Mercado Pago para receber. Peça para ele conectar em Carteira."
+        : e.code === "app-url-invalida" || e.code === "mp-nao-configurado" ? e.message
+        : e.code === "mp" ? `${e.message}`
+        : e.code === 404 || e.code === "rota-inexistente" ? "O servidor de pagamentos não respondeu (404). Confira o endereço do serviço no Render."
         : "Não foi possível iniciar o pagamento. Tente de novo.");
     b.disabled = false; b.innerHTML = "💳 Pagar com Pix ou cartão";
   }
