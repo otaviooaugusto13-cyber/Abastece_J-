@@ -1,22 +1,23 @@
+[README.md](https://github.com/user-attachments/files/33766056/README.md)
 [README.md](https://github.com/user-attachments/files/33716638/README.md)
 # Abastece Já
 
 App web (PWA) que liga **lojas** a **promotores/repositores** freelancers, com **pagamento dividido automaticamente** e **nota** a cada serviço.
 
-## Como o dinheiro é dividido
+## Regras de negócio (modelo atual)
 
-Valor do turno = o que a loja combinou pagar (ex.: R$ 100,00).
-
-| Quem | Recebe | Exemplo |
+| Regra | Valor | Onde é aplicada |
 |---|---|---|
-| Promotor | 80% do valor do turno | R$ 80,00 |
-| Plataforma | 20% do valor do turno **+ taxa fixa** | R$ 20,00 + R$ 5,00 = R$ 25,00 |
-| **Loja paga** | valor do turno + taxa fixa | **R$ 105,00** |
+| Valor-hora do promotor (líquido) | **R$ 35,00/h** | `server/split.js` (autoritativo) |
+| Royalty da plataforma | **3% do valor bruto** | idem |
+| Taxa de serviço fixa (paga pela loja) | **R$ 5,00** por turno | idem |
+| Duração máxima do turno | **6 horas** | `POST /criarPedido` (e no formulário) |
+| Frequência máxima | **3 turnos/semana (seg–dom) do mesmo promotor na mesma loja** | `POST /aceitarTurno` (transação) |
+| Cartão de crédito | obrigatório para solicitar e pagar | `/criarPedido`, `/criarCobranca` |
 
-- Tudo em **centavos inteiros** (sem erro de ponto flutuante). O promotor fica com o "resto" do arredondamento, nunca perde centavo.
-- Os números ficam em **dois lugares que precisam ser iguais**: `config.js` (o que a tela mostra) e `functions/split.js` (o que o servidor cobra de verdade). `node test/split.test.js` falha se divergirem.
-- O Mercado Pago divide **no ato do pagamento** (`marketplace_fee`): o promotor recebe direto na conta dele; a plataforma recebe a parte dela. Nada de repasse manual.
-- ⚠️ A taxa de processamento do Mercado Pago (Pix/cartão) é cobrada **do promotor** pelo próprio MP. Se quiser que a plataforma absorva, é só aumentar a taxa fixa.
+- **Preço:** o promotor recebe exatamente `horas × R$ 35,00`. O valor bruto é o menor valor cujo líquido (bruto − 3%) cobre isso; a loja paga bruto + R$ 5,00. Ex.: 4 h → promotor R$ 140,00, bruto R$ 144,33, loja paga R$ 149,33.
+- **Privacidade:** a loja só vê valor do serviço + taxa fixa + total (`solicitacoes_financeiro`, `notas`). O promotor só vê o líquido (`valorPromotorCentavos`). O split completo fica em `pagamentos_internos` (só o servidor lê). A discriminação de taxas aparece **somente** nos Termos de Uso (`textoTermos` em `core.js`).
+- As constantes ficam em `config.js` e `server/split.js` (`functions/split.js` é cópia). `npm test` falha se divergirem.
 
 ## Fluxo
 
