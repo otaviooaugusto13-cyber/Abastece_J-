@@ -583,4 +583,4 @@ app.post("/escrow/liberar", envelope(async (req, res) => {
   await escrowRef.update({ status: "liberado", liberadoEm: new Date() });
   res.json({ sucesso: true, mensagem: "Pagamento liberado ao prestador" });
 }));
-export { app, finalizarPagamento };;
+export { app, finalizarPagamento };; 
