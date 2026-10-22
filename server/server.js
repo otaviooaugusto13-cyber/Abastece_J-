@@ -12,17 +12,12 @@
 //  Sandbox (só com MODO_TESTE=1): /teste/status, /teste/login, /teste/pagar, /teste/resetar
 //  Diagnóstico: GET /saude, GET /diagnostico
 // ============================================================
-import express from "express";
-import cors from "cors";
-import admin from "firebase-admin";
-import crypto from "crypto";
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
-import S from "./split.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require("express");
+const cors = require("cors");
+const admin = require("firebase-admin");
+const crypto = require("crypto");
+const path = require("path");
+const S = require("./split");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -30,29 +25,17 @@ app.use(cors({ origin: true })); // autenticação por token Bearer (sem cookies
 app.use(express.json());
 
 // ---------- Firebase Admin ----------
-let credential;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+function credencialFirebase() {
   const bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!bruto) return null;
   const texto = bruto.trim().startsWith("{") ? bruto : Buffer.from(bruto, "base64").toString("utf8");
-  credential = admin.credential.cert(JSON.parse(texto));
-} else {
-  try {
-    const serviceAccount = JSON.parse(
-      fs.readFileSync(new URL('./serviceAccountKey.json', import.meta.url))
-    );
-    credential = admin.credential.cert(serviceAccount);
-  } catch (e) {
-    console.error("⚠️ Nenhuma credencial do Firebase encontrada (nem variável de ambiente nem serviceAccountKey.json).");
-  }
+  return admin.credential.cert(JSON.parse(texto));
 }
-
 if (!admin.apps.length) {
-  admin.initializeApp({
-    ...(credential ? { credential } : {}),
-    projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || "abastece-ja-240d5"
-  });
+  const credential = credencialFirebase();
+  if (!credential && !process.env.FIRESTORE_EMULATOR_HOST) console.error("⚠️  FIREBASE_SERVICE_ACCOUNT não definida: o acesso ao Firestore vai falhar.");
+  admin.initializeApp({ ...(credential ? { credential } : {}), projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || "abastece-ja-240d5" });
 }
-
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
 
@@ -159,6 +142,7 @@ function splitDoPedido(s) {
     if (e) throw new Falha(400, e, "turno-invalido");
     return S.calcularTurno(m);
   }
+  // pedidos antigos (antes do modelo por hora): valor combinado, em centavos
   const c = Number.isInteger(s.valorCentavos) ? s.valorCentavos : Math.round(Number(s.valor) * 100);
   if (!(c >= S.VALOR_MINIMO_CENTAVOS && c <= S.VALOR_MAXIMO_CENTAVOS)) throw new Falha(400, "valor do pedido fora do permitido");
   return S.calcularSplit(c);
@@ -214,6 +198,7 @@ app.post("/teste/login", envelope(async (req, res) => {
   res.json({ customToken, uid, perfil });
 }));
 
+/** Zera o cenário de teste: pedidos, cartão e notas das duas contas fictícias. */
 app.post("/teste/resetar", envelope(async (req, res) => {
   const u = await usuario(req); exigirTeste(u);
   const ids = new Set();
@@ -236,6 +221,7 @@ app.post("/cartao/registrar", envelope(async (req, res) => {
   const b = req.body || {};
   let cartao;
   if (b.simulado) {
+    // Sandbox: o navegador valida o número (Luhn) e envia só bandeira/últimos 4/validade. O número completo NUNCA chega aqui.
     exigirTeste(u);
     const ultimos4 = String(b.ultimos4 || "").replace(/\D/g, "");
     const mes = Number(b.mes), ano = Number(b.ano);
@@ -244,6 +230,7 @@ app.post("/cartao/registrar", envelope(async (req, res) => {
     const agora = new Date(); if (ano < agora.getFullYear() || (ano === agora.getFullYear() && mes < agora.getMonth() + 1)) throw new Falha(400, "cartão vencido", "cartao-vencido");
     cartao = { bandeira: String(b.bandeira || "cartão").slice(0, 20), ultimos4, mes, ano, simulado: true };
   } else {
+    // Produção: o navegador gera um token com o MercadoPago.js (o número nunca passa por aqui); o servidor guarda o cartão no cliente do MP.
     if (!MP_ACCESS_TOKEN) throw new Falha(500, "Cadastro de cartão não configurado no servidor (MP_ACCESS_TOKEN).", "mp-nao-configurado");
     if (!b.cardToken || typeof b.cardToken !== "string") throw new Falha(400, "token do cartão ausente", "cartao-invalido");
     const email = u.email || `${u.uid}@abastece.ja`;
@@ -273,7 +260,7 @@ app.post("/criarPedido", envelope(async (req, res) => {
   if (loja.length < 3 || loja.length > 160) throw new Falha(400, "Informe o nome e o endereço da loja.", "dados-invalidos");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < hojeSP()) throw new Falha(400, "Escolha hoje ou uma data futura.", "dados-invalidos");
   if (!foco) throw new Falha(400, "Escolha o setor.", "dados-invalidos");
-  const erroTurno = S.validarTurno(entrada, saida);
+  const erroTurno = S.validarTurno(entrada, saida);              // ← trava de 6 horas
   if (erroTurno) throw new Falha(400, erroTurno, "turno-invalido");
   if (data === hojeSP() && saida <= agoraSP()) throw new Falha(400, "Esse horário já passou hoje.", "dados-invalidos");
 
@@ -281,14 +268,14 @@ app.post("/criarPedido", envelope(async (req, res) => {
   const ref = db.collection("solicitacoes").doc();
   const pedido = {
     uid: u.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, minutos: sp.minutos, foco,
-    valorPromotorCentavos: sp.promotor,
+    valorPromotorCentavos: sp.promotor,                           // único valor que o promotor enxerga
     status: "aberta", criadoEm: FieldValue.serverTimestamp()
   };
   if (b.promotorPreferido) pedido.promotorPreferido = String(b.promotorPreferido).slice(0, 80);
   const lote = db.batch();
   lote.set(ref, pedido);
-  lote.set(db.collection("solicitacoes_financeiro").doc(ref.id), { uid: u.uid, ...visaoLoja(sp), criadoEm: FieldValue.serverTimestamp() });
-  lote.set(db.collection("pagamentos_internos").doc(ref.id), { uid: u.uid, split: sp, criadoEm: FieldValue.serverTimestamp() });
+  lote.set(db.collection("solicitacoes_financeiro").doc(ref.id), { uid: u.uid, ...visaoLoja(sp), criadoEm: FieldValue.serverTimestamp() }); // o que a LOJA enxerga
+  lote.set(db.collection("pagamentos_internos").doc(ref.id), { uid: u.uid, split: sp, criadoEm: FieldValue.serverTimestamp() });        // só o servidor lê
   await lote.commit();
   res.json({ id: ref.id, ...visaoLoja(sp) });
 }));
@@ -334,6 +321,7 @@ app.all("/mpConectarUrl", envelope(async (req, res) => {
   if (!prof.exists) throw new Falha(403, "cadastro de promotor não encontrado");
   const redirectUri = `${getBaseUrl(req)}/mpCallback`;
   const state = `${uid}.${assinar(uid)}`;
+  // platform_id=mp é exigido pelo fluxo de marketplace (estava faltando nesta versão do servidor)
   const url = `https://auth.mercadopago.com.br/authorization?client_id=${encodeURIComponent(MP_CLIENT_ID)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   res.json({ url, redirectUri });
 }));
@@ -386,7 +374,7 @@ app.post("/criarCobranca", envelope(async (req, res) => {
     statement_descriptor: "ABASTECEJA",
     payment_methods: { excluded_payment_types: [{ id: "ticket" }], installments: 1 }
   };
-  if (urlPublicaHttps(base)) corpo.notification_url = `${base}/webhookMP?sid=${encodeURIComponent(solicitacaoId)}`;
+  if (urlPublicaHttps(base)) corpo.notification_url = `${base}/webhookMP?sid=${encodeURIComponent(solicitacaoId)}`; // MP recusa notification_url local/http
   const pref = await mp("/checkout/preferences", token, { method: "POST", body: JSON.stringify(corpo) });
 
   await db.collection("pagamentos_internos").doc(ref.id).set({ uid: u.uid, split: sp, preferenceId: pref.id, status: "iniciado", iniciadoEm: FieldValue.serverTimestamp() }, { merge: true });
@@ -406,6 +394,7 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     const atual = (await tx.get(ref)).data();
     if (atual.status === "paga" || atual.status === "concluida") return atual.notaId || null;
     const contRef = db.collection("contadores").doc("notas");
+    // Firestore exige TODAS as leituras antes das escritas dentro da transação
     const [cont, ctnt, profPriv, prof] = await Promise.all([
       tx.get(contRef),
       tx.get(db.collection("contratantes").doc(atual.uid)),
@@ -418,7 +407,7 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     const nRef = db.collection("notas").doc();
     tx.set(nRef, {
       numero: proximo, numeroFmt: String(proximo).padStart(6, "0"), serie: "A1", tipo: "nota_servico_plataforma", fiscal: { nfse: null },
-      solicitacaoId: sid, contratanteUid: atual.uid,
+      solicitacaoId: sid, contratanteUid: atual.uid,                      // só a loja lê a nota; nada de repasse/comissão aqui
       tomador: { razaoSocial: c.razaoSocial || atual.loja, documento: c.documento || "", endereco: c.endereco || atual.loja, email: c.email || "" },
       prestador: { nome: p.nome || atual.promotorNome || "", documento: pp.cpf || "" },
       servico: { descricao: `Reposição/abastecimento — ${atual.foco}`, loja: atual.loja, data: atual.data, horario: atual.horario },
@@ -497,6 +486,7 @@ app.post("/confirmarPagamento", envelope(async (req, res) => {
   res.json(await processarPagamento(String(solicitacaoId), String(paymentId)));
 }));
 
+/** SANDBOX: aprova um pagamento fictício, sem tocar no Mercado Pago. Gera nota normalmente. */
 app.post("/teste/pagar", envelope(async (req, res) => {
   const u = await usuario(req); exigirTeste(u);
   const { solicitacaoId } = req.body || {};
@@ -509,7 +499,7 @@ app.post("/teste/pagar", envelope(async (req, res) => {
 }));
 
 // ============================================================
-// SITE ESTÁTICO
+// SITE ESTÁTICO (o Render serve o front junto) — sem expor código do servidor
 // ============================================================
 const RAIZ = path.join(__dirname, "..");
 app.use((req, res, next) => {
@@ -518,69 +508,13 @@ app.use((req, res, next) => {
 });
 app.use(express.static(RAIZ, { dotfiles: "ignore" }));
 
+// Rotas de API inexistentes respondem JSON (o front mostra mensagem clara em vez de "Not Found")
 app.use((req, res) => {
   if (req.method !== "GET" || /^\/(mp|criar|aceitar|confirmar|webhook|cartao|teste)/.test(req.path)) return res.status(404).json({ erro: `rota não encontrada: ${req.method} ${req.path}`, codigo: "rota-inexistente" });
   res.status(404).send("Not Found");
 });
 
-// ==========================================
-// REGRAS DE NEGÓCIO - ABASTECE JÁ
-// ==========================================
-
-// 1. Regra de Gamificação de Comissões
-function calcularComissaoGamificada(nivelFreelancer, valorServico) {
-  const taxas = {
-    bronze: 0.20,   // 20%
-    prata: 0.15,    // 15%
-    ouro: 0.12,     // 12%
-    platina: 0.10   // 10%
-  };
-  const taxa = taxas[nivelFreelancer.toLowerCase()] || 0.15;
-  return valorServico * taxa;
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
 }
-
-// 2. Trava da Janela de Exclusividade (5 Minutos)
-function verificarJanelaExclusividade(dataOferta) {
-  const AGORA = new Date();
-  const CINCO_MINUTOS = 5 * 60 * 1000;
-  const tempoDecorrido = AGORA - new Date(dataOferta);
-  return tempoDecorrido <= CINCO_MINUTOS;
-}
-
-// 3. Taxa e Política de Cancelamento
-function aplicarMultaCancelamento(valorServico, solicitadoPor) {
-  // Se o cancelamento for solicitado pelo cliente de última hora, aplica multa de 10%
-  const taxaMulta = 0.10;
-  const valorMulta = valorServico * taxaMulta;
-  return {
-    valorMulta,
-    valorReembolso: valorServico - valorMulta,
-    motivo: `Multa por cancelamento de ${solicitadoPor}`
-  };
-}
-
-// 4. Fluxo de Escrow (Custódia de Pagamento)
-app.post("/escrow/reter", envelope(async (req, res) => {
-  const { solicitacaoId, valor } = req.body;
-  if (!solicitacaoId || !valor) throw new Falha(400, "Dados do escrow incompletos");
-  
-  await db.collection("escrow").doc(String(solicitacaoId)).set({
-    valor,
-    status: "retido",
-    criadoEm: new Date()
-  });
-  
-  res.json({ sucesso: true, mensagem: "Valor retido em escrow com sucesso" });
-}));
-
-app.post("/escrow/liberar", envelope(async (req, res) => {
-  const { solicitacaoId } = req.body;
-  const escrowRef = db.collection("escrow").doc(String(solicitacaoId));
-  const doc = await escrowRef.get();
-  
-  if (!doc.exists) throw new Falha(404, "Escrow não encontrado");
-  
-  await escrowRef.update({ status: "liberado", liberadoEm: new Date() });
-  res.json({ sucesso: true, mensagem: "Pagamento liberado ao prestador" });
-}));
-export { app, finalizarPagamento };; 
+module.exports = { app, finalizarPagamento };
