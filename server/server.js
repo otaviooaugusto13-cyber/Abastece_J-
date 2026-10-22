@@ -517,4 +517,64 @@ app.use((req, res) => {
 if (require.main === module) {
   app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
 }
+// ==========================================
+// REGRAS DE NEGÓCIO - ABASTECE JÁ
+// ==========================================
+
+// 1. Regra de Gamificação de Comissões
+function calcularComissaoGamificada(nivelFreelancer, valorServico) {
+  const taxas = {
+    bronze: 0.20,   // 20%
+    prata: 0.15,    // 15%
+    ouro: 0.12,     // 12%
+    platina: 0.10   // 10%
+  };
+  const taxa = taxas[nivelFreelancer.toLowerCase()] || 0.15;
+  return valorServico * taxa;
+}
+
+// 2. Trava da Janela de Exclusividade (5 Minutos)
+function verificarJanelaExclusividade(dataOferta) {
+  const AGORA = new Date();
+  const CINCO_MINUTOS = 5 * 60 * 1000;
+  const tempoDecorrido = AGORA - new Date(dataOferta);
+  return tempoDecorrido <= CINCO_MINUTOS;
+}
+
+// 3. Taxa e Política de Cancelamento
+function aplicarMultaCancelamento(valorServico, solicitadoPor) {
+  // Se o cancelamento for solicitado pelo cliente de última hora, aplica multa de 10%
+  const taxaMulta = 0.10;
+  const valorMulta = valorServico * taxaMulta;
+  return {
+    valorMulta,
+    valorReembolso: valorServico - valorMulta,
+    motivo: `Multa por cancelamento de ${solicitadoPor}`
+  };
+}
+
+// 4. Fluxo de Escrow (Custódia de Pagamento)
+app.post("/escrow/reter", envelope(async (req, res) => {
+  const { solicitacaoId, valor } = req.body;
+  if (!solicitacaoId || !valor) throw new Falha(400, "Dados do escrow incompletos");
+  
+  await db.collection("escrow").doc(String(solicitacaoId)).set({
+    valor,
+    status: "retido",
+    criadoEm: new Date()
+  });
+  
+  res.json({ sucesso: true, mensagem: "Valor retido em escrow com sucesso" });
+}));
+
+app.post("/escrow/liberar", envelope(async (req, res) => {
+  const { solicitacaoId } = req.body;
+  const escrowRef = db.collection("escrow").doc(String(solicitacaoId));
+  const doc = await escrowRef.get();
+  
+  if (!doc.exists) throw new Falha(404, "Escrow não encontrado");
+  
+  await escrowRef.update({ status: "liberado", liberadoEm: new Date() });
+  res.json({ sucesso: true, mensagem: "Pagamento liberado ao prestador" });
+}));
 module.exports = { app, finalizarPagamento };
