@@ -76,21 +76,9 @@ const appUrl = () => (APP_URL || "").replace(/\/$/, "");
 const urlPublicaHttps = (u) => /^https:\/\/[^/\s]+\.[^/\s]+/.test(u) && !/localhost|127\.0\.0\.1/.test(u);
 const reais = (c) => Number((c / 100).toFixed(2));
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-const agoraSP = () => new Date().toLocaleTimeString("sv-SE", { timeZone: "America/Sao_Paulo", hour12: false }).slice(0, 5);
 
 class Falha extends Error {
   constructor(status, msg, codigo, detalhe) { super(msg); this.status = status; this.codigo = codigo; this.detalhe = detalhe; }
-}
-
-// ---------- Gamificação de Comissões por Nível ----------
-function calcularComissaoPorNivel(nivel, precoCentavos) {
-  switch (String(nivel || "").toLowerCase()) {
-    case 'bronze':  return Math.round(precoCentavos * 0.15);
-    case 'prata':   return Math.round(precoCentavos * 0.12);
-    case 'ouro':    return Math.round(precoCentavos * 0.10);
-    case 'platina': return Math.round(precoCentavos * 0.08);
-    default:        return Math.round(precoCentavos * 0.15);
-  }
 }
 
 // ---------- Autenticação ----------
@@ -287,7 +275,6 @@ app.post("/criarPedido", envelope(async (req, res) => {
     status: "aberta", criadoEm: FieldValue.serverTimestamp()
   };
   
-  // Janela de Exclusividade (5 minutos se houver promotor preferido)
   if (b.promotorPreferido) {
     pedido.promotorPreferido = String(b.promotorPreferido).slice(0, 80);
     pedido.exclusivoAte = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000);
@@ -322,7 +309,6 @@ app.post("/aceitarTurno", envelope(async (req, res) => {
     if (s.status !== "aberta") throw new Falha(409, "Turno indisponível ou já aceito.", "turno-indisponivel");
     if (s.data < hojeSP()) throw new Falha(409, "Este turno já passou.", "turno-indisponivel");
 
-    // Validação da Janela de Exclusividade
     if (s.exclusivoAte && s.exclusivoAte.toMillis() > Date.now()) {
       if (s.promotorPreferido && s.promotorPreferido !== u.uid && s.promotorPreferido !== p.nome) {
         throw new Falha(403, "Este turno está sob janela de exclusividade para outro profissional.", "exclusivo");
