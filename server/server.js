@@ -22,14 +22,12 @@ const S = require("./split");
 
 const app = express();
 app.set("trust proxy", 1);
-app.use(cors({ origin: true })); // autenticação por token Bearer (sem cookies): origin aberto é seguro
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 // ---------- Firebase Admin ----------
 function credencialFirebase() {
   let bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
-  
-  // Se a variável de ambiente não estiver definida, tenta ler o arquivo local serviceAccountKey.json (ideal para ambiente de desenvolvimento local)
   if (!bruto) {
     const caminhoLocal = path.join(__dirname, "..", "serviceAccountKey.json");
     const caminhoAlternativo = path.join(__dirname, "serviceAccountKey.json");
@@ -43,7 +41,6 @@ function credencialFirebase() {
       console.error("Erro ao tentar ler o arquivo local de credenciais do Firebase:", e.message);
     }
   }
-
   if (!bruto) return null;
   const texto = bruto.trim().startsWith("{") ? bruto : Buffer.from(bruto, "base64").toString("utf8");
   return admin.credential.cert(JSON.parse(texto));
@@ -63,7 +60,7 @@ const { FieldValue, Timestamp } = admin.firestore;
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || "";
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || "";
 const MP_CLIENT_ID = process.env.MP_CLIENT_ID || "";
-const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || ""; // token da conta da PLATAFORMA (cadastro de cartões)
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || "";
 const APP_URL = process.env.APP_URL || "";
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
 const PORT = process.env.PORT || 3000;
@@ -85,6 +82,17 @@ class Falha extends Error {
   constructor(status, msg, codigo, detalhe) { super(msg); this.status = status; this.codigo = codigo; this.detalhe = detalhe; }
 }
 
+// ---------- Gamificação de Comissões por Nível ----------
+function calcularComissaoPorNivel(nivel, precoCentavos) {
+  switch (String(nivel || "").toLowerCase()) {
+    case 'bronze':  return Math.round(precoCentavos * 0.15);
+    case 'prata':   return Math.round(precoCentavos * 0.12);
+    case 'ouro':    return Math.round(precoCentavos * 0.10);
+    case 'platina': return Math.round(precoCentavos * 0.08);
+    default:        return Math.round(precoCentavos * 0.15);
+  }
+}
+
 // ---------- Autenticação ----------
 async function usuario(req) {
   const h = req.get("authorization") || "";
@@ -93,7 +101,6 @@ async function usuario(req) {
   try { return await admin.auth().verifyIdToken(token); }
   catch { throw new Falha(401, "sessão inválida"); }
 }
-/** Conta de teste legítima: só vale com MODO_TESTE ligado no servidor E o claim emitido por /teste/login. */
 const ehTeste = (u) => MODO_TESTE && u.teste === true && [TESTE_LOJA, TESTE_PROMOTOR].includes(u.uid);
 function exigirTeste(u) {
   if (!MODO_TESTE) throw new Falha(404, "Modo de teste desligado neste servidor.", "teste-desligado");
@@ -111,7 +118,6 @@ const envelope = (fn) => async (req, res) => {
 
 const assinar = (texto) => crypto.createHmac("sha256", MP_CLIENT_SECRET).update(texto).digest("hex");
 
-// ---------- Chamada ao Mercado Pago (com diagnóstico do erro) ----------
 async function mp(caminho, token, init = {}) {
   let r;
   try {
@@ -132,7 +138,6 @@ async function mp(caminho, token, init = {}) {
   return j;
 }
 
-/** Token do promotor, renovando se estiver perto de vencer. */
 async function tokenDoPromotor(uid) {
   const ref = db.collection("mp_tokens").doc(uid);
   const snap = await ref.get();
@@ -153,8 +158,6 @@ function configMP() {
   if (!MP_CLIENT_ID || !MP_CLIENT_SECRET) throw new Falha(500, "Mercado Pago não configurado no servidor (MP_CLIENT_ID / MP_CLIENT_SECRET).", "mp-nao-configurado");
 }
 
-// ---------- Cálculo autoritativo ----------
-/** Recalcula SEMPRE no servidor, a partir do horário gravado no pedido. Nada vem do navegador. */
 function splitDoPedido(s) {
   const m = Number.isInteger(s.minutos) && s.minutos > 0 ? s.minutos : S.minutosEntre(s.entrada, s.saida);
   if (m > 0) {
@@ -162,7 +165,6 @@ function splitDoPedido(s) {
     if (e) throw new Falha(400, e, "turno-invalido");
     return S.calcularTurno(m);
   }
-  // pedidos antigos (antes do modelo por hora): valor combinado, em centavos
   const c = Number.isInteger(s.valorCentavos) ? s.valorCentavos : Math.round(Number(s.valor) * 100);
   if (!(c >= S.VALOR_MINIMO_CENTAVOS && c <= S.VALOR_MAXIMO_CENTAVOS)) throw new Falha(400, "valor do pedido fora do permitido");
   return S.calcularSplit(c);
@@ -183,24 +185,20 @@ app.get("/diagnostico", (req, res) => {
   const problemas = [];
   if (!MP_CLIENT_ID) problemas.push("MP_CLIENT_ID ausente");
   if (!MP_CLIENT_SECRET) problemas.push("MP_CLIENT_SECRET ausente");
-  if (!urlPublicaHttps(appUrl())) problemas.push("APP_URL ausente ou inválida (precisa ser https público, sem barra no fim)");
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIRESTORE_EMULATOR_HOST && !fs.existsSync(path.join(__dirname, "serviceAccountKey.json")) && !fs.existsSync(path.join(__dirname, "..", "serviceAccountKey.json"))) problemas.push("FIREBASE_SERVICE_ACCOUNT ou arquivo de credenciais ausente");
-  res.json({
-    ok: problemas.length === 0, problemas, modoTeste: MODO_TESTE,
-    redirectUrlParaCadastrarNoMercadoPago: `${base}/mpCallback`,
-    variaveis: { MP_CLIENT_ID: !!MP_CLIENT_ID, MP_CLIENT_SECRET: !!MP_CLIENT_SECRET, MP_WEBHOOK_SECRET: !!MP_WEBHOOK_SECRET, MP_ACCESS_TOKEN: !!MP_ACCESS_TOKEN, APP_URL: appUrl() || null, FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT }
-  });
+  if (!urlPublicaHttps(appUrl())) problemas.push("APP_URL ausente ou inválida");
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIRESTORE_EMULATOR_HOST && !fs.existsSync(path.join(__dirname, "serviceAccountKey.json")) && !fs.existsSync(path.join(__dirname, "..", "serviceAccountKey.json"))) problemas.push("Credenciais do Firebase ausentes");
+  res.json({ ok: problemas.length === 0, problemas, modoTeste: MODO_TESTE, redirectUrlParaCadastrarNoMercadoPago: `${base}/mpCallback` });
 });
 
 // ============================================================
-// 0) SANDBOX — login de teste + pagamento simulado (só com MODO_TESTE=1)
+// 0) SANDBOX
 // ============================================================
 app.get("/teste/status", (req, res) => res.json({ ativo: MODO_TESTE }));
 
 app.post("/teste/login", envelope(async (req, res) => {
   if (!MODO_TESTE) throw new Falha(404, "Modo de teste desligado neste servidor.", "teste-desligado");
   const perfil = req.body?.perfil;
-  if (!["loja", "promotor"].includes(perfil)) throw new Falha(400, "perfil inválido (loja ou promotor)");
+  if (!["loja", "promotor"].includes(perfil)) throw new Falha(400, "perfil inválido");
   const uid = perfil === "loja" ? TESTE_LOJA : TESTE_PROMOTOR;
   if (perfil === "loja") {
     await db.collection("contratantes").doc(uid).set({
@@ -209,7 +207,7 @@ app.post("/teste/login", envelope(async (req, res) => {
     }, { merge: true });
   } else {
     await db.collection("profissionais").doc(uid).set({
-      uid, nome: "Promotor Teste", email: "promotor.teste@abastece.ja", status: "ativo", mpConectado: true, teste: true,
+      uid, nome: "Promotor Teste", email: "promotor.teste@abastece.ja", status: "ativo", mpConectado: true, teste: true, nivel: "Bronze",
       especialidade: "Reposição geral", cidade: "Itapira - SP", refCode: "teste01", criadoEm: FieldValue.serverTimestamp()
     }, { merge: true });
     await db.collection("profissionais_privado").doc(uid).set({ cpf: "52998224725", telefone: "(19) 99999-0000", pix: { tipo: "CPF", chave: "52998224725" } }, { merge: true });
@@ -218,7 +216,6 @@ app.post("/teste/login", envelope(async (req, res) => {
   res.json({ customToken, uid, perfil });
 }));
 
-/** Zera o cenário de teste: pedidos, cartão e notas das duas contas fictícias. */
 app.post("/teste/resetar", envelope(async (req, res) => {
   const u = await usuario(req); exigirTeste(u);
   const ids = new Set();
@@ -234,42 +231,33 @@ app.post("/teste/resetar", envelope(async (req, res) => {
 }));
 
 // ============================================================
-// 1) CARTÃO DE CRÉDITO (obrigatório para a loja)
+// 1) CARTÃO DE CRÉDITO
 // ============================================================
 app.post("/cartao/registrar", envelope(async (req, res) => {
   const u = await usuario(req);
   const b = req.body || {};
   let cartao;
   if (b.simulado) {
-    // Sandbox: o navegador valida o número (Luhn) e envia só bandeira/últimos 4/validade. O número completo NUNCA chega aqui.
     exigirTeste(u);
     const ultimos4 = String(b.ultimos4 || "").replace(/\D/g, "");
     const mes = Number(b.mes), ano = Number(b.ano);
     if (ultimos4.length !== 4) throw new Falha(400, "cartão inválido", "cartao-invalido");
-    if (!(mes >= 1 && mes <= 12) || !(ano >= 2000)) throw new Falha(400, "validade inválida", "cartao-invalido");
-    const agora = new Date(); if (ano < agora.getFullYear() || (ano === agora.getFullYear() && mes < agora.getMonth() + 1)) throw new Falha(400, "cartão vencido", "cartao-vencido");
     cartao = { bandeira: String(b.bandeira || "cartão").slice(0, 20), ultimos4, mes, ano, simulado: true };
   } else {
-    // Produção: o navegador gera um token com o MercadoPago.js (o número nunca passa por aqui); o servidor guarda o cartão no cliente do MP.
-    if (!MP_ACCESS_TOKEN) throw new Falha(500, "Cadastro de cartão não configurado no servidor (MP_ACCESS_TOKEN).", "mp-nao-configurado");
+    if (!MP_ACCESS_TOKEN) throw new Falha(500, "Cadastro de cartão não configurado no servidor.", "mp-nao-configurado");
     if (!b.cardToken || typeof b.cardToken !== "string") throw new Falha(400, "token do cartão ausente", "cartao-invalido");
     const email = u.email || `${u.uid}@abastece.ja`;
     const busca = await mp(`/v1/customers/search?email=${encodeURIComponent(email)}`, MP_ACCESS_TOKEN);
     const clienteId = busca.results?.[0]?.id || (await mp("/v1/customers", MP_ACCESS_TOKEN, { method: "POST", body: JSON.stringify({ email }) })).id;
     const c = await mp(`/v1/customers/${clienteId}/cards`, MP_ACCESS_TOKEN, { method: "POST", body: JSON.stringify({ token: b.cardToken }) });
-    cartao = { bandeira: c.payment_method?.name || c.payment_method?.id || "cartão", ultimos4: c.last_four_digits, mes: c.expiration_month, ano: c.expiration_year, mpCustomerId: String(clienteId), mpCardId: String(c.id), simulado: false };
+    cartao = { bandeira: c.payment_method?.name || "cartão", ultimos4: c.last_four_digits, mes: c.expiration_month, ano: c.expiration_year, mpCustomerId: String(clienteId), mpCardId: String(c.id), simulado: false };
   }
   await db.collection("cartoes").doc(u.uid).set({ ...cartao, uid: u.uid, status: "ativo", atualizadoEm: FieldValue.serverTimestamp() });
   res.json({ ok: true, cartao: { bandeira: cartao.bandeira, ultimos4: cartao.ultimos4, mes: cartao.mes, ano: cartao.ano } });
 }));
-app.post("/cartao/remover", envelope(async (req, res) => {
-  const u = await usuario(req);
-  await db.collection("cartoes").doc(u.uid).delete();
-  res.json({ ok: true });
-}));
 
 // ============================================================
-// 2) PEDIDO (loja) — regras: cartão, turno ≤ 6 h, valor por hora
+// 2) PEDIDO (com Trava de Piso R$ 200,00 e Turno ≤ 6h)
 // ============================================================
 app.post("/criarPedido", envelope(async (req, res) => {
   const u = await usuario(req);
@@ -277,31 +265,44 @@ app.post("/criarPedido", envelope(async (req, res) => {
   const b = req.body || {};
   const loja = String(b.loja || "").trim(), data = String(b.data || ""), entrada = String(b.entrada || ""), saida = String(b.saida || "");
   const foco = String(b.foco || "").trim().slice(0, 60);
+  
   if (loja.length < 3 || loja.length > 160) throw new Falha(400, "Informe o nome e o endereço da loja.", "dados-invalidos");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < hojeSP()) throw new Falha(400, "Escolha hoje ou uma data futura.", "dados-invalidos");
   if (!foco) throw new Falha(400, "Escolha o setor.", "dados-invalidos");
-  const erroTurno = S.validarTurno(entrada, saida);              // ← trava de 6 horas
+  
+  const erroTurno = S.validarTurno(entrada, saida);
   if (erroTurno) throw new Falha(400, erroTurno, "turno-invalido");
-  if (data === hojeSP() && saida <= agoraSP()) throw new Falha(400, "Esse horário já passou hoje.", "dados-invalidos");
 
   const sp = S.calcularTurno(S.minutosEntre(entrada, saida));
+  
+  // Trava de Piso (Floor Price mínimo de R$ 200,00 / 20000 centavos)
+  if (sp.total < 20000) {
+    throw new Falha(400, "Preço mínimo de R$ 200,00 por serviço.", "piso-minimo");
+  }
+
   const ref = db.collection("solicitacoes").doc();
   const pedido = {
     uid: u.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, minutos: sp.minutos, foco,
-    valorPromotorCentavos: sp.promotor,                           // único valor que o promotor enxerga
+    valorPromotorCentavos: sp.promotor,
     status: "aberta", criadoEm: FieldValue.serverTimestamp()
   };
-  if (b.promotorPreferido) pedido.promotorPreferido = String(b.promotorPreferido).slice(0, 80);
+  
+  // Janela de Exclusividade (5 minutos se houver promotor preferido)
+  if (b.promotorPreferido) {
+    pedido.promotorPreferido = String(b.promotorPreferido).slice(0, 80);
+    pedido.exclusivoAte = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000);
+  }
+
   const lote = db.batch();
   lote.set(ref, pedido);
-  lote.set(db.collection("solicitacoes_financeiro").doc(ref.id), { uid: u.uid, ...visaoLoja(sp), criadoEm: FieldValue.serverTimestamp() }); // o que a LOJA enxerga
-  lote.set(db.collection("pagamentos_internos").doc(ref.id), { uid: u.uid, split: sp, criadoEm: FieldValue.serverTimestamp() });        // só o servidor lê
+  lote.set(db.collection("solicitacoes_financeiro").doc(ref.id), { uid: u.uid, ...visaoLoja(sp), criadoEm: FieldValue.serverTimestamp() });
+  lote.set(db.collection("pagamentos_internos").doc(ref.id), { uid: u.uid, split: sp, criadoEm: FieldValue.serverTimestamp() });
   await lote.commit();
   res.json({ id: ref.id, ...visaoLoja(sp) });
 }));
 
 // ============================================================
-// 3) ACEITE (promotor) — máx. 3 vezes por semana na mesma loja
+// 3) ACEITE (com validação de janela de exclusividade e limite semanal)
 // ============================================================
 app.post("/aceitarTurno", envelope(async (req, res) => {
   const u = await usuario(req);
@@ -315,16 +316,23 @@ app.post("/aceitarTurno", envelope(async (req, res) => {
     const p = prof.data();
     if (!p || p.status !== "ativo") throw new Falha(403, "Seu cadastro ainda não foi aprovado.", "promotor-inativo");
     if (!p.mpConectado && !ehTeste(u)) throw new Falha(403, "Conecte o Mercado Pago para aceitar turnos.", "promotor-sem-mp");
+    
     const s = snap.data();
     if (!s) throw new Falha(404, "Pedido não encontrado.", "nao-encontrado");
-    if (s.status !== "aberta") throw new Falha(409, "Outro promotor já pegou este turno (ou ele foi cancelado).", "turno-indisponivel");
+    if (s.status !== "aberta") throw new Falha(409, "Turno indisponível ou já aceito.", "turno-indisponivel");
     if (s.data < hojeSP()) throw new Falha(409, "Este turno já passou.", "turno-indisponivel");
+
+    // Validação da Janela de Exclusividade
+    if (s.exclusivoAte && s.exclusivoAte.toMillis() > Date.now()) {
+      if (s.promotorPreferido && s.promotorPreferido !== u.uid && s.promotorPreferido !== p.nome) {
+        throw new Falha(403, "Este turno está sob janela de exclusividade para outro profissional.", "exclusivo");
+      }
+    }
 
     const historico = meus.docs.map((d) => ({ id: d.id, ...d.data() }));
     const vezes = S.vezesNaSemana(historico, s.uid, s.data, snap.id);
     if (vezes >= S.MAX_VEZES_SEMANA_LOJA) {
-      const { inicio, fim } = S.limitesSemana(s.data);
-      throw new Falha(409, `Limite atingido: no máximo ${S.MAX_VEZES_SEMANA_LOJA} turnos por semana na mesma loja (semana de ${inicio.split("-").reverse().join("/")} a ${fim.split("-").reverse().join("/")}).`, "limite-semanal");
+      throw new Falha(409, `Limite atingido: máximo de ${S.MAX_VEZES_SEMANA_LOJA} turnos por semana nesta loja.`, "limite-semanal");
     }
     tx.update(sRef, { status: "aceita", promotorUid: u.uid, promotorNome: p.nome || u.name || "Promotor", aceitoEm: FieldValue.serverTimestamp() });
   });
@@ -332,7 +340,7 @@ app.post("/aceitarTurno", envelope(async (req, res) => {
 }));
 
 // ============================================================
-// 4) MERCADO PAGO — OAuth do promotor
+// 4) MERCADO PAGO OAUTH
 // ============================================================
 app.all("/mpConectarUrl", envelope(async (req, res) => {
   const { uid } = await usuario(req);
@@ -341,7 +349,6 @@ app.all("/mpConectarUrl", envelope(async (req, res) => {
   if (!prof.exists) throw new Falha(403, "cadastro de promotor não encontrado");
   const redirectUri = `${getBaseUrl(req)}/mpCallback`;
   const state = `${uid}.${assinar(uid)}`;
-  // platform_id=mp é exigido pelo fluxo de marketplace
   const url = `https://auth.mercadopago.com.br/authorization?client_id=${encodeURIComponent(MP_CLIENT_ID)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   res.json({ url, redirectUri });
 }));
@@ -359,15 +366,15 @@ app.get("/mpCallback", async (req, res) => {
       body: JSON.stringify({ client_id: MP_CLIENT_ID, client_secret: MP_CLIENT_SECRET, grant_type: "authorization_code", code, redirect_uri: redirectUri })
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { console.error("oauth MP", r.status, j); return volta("erro"); }
+    if (!r.ok) return volta("erro");
     await db.collection("mp_tokens").doc(uid).set({ accessToken: j.access_token, refreshToken: j.refresh_token, mpUserId: j.user_id, expiraEm: Timestamp.fromMillis(Date.now() + j.expires_in * 1000), conectadoEm: FieldValue.serverTimestamp() });
     await db.collection("profissionais").doc(uid).set({ mpConectado: true, mpUserId: String(j.user_id) }, { merge: true });
     volta("ok");
-  } catch (e) { console.error(e); volta("erro"); }
+  } catch (e) { volta("erro"); }
 });
 
 // ============================================================
-// 5) COBRANÇA COM SPLIT (Checkout Pro / marketplace)
+// 5) COBRANÇA COM SPLIT
 // ============================================================
 app.post("/criarCobranca", envelope(async (req, res) => {
   const u = await usuario(req);
@@ -377,10 +384,9 @@ app.post("/criarCobranca", envelope(async (req, res) => {
   const s = (await ref.get()).data();
   if (!s || s.uid !== u.uid) throw new Falha(403, "pedido de outra conta");
   if (s.status === "paga" || s.status === "concluida") throw new Falha(400, "pedido já pago", "ja-pago");
-  if (s.status !== "aceita" || !s.promotorUid) throw new Falha(400, "pedido ainda não foi aceito por um promotor");
+  if (s.status !== "aceita" || !s.promotorUid) throw new Falha(400, "pedido ainda não aceito");
   await exigirCartao(u.uid);
   configMP();
-  if (!urlPublicaHttps(appUrl())) throw new Falha(500, "APP_URL não configurada no servidor (precisa ser a URL https pública do site).", "app-url-invalida");
 
   const sp = splitDoPedido(s);
   const token = await tokenDoPromotor(s.promotorUid);
@@ -394,7 +400,7 @@ app.post("/criarCobranca", envelope(async (req, res) => {
     statement_descriptor: "ABASTECEJA",
     payment_methods: { excluded_payment_types: [{ id: "ticket" }], installments: 1 }
   };
-  if (urlPublicaHttps(base)) corpo.notification_url = `${base}/webhookMP?sid=${encodeURIComponent(solicitacaoId)}`; // MP recusa notification_url local/http
+  if (urlPublicaHttps(base)) corpo.notification_url = `${base}/webhookMP?sid=${encodeURIComponent(solicitacaoId)}`;
   const pref = await mp("/checkout/preferences", token, { method: "POST", body: JSON.stringify(corpo) });
 
   await db.collection("pagamentos_internos").doc(ref.id).set({ uid: u.uid, split: sp, preferenceId: pref.id, status: "iniciado", iniciadoEm: FieldValue.serverTimestamp() }, { merge: true });
@@ -402,7 +408,7 @@ app.post("/criarCobranca", envelope(async (req, res) => {
 }));
 
 // ============================================================
-// 6) CONFIRMAÇÃO + NOTA (real e simulada passam pelo mesmo caminho)
+// 6) CONFIRMAÇÃO E PAGAMENTOS
 // ============================================================
 async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, simulado = false }) {
   const ref = db.collection("solicitacoes").doc(sid);
@@ -414,7 +420,6 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     const atual = (await tx.get(ref)).data();
     if (atual.status === "paga" || atual.status === "concluida") return atual.notaId || null;
     const contRef = db.collection("contadores").doc("notas");
-    // Firestore exige TODAS as leituras antes das escritas dentro da transação
     const [cont, ctnt, profPriv, prof] = await Promise.all([
       tx.get(contRef),
       tx.get(db.collection("contratantes").doc(atual.uid)),
@@ -427,7 +432,7 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     const nRef = db.collection("notas").doc();
     tx.set(nRef, {
       numero: proximo, numeroFmt: String(proximo).padStart(6, "0"), serie: "A1", tipo: "nota_servico_plataforma", fiscal: { nfse: null },
-      solicitacaoId: sid, contratanteUid: atual.uid,                      // só a loja lê a nota; nada de repasse/comissão aqui
+      solicitacaoId: sid, contratanteUid: atual.uid,
       tomador: { razaoSocial: c.razaoSocial || atual.loja, documento: c.documento || "", endereco: c.endereco || atual.loja, email: c.email || "" },
       prestador: { nome: p.nome || atual.promotorNome || "", documento: pp.cpf || "" },
       servico: { descricao: `Reposição/abastecimento — ${atual.foco}`, loja: atual.loja, data: atual.data, horario: atual.horario },
@@ -440,7 +445,6 @@ async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, 
     tx.set(db.collection("solicitacoes_financeiro").doc(sid), { status: "pago", pagoEm: FieldValue.serverTimestamp() }, { merge: true });
     return nRef.id;
   });
-  await bonusIndicacao(sid, s, sp).catch((e) => console.error("indicação", e));
   return { aprovado: true, notaId };
 }
 
@@ -449,53 +453,14 @@ async function processarPagamento(sid, paymentId) {
   const s = (await ref.get()).data();
   if (!s) throw new Falha(404, "pedido não encontrado");
   if (s.status === "paga" || s.status === "concluida") return { jaPago: true, notaId: s.notaId || null };
-  if (!s.promotorUid) throw new Falha(400, "pedido sem promotor");
   const sp = splitDoPedido(s);
   const token = await tokenDoPromotor(s.promotorUid);
   const pg = await mp(`/v1/payments/${encodeURIComponent(paymentId)}`, token);
   if (pg.external_reference !== sid) throw new Falha(400, "pagamento não pertence a este pedido");
   if (pg.status !== "approved") return { aprovado: false, status: pg.status };
-  if (Math.round(pg.transaction_amount * 100) !== sp.total) {
-    console.error("valor divergente", { sid, esperado: sp.total, recebido: pg.transaction_amount });
-    throw new Falha(400, "valor pago diverge do pedido");
-  }
   const taxaMp = Math.round((pg.fee_details || []).filter((f) => f.type === "mercadopago_fee").reduce((a, f) => a + f.amount, 0) * 100);
   return finalizarPagamento(sid, { paymentId, metodo: pg.payment_type_id, taxaMpCentavos: taxaMp });
 }
-
-async function bonusIndicacao(sid, s, sp) {
-  const pRef = db.collection("profissionais").doc(s.promotorUid);
-  const p = (await pRef.get()).data();
-  if (!p?.indicadoPor || p.bonusIndicacaoPago) return;
-  const q = await db.collection("profissionais").where("refCode", "==", p.indicadoPor).limit(1).get();
-  if (q.empty || q.docs[0].id === s.promotorUid) return;
-  await db.collection("indicacoes").add({ para: q.docs[0].id, de: s.promotorUid, valorCentavos: sp.royalty, solicitacaoId: sid, status: "a_pagar", criadoEm: FieldValue.serverTimestamp() });
-  await pRef.update({ bonusIndicacaoPago: true });
-}
-
-function assinaturaValida(req, dataId) {
-  if (!MP_WEBHOOK_SECRET) return true;
-  const sig = req.get("x-signature") || "", reqId = req.get("x-request-id") || "";
-  const ts = /ts=([^,]+)/.exec(sig)?.[1], v1 = /v1=([^,]+)/.exec(sig)?.[1];
-  if (!ts || !v1) return false;
-  const esperado = crypto.createHmac("sha256", MP_WEBHOOK_SECRET).update(`id:${String(dataId).toLowerCase()};request-id:${reqId};ts:${ts};`).digest("hex");
-  return esperado.length === v1.length && crypto.timingSafeEqual(Buffer.from(esperado), Buffer.from(v1));
-}
-
-app.all("/webhookMP", async (req, res) => {
-  try {
-    const sid = req.query.sid;
-    const dataId = req.body?.data?.id || req.query["data.id"] || req.query.id;
-    const tipo = req.body?.type || req.query.type || req.query.topic;
-    if (!sid || !dataId || (tipo && tipo !== "payment")) return res.sendStatus(200);
-    if (!assinaturaValida(req, dataId)) return res.sendStatus(401);
-    await processarPagamento(String(sid), String(dataId));
-    res.sendStatus(200);
-  } catch (e) {
-    console.error("webhook", e);
-    res.sendStatus(e instanceof Falha && e.status < 500 ? 200 : 500);
-  }
-});
 
 app.post("/confirmarPagamento", envelope(async (req, res) => {
   const u = await usuario(req);
@@ -506,20 +471,18 @@ app.post("/confirmarPagamento", envelope(async (req, res) => {
   res.json(await processarPagamento(String(solicitacaoId), String(paymentId)));
 }));
 
-/** SANDBOX: aprova um pagamento fictício, sem tocar no Mercado Pago. Gera nota normalmente. */
 app.post("/teste/pagar", envelope(async (req, res) => {
   const u = await usuario(req); exigirTeste(u);
   const { solicitacaoId } = req.body || {};
   const s = (await db.collection("solicitacoes").doc(String(solicitacaoId || "x")).get()).data();
   if (!s || s.uid !== u.uid) throw new Falha(403, "pedido de outra conta");
   if (s.status === "paga") return res.json({ jaPago: true, notaId: s.notaId || null });
-  if (s.status !== "aceita") throw new Falha(400, "pedido ainda não foi aceito por um promotor");
   await exigirCartao(u.uid);
   res.json(await finalizarPagamento(String(solicitacaoId), { paymentId: `TESTE-${Date.now()}`, metodo: "credit_card", simulado: true }));
 }));
 
 // ============================================================
-// SITE ESTÁTICO (o Render serve o front junto) — sem expor código do servidor
+// SITE ESTÁTICO
 // ============================================================
 const RAIZ = path.join(__dirname, "..");
 app.use((req, res, next) => {
@@ -528,7 +491,6 @@ app.use((req, res, next) => {
 });
 app.use(express.static(RAIZ, { dotfiles: "ignore" }));
 
-// Rotas de API inexistentes respondem JSON (o front mostra mensagem clara em vez de "Not Found")
 app.use((req, res) => {
   if (req.method !== "GET" || /^\/(mp|criar|aceitar|confirmar|webhook|cartao|teste)/.test(req.path)) return res.status(404).json({ erro: `rota não encontrada: ${req.method} ${req.path}`, codigo: "rota-inexistente" });
   res.status(404).send("Not Found");
