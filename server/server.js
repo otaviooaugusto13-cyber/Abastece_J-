@@ -17,6 +17,7 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const path = require("path");
+const fs = require("fs");
 const S = require("./split");
 
 const app = express();
@@ -26,14 +27,33 @@ app.use(express.json());
 
 // ---------- Firebase Admin ----------
 function credencialFirebase() {
-  const bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
+  
+  // Se a variável de ambiente não estiver definida, tenta ler o arquivo local serviceAccountKey.json (ideal para ambiente de desenvolvimento local)
+  if (!bruto) {
+    const caminhoLocal = path.join(__dirname, "..", "serviceAccountKey.json");
+    const caminhoAlternativo = path.join(__dirname, "serviceAccountKey.json");
+    try {
+      if (fs.existsSync(caminhoLocal)) {
+        bruto = fs.readFileSync(caminhoLocal, "utf8");
+      } else if (fs.existsSync(caminhoAlternativo)) {
+        bruto = fs.readFileSync(caminhoAlternativo, "utf8");
+      }
+    } catch (e) {
+      console.error("Erro ao tentar ler o arquivo local de credenciais do Firebase:", e.message);
+    }
+  }
+
   if (!bruto) return null;
   const texto = bruto.trim().startsWith("{") ? bruto : Buffer.from(bruto, "base64").toString("utf8");
   return admin.credential.cert(JSON.parse(texto));
 }
+
 if (!admin.apps.length) {
   const credential = credencialFirebase();
-  if (!credential && !process.env.FIRESTORE_EMULATOR_HOST) console.error("⚠️  FIREBASE_SERVICE_ACCOUNT não definida: o acesso ao Firestore vai falhar.");
+  if (!credential && !process.env.FIRESTORE_EMULATOR_HOST) {
+    console.error("⚠️  FIREBASE_SERVICE_ACCOUNT não definida e nenhum arquivo serviceAccountKey.json foi encontrado: o acesso ao Firestore vai falhar.");
+  }
   admin.initializeApp({ ...(credential ? { credential } : {}), projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || "abastece-ja-240d5" });
 }
 const db = admin.firestore();
@@ -164,7 +184,7 @@ app.get("/diagnostico", (req, res) => {
   if (!MP_CLIENT_ID) problemas.push("MP_CLIENT_ID ausente");
   if (!MP_CLIENT_SECRET) problemas.push("MP_CLIENT_SECRET ausente");
   if (!urlPublicaHttps(appUrl())) problemas.push("APP_URL ausente ou inválida (precisa ser https público, sem barra no fim)");
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIRESTORE_EMULATOR_HOST) problemas.push("FIREBASE_SERVICE_ACCOUNT ausente");
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIRESTORE_EMULATOR_HOST && !fs.existsSync(path.join(__dirname, "serviceAccountKey.json")) && !fs.existsSync(path.join(__dirname, "..", "serviceAccountKey.json"))) problemas.push("FIREBASE_SERVICE_ACCOUNT ou arquivo de credenciais ausente");
   res.json({
     ok: problemas.length === 0, problemas, modoTeste: MODO_TESTE,
     redirectUrlParaCadastrarNoMercadoPago: `${base}/mpCallback`,
@@ -321,7 +341,7 @@ app.all("/mpConectarUrl", envelope(async (req, res) => {
   if (!prof.exists) throw new Falha(403, "cadastro de promotor não encontrado");
   const redirectUri = `${getBaseUrl(req)}/mpCallback`;
   const state = `${uid}.${assinar(uid)}`;
-  // platform_id=mp é exigido pelo fluxo de marketplace (estava faltando nesta versão do servidor)
+  // platform_id=mp é exigido pelo fluxo de marketplace
   const url = `https://auth.mercadopago.com.br/authorization?client_id=${encodeURIComponent(MP_CLIENT_ID)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   res.json({ url, redirectUri });
 }));
