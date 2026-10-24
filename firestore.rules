@@ -1,98 +1,75 @@
 rules_version = '2';
-// Regras de segurança do Abastece Já.
-// Princípio: o navegador NUNCA escreve dinheiro (status "paga", nota, split, tokens). Só as Cloud Functions.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function logado() { return request.auth != null; }
-    function dono(uid) { return logado() && request.auth.uid == uid; }
-    function promotorAtivo() {
-      return logado() && exists(/databases/$(database)/documents/profissionais/$(request.auth.uid))
-        && get(/databases/$(database)/documents/profissionais/$(request.auth.uid)).data.status == 'ativo';
+    // --- Funções Auxiliares de Autenticação e Perfil ---
+    function isAuthenticated() {
+      return request.auth != null;
     }
-    // Só quem já conectou o Mercado Pago pode aceitar turnos (senão a loja não conseguiria pagar).
-    function promotorPronto() {
-      return promotorAtivo()
-        && get(/databases/$(database)/documents/profissionais/$(request.auth.uid)).data.get('mpConectado', false) == true;
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
-    function soMudou(campos) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos); }
 
-    // ---------- Pedidos ----------
-    match /solicitacoes/{id} {
-      allow read: if logado() && (
-        resource.data.uid == request.auth.uid ||
-        resource.data.get('promotorUid', '') == request.auth.uid ||
-        (resource.data.status == 'aberta' && promotorAtivo()));
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
 
-      // Criação e ACEITE só pelo servidor (Render): ele exige cartão, trava turnos > 6 h, calcula os valores
-      // e limita a 3 turnos/semana do mesmo promotor na mesma loja. O navegador não escreve pedido novo.
-      allow create: if false;
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
 
-      allow update: if logado() && (
-        // promotor desiste antes do serviço: o pedido volta para a fila
-        (resource.data.status == 'aceita' && resource.data.get('promotorUid','') == request.auth.uid
-          && request.resource.data.status == 'aberta' && !('promotorUid' in request.resource.data)
-          && soMudou(['status','promotorUid','promotorNome','aceitoEm']))
-        // loja cancela enquanto não pagou
-        || (resource.data.uid == request.auth.uid && resource.data.status in ['aberta','aceita']
-          && request.resource.data.status == 'cancelada' && soMudou(['status','canceladoEm']))
-        // loja avalia o promotor uma única vez, depois de pagar
-        || (resource.data.uid == request.auth.uid && resource.data.status == 'paga' && !('avaliacao' in resource.data)
-          && soMudou(['avaliacao']) && request.resource.data.avaliacao.estrelas is int
-          && request.resource.data.avaliacao.estrelas >= 1 && request.resource.data.avaliacao.estrelas <= 5)
+    // --- Coleção: Usuários (Lojas e Promotores/Repositores) ---
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // O usuário pode criar/atualizar seu próprio documento, mas sem alterar privilégios administrativos
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // --- Coleção: Vagas / Demandas ---
+    match /vagas/{vagaId} {
+      // Leitura pública para usuários autenticados na plataforma
+      allow read: if isAuthenticated();
+      
+      // Criação permitida apenas para perfis de contratantes (loja)
+      allow create: if hasRole('loja') && request.resource.data.lojaId == request.auth.uid;
+      
+      // Edição/Exclusão apenas pelo proprietário da vaga
+      allow update, delete: if hasRole('loja') && resource.data.lojaId == request.auth.uid;
+    }
+
+    // --- Coleção: Propostas / Candidaturas ---
+    match /propostas/{propostaId} {
+      // Apenas a loja dona da vaga ou o promotor candidato podem ler
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.promotorId || 
+        request.auth.uid == resource.data.lojaId
       );
-      allow delete: if false;
 
-      // Chat do pedido: só as duas partes
-      match /mensagens/{mid} {
-        function parte() {
-          let s = get(/databases/$(database)/documents/solicitacoes/$(id)).data;
-          return logado() && (s.uid == request.auth.uid || s.get('promotorUid','') == request.auth.uid);
-        }
-        allow read: if parte();
-        allow create: if parte() && request.resource.data.de == request.auth.uid
-          && request.resource.data.keys().hasOnly(['de','texto','criadoEm'])
-          && request.resource.data.texto is string && request.resource.data.texto.size() > 0 && request.resource.data.texto.size() <= 500;
-        allow update, delete: if false;
-      }
-    }
+      // Promotores podem enviar candidaturas
+      allow create: if hasRole('promotor') && request.resource.data.promotorId == request.auth.uid;
 
-    // ---------- Notas (somente leitura, e só para a LOJA: o promotor não vê o total pago) ----------
-    match /notas/{id} {
-      allow read: if logado() && resource.data.contratanteUid == request.auth.uid;
-      allow write: if false;
-    }
-
-    // ---------- Valores que a LOJA enxerga (valor + taxa fixa + total). Nunca repasse/royalty. ----------
-    match /solicitacoes_financeiro/{id} {
-      allow read: if logado() && resource.data.uid == request.auth.uid;
-      allow write: if false;
-    }
-    // Cartão cadastrado (bandeira/últimos 4/validade): a loja lê; só o servidor grava.
-    match /cartoes/{uid} { allow read: if dono(uid); allow write: if false; }
-    // pagamentos_internos (split completo): ninguém no navegador — cai na regra final.
-
-    // ---------- Lojas / contratantes ----------
-    match /contratantes/{uid} { allow read, write: if dono(uid); }
-
-    // ---------- Promotores ----------
-    // Perfil "público" (a loja vê nome, nota, especialidade). Nada sensível aqui.
-    match /profissionais/{uid} {
-      allow read: if logado();
-      allow create: if dono(uid) && request.resource.data.status == 'pendente'
-        && request.resource.data.keys().hasOnly(['nome','email','uid','status','indicadoPor','criadoEm','fotoGoogle','especialidade']);
-      allow update: if dono(uid) && soMudou(['nome','especialidade','bio','cidade','valorMin','disponibilidade','fotoGoogle','refCode','atualizadoEm'])
-        && (!('refCode' in resource.data) || request.resource.data.get('refCode','') == resource.data.refCode);
+      // Atualizações de status da proposta pelas partes envolvidas
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.promotorId || 
+        request.auth.uid == resource.data.lojaId
+      );
+      
       allow delete: if false;
     }
-    // Dados sensíveis do promotor: CPF, banco, Pix, telefone. Só ele lê.
-    match /profissionais_privado/{uid} { allow read, write: if dono(uid); }
 
-    // Credenciais do Mercado Pago, contadores: ninguém no navegador.
-    match /mp_tokens/{uid}  { allow read, write: if false; }
-    match /contadores/{id}  { allow read, write: if false; }
-    match /indicacoes/{id}  { allow read: if logado() && resource.data.para == request.auth.uid; allow write: if false; }
-
-    match /{outro=**} { allow read, write: if false; }
+    // --- Coleção: Transações e Pagamentos ---
+    match /transacoes/{transacaoId} {
+      // Leitura restrita às partes envolvidas na transação
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.promotorId || 
+        request.auth.uid == resource.data.lojaId
+      );
+      
+      // Nenhuma escrita direta via cliente (SDK Web).
+      // Apenas o backend (Node.js/Firebase Admin SDK) pode processar e alterar saldos/status.
+      allow write: if false;
+    }
   }
 }
