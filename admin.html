@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin — Abastece Já</title>
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { padding: 0; }
+        .adm { max-width: 1100px; margin: 0 auto; padding: 20px 16px 80px; }
+        .adm header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .adm table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .adm th, .adm td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+        .adm th { color: var(--muted); font-weight: 700; font-size: 11.5px; text-transform: uppercase; }
+        .adm .tw { overflow-x: auto; }
+        .adm .linha { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .adm input, .adm select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); }
+        .adm .ok { color: var(--green); font-weight: 700; } .adm .ruim { color: var(--red); font-weight: 700; }
+        #adm-login { max-width: 420px; margin: 18vh auto; text-align: center; }
+        pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    </style>
+</head>
+<body>
+<div id="adm-login" class="card">
+    <h2>Painel administrativo</h2>
+    <p class="muted small mb">Acesso restrito à equipe. Use a conta Google autorizada.</p>
+    <button class="btn btn-primary" id="btn-adm-login">Entrar com Google</button>
+    <p class="msg-erro mt" id="adm-erro"></p>
+</div>
+
+<div class="adm" id="adm-app" hidden>
+    <header><h1>Abastece Já · Admin</h1><div class="linha"><span class="badge" id="adm-quem"></span><button class="btn btn-ghost btn-sm" id="btn-adm-sair">Sair</button></div></header>
+    <div class="pills mb" id="adm-abas">
+        <button class="pill sel" data-aba="cadastros">Cadastros</button><button class="pill" data-aba="treino">Treinamento</button><button class="pill" data-aba="pagamentos">Pagamentos</button>
+        <button class="pill" data-aba="saques">Saques</button><button class="pill" data-aba="conciliacao">Conciliação</button><button class="pill" data-aba="auditoria">Auditoria</button>
+    </div>
+    <p class="msg-erro mb" id="adm-msg" role="alert"></p>
+
+    <section id="aba-cadastros"><div class="linha"><select id="f-status"><option value="pendente">Pendentes</option><option value="ativo">Ativos</option><option value="bloqueado">Bloqueados</option></select><button class="btn btn-ghost btn-sm" id="btn-recarregar-cad">Atualizar</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Nome</th><th>Cidade</th><th>Treino</th><th>Criado</th><th></th></tr></thead><tbody id="t-cad"></tbody></table></div></div>
+        <div class="card mt" id="ficha" hidden></div></section>
+
+    <section id="aba-treino" hidden>
+        <div class="card mb"><h3>Novo módulo / editar</h3>
+            <div class="linha"><input id="m-id" placeholder="ID (vazio = novo)" size="14"><input id="m-ordem" type="number" min="1" placeholder="Ordem" style="width:90px"><input id="m-titulo" placeholder="Título" size="28">
+                <select id="m-prov"><option value="youtube">YouTube</option><option value="mp4">Vídeo (URL https)</option></select><input id="m-ref" placeholder="ID do YouTube ou URL" size="26"><input id="m-dur" type="number" min="30" placeholder="Duração (s)" style="width:120px">
+                <label><input type="checkbox" id="m-ativo" checked> ativo</label><button class="btn btn-primary btn-sm" id="btn-salvar-mod">Salvar</button></div>
+            <p class="muted small">Sem nenhum módulo ativo, ninguém é habilitado a aceitar turnos. Informe a duração real do vídeo: o profissional precisa assistir pelo menos 90%.</p></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Ordem</th><th>Título</th><th>Fonte</th><th>Duração</th><th>Ativo</th><th></th></tr></thead><tbody id="t-mod"></tbody></table></div></div></section>
+
+    <section id="aba-pagamentos" hidden><div class="linha"><button class="btn btn-ghost btn-sm" data-csv="pagamentos">⬇ CSV pagamentos</button><button class="btn btn-ghost btn-sm" data-csv="lancamentos">⬇ CSV ledger</button><button class="btn btn-ghost btn-sm" data-csv="estornos">⬇ CSV estornos</button><button class="btn btn-ghost btn-sm" id="btn-liberar">Liberar saldos vencidos</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Pedido</th><th>Status</th><th>Total</th><th>Repasse</th><th>Comissão</th><th>Pago em</th><th></th></tr></thead><tbody id="t-pag"></tbody></table></div></div></section>
+
+    <section id="aba-saques" hidden><div class="linha"><select id="f-saque"><option value="solicitado">Solicitados</option><option value="pago">Pagos</option><option value="rejeitado">Rejeitados</option></select><button class="btn btn-ghost btn-sm" data-csv="saques">⬇ CSV saques</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Quando</th><th>Profissional</th><th>Valor</th><th>Pix</th><th></th></tr></thead><tbody id="t-saq"></tbody></table></div></div></section>
+
+    <section id="aba-conciliacao" hidden><div class="linha"><button class="btn btn-primary btn-sm" id="btn-conc">Conciliar agora</button><button class="btn btn-ghost btn-sm" id="btn-conc-mp">Conciliar + Mercado Pago</button><button class="btn btn-ghost btn-sm" data-csv="conciliacao">⬇ CSV</button></div>
+        <div class="card" id="conc-res"><p class="muted">Rode a conciliação para ver se os saldos, o ledger, os saques e os pagamentos fecham.</p></div></section>
+
+    <section id="aba-auditoria" hidden><div class="card"><div class="tw"><table><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th><th>IP</th></tr></thead><tbody id="t-aud"></tbody></table></div></div></section>
+</div>
+<script type="module" src="admin.js"></script>
+</body>
+</html>

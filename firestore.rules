@@ -1,0 +1,104 @@
+rules_version = '2';
+// ============================================================
+// ABASTECE JÁ — Regras do Firestore (DENY BY DEFAULT)
+//
+// Princípio: o navegador LÊ o que é dele e quase não escreve. Dinheiro, status de pedido, treinamento, idade,
+// papéis, notas e dados sensíveis são escritos SOMENTE pelo servidor (Admin SDK ignora estas regras).
+// O papel (role) e o treinamento concluído (treinado) vêm de custom claims assinadas — o usuário não consegue forjá-las.
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function logado() { return request.auth != null; }
+    function papel() { return logado() ? request.auth.token.get('role', '') : ''; }
+    function ehLoja() { return papel() == 'loja'; }
+    function ehPromotor() { return papel() == 'promotor'; }
+    function ehAdmin() { return papel() == 'admin'; }
+    function treinado() { return request.auth.token.get('treinado', false) == true; }
+    function dono(uid) { return logado() && request.auth.uid == uid; }
+    // só estes campos podem mudar numa atualização feita pelo cliente
+    function soMuda(campos) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos); }
+    // campo opcional: ausente OU string de até n caracteres
+    function str(campo, n) { return !(campo in request.resource.data) || (request.resource.data[campo] is string && request.resource.data[campo].size() <= n); }
+
+    // ---------- negado por padrão ----------
+    match /{documento=**} { allow read, write: if false; }
+
+    // ---------- identidade ----------
+    match /usuarios/{uid} {
+      allow read: if dono(uid) || ehAdmin();
+      allow write: if false;
+    }
+
+    // ---------- loja ----------
+    match /contratantes/{uid} {
+      allow read: if dono(uid) || ehAdmin();
+      allow create, delete: if false;                           // criado por POST /cadastro/loja
+      allow update: if dono(uid) && ehLoja()
+        && soMuda(['razaoSocial', 'documento', 'endereco', 'email', 'telefone', 'ramo', 'prefs', 'nome', 'atualizadoEm'])
+        && str('razaoSocial', 160) && str('documento', 20) && str('endereco', 200) && str('email', 120) && str('telefone', 20) && str('ramo', 60) && str('nome', 100)
+        && (!('prefs' in request.resource.data) || request.resource.data.prefs is map);
+    }
+    match /cartoes/{uid} {                                      // só exibição (bandeira, final, validade); IDs do gateway ficam em cartoes_privado
+      allow read: if dono(uid);
+      allow write: if false;
+    }
+
+    // ---------- profissional ----------
+    match /profissionais/{uid} {
+      // o próprio, equipe, e lojas só veem perfis APROVADOS (para "chamar" um profissional)
+      allow read: if dono(uid) || ehAdmin() || (ehLoja() && resource.data.status == 'ativo');
+      allow create, delete: if false;                           // criado por POST /cadastro/promotor
+      // status, treinamentoOk, rating, refCode, etc. NÃO estão na lista: o cliente não consegue se auto-aprovar nem se "formar"
+      allow update: if dono(uid) && ehPromotor()
+        && soMuda(['bio', 'cidade', 'especialidade', 'disponibilidade', 'valorMin', 'nome'])
+        && (!('nome' in request.resource.data.diff(resource.data).affectedKeys()) || resource.data.status == 'pendente')
+        && str('bio', 300) && str('cidade', 80) && str('especialidade', 60) && str('nome', 100)
+        && (!('valorMin' in request.resource.data) || (request.resource.data.valorMin is int && request.resource.data.valorMin >= 0 && request.resource.data.valorMin <= 100000))
+        && (!('disponibilidade' in request.resource.data) || (request.resource.data.disponibilidade is map
+              && request.resource.data.disponibilidade.keys().hasOnly(['inicio', 'fim'])));
+    }
+    match /profissionais_privado/{uid} { allow read, write: if false; }      // CPF, nascimento, telefone, Pix, responsável: cifrados, só servidor
+    match /cartoes_privado/{uid}       { allow read, write: if false; }
+
+    // ---------- treinamento (tudo via API: a ordem dos módulos e o progresso são validados no servidor) ----------
+    match /treinamento_modulos/{id}    { allow read, write: if false; }
+    match /treinamento_progresso/{id}  { allow read, write: if false; }
+
+    // ---------- pedidos ----------
+    match /solicitacoes/{id} {
+      allow read: if logado() && (
+        resource.data.uid == request.auth.uid                                           // loja dona
+        || resource.data.get('promotorUid', '') == request.auth.uid                     // profissional escalado
+        || ehAdmin()
+        // ofertas abertas: só para profissional aprovado-e-TREINADO (claim) — defesa em profundidade além do bloqueio no servidor
+        || (ehPromotor() && treinado() && resource.data.status == 'aberta'));
+      allow write: if false;                                                            // criar/aceitar/cancelar/desistir/avaliar: só pelo servidor
+
+      match /mensagens/{mid} {
+        function pedido() { return get(/databases/$(database)/documents/solicitacoes/$(id)).data; }
+        function participante() { return logado() && (request.auth.uid == pedido().uid || request.auth.uid == pedido().get('promotorUid', '')); }
+        allow read: if participante();
+        allow create: if participante()
+          && request.resource.data.keys().hasOnly(['de', 'texto', 'criadoEm'])
+          && request.resource.data.de == request.auth.uid
+          && request.resource.data.texto is string && request.resource.data.texto.size() > 0 && request.resource.data.texto.size() <= 500
+          && request.resource.data.criadoEm == request.time
+          && pedido().status in ['aberta', 'aceita', 'paga'];
+        allow update, delete: if false;
+      }
+    }
+    match /solicitacoes_financeiro/{id} { allow read: if logado() && resource.data.uid == request.auth.uid; allow write: if false; }
+    match /notas/{id}                   { allow read: if logado() && (resource.data.contratanteUid == request.auth.uid || ehAdmin()); allow write: if false; }
+
+    // ---------- dinheiro: nada pelo cliente (o app usa GET /carteira) ----------
+    match /pagamentos_internos/{id} { allow read, write: if false; }
+    match /carteiras/{id}           { allow read, write: if false; }
+    match /lancamentos/{id}         { allow read, write: if false; }
+    match /saques/{id}              { allow read, write: if false; }
+    match /estornos/{id}            { allow read, write: if false; }
+    match /contadores/{id}          { allow read, write: if false; }
+    match /auditoria/{id}           { allow read, write: if false; }
+  }
+}

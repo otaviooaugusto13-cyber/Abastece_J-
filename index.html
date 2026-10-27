@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Abastece Já — Painel da loja</title>
+    <meta name="description" content="Peça promotores e repositores para sua loja em minutos. Pagamento por Pix com nota automática.">
+    <meta property="og:title" content="Abastece Já — reposição sob demanda para o varejo">
+    <meta property="og:description" content="A loja pede, o promotor aceita, o pagamento é dividido automaticamente e a nota sai na hora.">
+    <meta name="theme-color" content="#07090e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login" class="screen active login-screen">
+    <div class="auth-card">
+        <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
+        <div class="auth-switch"><a href="index.html" class="on">Sou loja</a><a href="promotor.html">Sou promotor</a></div>
+        <h2 class="auth-title">Entre na sua loja</h2>
+        <p class="auth-sub">Peça um promotor em minutos, acompanhe ao vivo e pague com nota automática.</p>
+        <div class="beneficios">
+            <div>Pedido em 30 segundos, sem cadastro demorado</div>
+            <div>Você só paga depois do serviço</div>
+            <div>Pix ou cartão, com nota para a sua contabilidade</div>
+        </div>
+        <label class="check-line"><input type="checkbox" id="check-termos"><span>Li e concordo com os <a href="#" id="link-termos">Termos de Uso e Taxas</a></span></label>
+        <button id="btn-login" class="btn btn-google-login" disabled><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Continuar com Google</button>
+        <div id="bloco-teste" class="banner mt" hidden>
+            <span class="ico">🧪</span>
+            <div class="grow"><strong>Modo de teste (sandbox)</strong><br><span class="muted small">Entre sem Google e sem Mercado Pago para validar o fluxo.</span>
+                <button type="button" class="btn btn-ghost btn-sm mt" id="btn-login-teste">Entrar como Loja (teste)</button>
+                <a class="small" href="promotor.html" style="display:block;margin-top:8px">Ou entrar como Promotor (teste) ›</a></div>
+        </div>
+        <div class="auth-links"><a href="landing.html">Conhecer a plataforma</a></div>
+    </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="screen-main" class="screen main-app-screen">
+
+    <!-- INÍCIO -->
+    <section id="tab-home" class="tab-content active">
+        <div class="page-head">
+            <div><h2>Olá, <span id="nome-home" class="highlight">loja</span> 👋</h2><p>Precisou abastecer? A gente resolve.</p></div>
+            <div class="avatar" id="avatar-home">A</div>
+        </div>
+
+        <div id="aviso-fiscal" class="banner mb" hidden>
+            <span class="ico">🧾</span>
+            <div><strong>Complete os dados da empresa</strong><br><span class="muted small">A nota sai em nome da sua empresa. Falta CNPJ/CPF e razão social.</span><br><a href="#" data-abrir="sheet-fiscal">Completar agora ›</a></div>
+        </div>
+
+        <div id="aviso-cartao" class="banner red mb" hidden>
+            <span class="ico">💳</span>
+            <div><strong>Cadastre um cartão de crédito</strong><br><span class="muted small">É obrigatório ter um cartão válido para solicitar e pagar serviços.</span><br><a href="#" data-abrir="sheet-cartao">Cadastrar cartão ›</a></div>
+        </div>
+
+        <div id="card-proximo" class="card flat mb" hidden></div>
+
+        <div class="card gold" id="form-pedido">
+            <div class="row between mb"><h3>🛒 Solicitar promotor</h3><span class="badge green">Pague só depois</span></div>
+
+            <div id="banner-preferido" class="banner mb" hidden><span class="ico">⭐</span><div class="grow">Pedido direcionado a <strong id="nome-preferido"></strong>. Outros promotores também poderão aceitar se ele não puder.</div><button class="icon-btn" id="rm-preferido" aria-label="Remover preferência">✕</button></div>
+
+            <span class="lbl">1. Qual setor?</span>
+            <div class="chips mt" id="setor-grid" role="radiogroup" aria-label="Setor"></div>
+
+            <div class="field mt"><label for="p-local">2. Onde? <small>(nome e endereço da loja)</small></label>
+                <input id="p-local" type="text" placeholder="Ex: Mercado Central — Rua das Flores, 120" autocomplete="street-address" maxlength="160">
+                <span class="msg-erro" id="e-local"></span></div>
+            <div class="field"><label for="p-data">Dia do serviço</label><input id="p-data" type="date"><span class="msg-erro" id="e-data"></span></div>
+            <div class="grid-2">
+                <div class="field"><label for="p-entrada">Entrada</label><input id="p-entrada" type="time" value="08:00"></div>
+                <div class="field"><label for="p-saida">Saída</label><input id="p-saida" type="time" value="12:00"><span class="msg-erro" id="e-saida"></span></div>
+            </div>
+
+            <p class="muted small" id="dica-valor" style="margin:-4px 0 10px"></p>
+
+            <div class="split-card" id="split-card" hidden>
+                <div class="linha"><span>Duração do turno</span><strong id="sc-horas">—</strong></div>
+                <div class="linha"><span>Valor do serviço</span><strong id="sc-valor">—</strong></div>
+                <div class="linha total"><span>Você paga</span><strong id="sc-total">—</strong></div>
+            </div>
+            <span class="msg-erro" id="e-valor"></span>
+
+            <button class="btn btn-primary" id="btn-enviar">🚀 Solicitar promotores na região</button>
+            <p class="muted small center mt">Turnos de até 6 horas. O pagamento é feito depois, pelo app. A nota é gerada automaticamente.</p>
+        </div>
+
+        <div class="section-title">Promotores disponíveis</div>
+        <div id="lista-promotores" class="stack"></div>
+    </section>
+
+    <!-- PEDIDOS -->
+    <section id="tab-pedidos" class="tab-content">
+        <div class="page-head"><div><h2>Meus pedidos</h2><p>Acompanhe cada etapa em tempo real.</p></div></div>
+        <div class="pills mb" id="filtro-pedidos">
+            <button class="pill sel" data-f="ativos">Em andamento</button>
+            <button class="pill" data-f="pagos">Pagos</button>
+            <button class="pill" data-f="todos">Todos</button>
+        </div>
+        <div id="lista-pedidos" class="stack"></div>
+    </section>
+
+    <!-- AGENDA -->
+    <section id="tab-agenda" class="tab-content">
+        <div class="page-head"><div><h2>Agenda da loja</h2><p>Dias com turno aparecem marcados.</p></div></div>
+        <div class="card mb">
+            <div class="cal-head"><button class="btn-cal" id="cal-prev" aria-label="Mês anterior">◀</button><h3 id="cal-titulo"></h3><button class="btn-cal" id="cal-next" aria-label="Próximo mês">▶</button></div>
+            <div class="cal-week"><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div><div>D</div></div>
+            <div class="cal-grid" id="cal-grid"></div>
+        </div>
+        <p id="cal-label" class="muted small center mb">Escolha uma data para ver os turnos.</p>
+        <div id="lista-agenda" class="stack"></div>
+    </section>
+
+    <!-- CARTEIRA -->
+    <section id="tab-carteira" class="tab-content">
+        <div class="page-head"><div><h2>Carteira</h2><p>Pagamentos, notas e gastos da loja.</p></div><button class="btn btn-ghost btn-sm" id="btn-csv">⬇ CSV</button></div>
+        <div class="stats mb">
+            <div class="stat hero"><span>Total pago</span><h3 id="c-total">R$ 0,00</h3></div>
+            <div class="stat"><span>A pagar (aceitos)</span><h3 id="c-pendente">R$ 0,00</h3></div>
+            <div class="stat"><span>Turnos pagos</span><h3 id="c-qtd">0</h3></div>
+        </div>
+        <div class="card mb"><div class="lbl">Gasto por mês</div><div class="bars" id="c-barras"></div></div>
+        <div class="section-title">Pagamentos e notas</div>
+        <div class="card"><div id="c-extrato" class="extrato"></div></div>
+    </section>
+
+    <!-- CHAT -->
+    <section id="tab-chat" class="tab-content">
+        <div class="page-head"><div><h2>Conversas</h2><p>Fale com o promotor do seu pedido.</p></div></div>
+        <div id="lista-conversas" class="stack"></div>
+    </section>
+
+    <!-- MENU -->
+    <section id="tab-menu" class="tab-content">
+        <div class="row mb" style="gap:14px">
+            <div class="avatar" style="width:64px;height:64px;font-size:26px" id="avatar-menu">A</div>
+            <div><h3 id="nome-menu">Loja</h3><span class="badge green" style="margin-top:6px">Loja ativa ✓</span></div>
+        </div>
+        <div class="menu-list mb">
+            <button class="menu-item" data-abrir="sheet-cartao"><span class="ico">💳</span><span>Cartão de crédito <small class="muted" id="menu-cartao"></small></span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-fiscal"><span class="ico">🧾</span><span>Dados da empresa (nota)</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">💼</span><span>Preferências de pedido</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Indicar lojas</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-notif"><span class="ico">🔔</span><span>Notificações</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-ajuda"><span class="ico">🌐</span><span>Ajuda e suporte</span><span class="seta">›</span></button>
+        </div>
+        <div class="card mb">
+            <div class="sw-row"><span>Modo claro</span><label class="theme-switch"><input type="checkbox" id="theme-toggle" aria-label="Modo claro"><span class="slider"></span></label></div>
+            <button class="btn btn-ghost btn-instalar" hidden id="btn-instalar" style="margin-top:12px">📲 Instalar o app no celular</button>
+        </div>
+        <button class="btn btn-ghost mb" id="btn-teste-reset" hidden>🧪 Zerar dados de teste</button>
+        <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
+    </section>
+
+    <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-tab="tab-home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Início</span></button>
+        <button class="nav-item" data-tab="tab-pedidos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Pedidos</span><b class="dot" id="dot-pedidos" hidden>0</b></button>
+        <button class="nav-item" data-tab="tab-agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Agenda</span></button>
+        <button class="nav-item" data-tab="tab-carteira"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Carteira</span></button>
+        <button class="nav-item" data-tab="tab-chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>Chat</span></button>
+        <button class="nav-item" data-tab="tab-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span>Menu</span></button>
+    </nav>
+</div>
+
+<a href="#" target="_blank" rel="noopener" id="btn-whatsapp" class="btn-whatsapp" title="Suporte via WhatsApp" aria-label="Suporte via WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
+
+<!-- ============ SUBTELAS / SHEETS ============ -->
+<div id="sheet-fiscal" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Dados da empresa</h2><button class="icon-btn" data-fechar="sheet-fiscal" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb">Estes dados saem na nota de cada pagamento.</p>
+    <div class="field"><label for="f-razao">Razão social / nome</label><input id="f-razao" type="text" placeholder="Mercado Central Ltda" maxlength="120"></div>
+    <div class="field"><label for="f-doc">CNPJ ou CPF</label><input id="f-doc" type="text" data-mask="doc" inputmode="numeric" placeholder="00.000.000/0000-00"><span class="msg-erro" id="e-doc"></span></div>
+    <div class="field"><label for="f-end">Endereço</label><input id="f-end" type="text" placeholder="Rua, número, bairro, cidade" maxlength="200"></div>
+    <div class="field"><label for="f-email">E-mail para receber a nota</label><input id="f-email" type="email" placeholder="financeiro@suaempresa.com.br"></div>
+    <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
+    <div class="field"><label for="f-ramo">Ramo</label><select id="f-ramo"><option>Supermercado</option><option>Atacarejo</option><option>Distribuidora</option><option>Loja de conveniência</option><option>Indústria / marca</option></select></div>
+    <button class="btn btn-primary" id="btn-salvar-fiscal">Salvar dados</button>
+</div></div>
+
+<div id="sheet-cartao" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Cartão de crédito</h2><button class="icon-btn" data-fechar="sheet-cartao" aria-label="Fechar">✕</button></div>
+    <div id="cartao-atual" class="card mb" hidden></div>
+    <p class="muted small mb" id="cartao-aviso">Obrigatório para solicitar e pagar serviços. O número completo não é guardado por nós.</p>
+    <div id="cartao-teste-dica" class="banner mb" hidden><span class="ico">🧪</span><div class="small">Sandbox: use o cartão de teste <strong>4509 9535 6623 3704</strong>, validade futura, CVV <strong>123</strong>. Nada é cobrado.</div></div>
+    <div class="field"><label for="k-nome">Nome impresso no cartão</label><input id="k-nome" type="text" autocomplete="cc-name" maxlength="60" placeholder="MARIA S SILVA"></div>
+    <div class="field"><label for="k-num">Número do cartão</label><input id="k-num" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23"><span class="msg-erro" id="e-k-num"></span></div>
+    <div class="grid-2">
+        <div class="field"><label for="k-val">Validade</label><input id="k-val" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5"><span class="msg-erro" id="e-k-val"></span></div>
+        <div class="field"><label for="k-cvv">CVV</label><input id="k-cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"><span class="msg-erro" id="e-k-cvv"></span></div>
+    </div>
+    <button class="btn btn-primary" id="btn-salvar-cartao">Validar e salvar cartão</button>
+    <button class="btn btn-ghost mt" id="btn-remover-cartao" hidden>Remover cartão</button>
+</div></div>
+
+<div id="sheet-prefs" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Preferências de pedido</h2><button class="icon-btn" data-fechar="sheet-prefs" aria-label="Fechar">✕</button></div>
+    <div class="field"><label for="pref-setor">Setor mais pedido</label><select id="pref-setor"></select></div>
+    <div class="grid-2">
+        <div class="field"><label for="pref-entrada">Entrada padrão</label><input id="pref-entrada" type="time" value="08:00"></div>
+        <div class="field"><label for="pref-saida">Saída padrão</label><input id="pref-saida" type="time" value="12:00"></div>
+    </div>
+    <button class="btn btn-primary" id="btn-salvar-prefs">Salvar</button>
+</div></div>
+
+<div id="sheet-indicar" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Indicar lojas</h2><button class="icon-btn" data-fechar="sheet-indicar" aria-label="Fechar">✕</button></div>
+    <p class="muted mb">Conhece outra loja ou distribuidora? Mande o link e ajude a rede a crescer.</p>
+    <div class="field"><input id="link-indicar" type="text" readonly aria-label="Link de indicação"></div>
+    <div class="grid-2"><button class="btn btn-ghost" id="btn-copiar">📋 Copiar</button><button class="btn btn-green" id="btn-zap">WhatsApp</button></div>
+</div></div>
+
+<div id="sheet-notif" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Notificações</h2><button class="icon-btn" data-fechar="sheet-notif" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb">Avisamos quando um promotor aceita o pedido e quando o pagamento é confirmado.</p>
+    <button class="btn btn-primary" id="btn-ativar-notif">🔔 Ativar avisos no aparelho</button>
+</div></div>
+
+<div id="sheet-ajuda" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Ajuda e suporte</h2><button class="icon-btn" data-fechar="sheet-ajuda" aria-label="Fechar">✕</button></div>
+    <div class="card mb"><h4 class="highlight mb">Como funciona o pagamento</h4>
+        <p class="small muted" id="ajuda-split"></p></div>
+    <div class="card mb"><h4 class="highlight mb">Perguntas rápidas</h4>
+        <p class="small"><strong>Quando pago?</strong><br><span class="muted">Depois do serviço, no botão “Pagar” do pedido.</span></p><br>
+        <p class="small"><strong>Onde fica a nota?</strong><br><span class="muted">Em Carteira → Pagamentos e notas. Dá para imprimir ou salvar em PDF.</span></p></div>
+    <a class="btn btn-green" id="ajuda-zap" href="#" target="_blank" rel="noopener">Falar no WhatsApp</a>
+</div></div>
+
+<div id="sheet-termos" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Termos de Uso e Taxas</h2><button class="icon-btn" data-fechar="sheet-termos" aria-label="Fechar">✕</button></div>
+    <p class="small muted" style="line-height:1.6" id="termos-texto"></p>
+    <button class="btn btn-primary mt" id="btn-aceitar-termos">Li e concordo</button>
+</div></div>
+
+<div id="sheet-chat" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2 id="chat-titulo">Conversa</h2><button class="icon-btn" data-fechar="sheet-chat" aria-label="Fechar">✕</button></div>
+    <div class="chat-box" id="chat-box" aria-live="polite"></div>
+    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
+</div></div>
+
+<div id="sheet-avaliar" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Avaliar promotor</h2><button class="icon-btn" data-fechar="sheet-avaliar" aria-label="Fechar">✕</button></div>
+    <p class="center muted" id="av-sub">Como foi o serviço?</p>
+    <div class="star-input" id="av-stars" role="radiogroup" aria-label="Nota"></div>
+    <div class="field"><label for="av-texto">Comentário (opcional)</label><textarea id="av-texto" rows="3" maxlength="300" placeholder="Pontual, caprichoso, organizou tudo…"></textarea></div>
+    <button class="btn btn-primary" id="btn-enviar-av">Enviar avaliação</button>
+</div></div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>

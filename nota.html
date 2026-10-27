@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Nota de serviço — Abastece Já</title>
+    <meta name="theme-color" content="#07090e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .nota-wrap { padding: 20px 14px 60px; }
+        .nota-acoes { max-width: 760px; margin: 0 auto 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .nota-acoes .btn { width: auto; flex: 1; min-width: 150px; }
+        .nota .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .nota .selo-pago { display: inline-block; border: 2px solid #15803d; color: #15803d; border-radius: 6px; padding: 2px 10px; font-weight: 800; font-size: 12px; letter-spacing: .08em; transform: rotate(-4deg); }
+        .nota p { margin: 2px 0; line-height: 1.5; }
+        @media (max-width: 560px) { .nota .grade { grid-template-columns: 1fr; } .nota { padding: 20px 16px; } }
+        @media print {
+            body, body.light-theme { background: #fff !important; }
+            .no-print, #toast-area { display: none !important; }
+            .nota-wrap { padding: 0; }
+            .nota { box-shadow: none; max-width: none; padding: 0; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="nota-wrap">
+    <div class="nota-acoes no-print" id="acoes" hidden>
+        <button class="btn btn-primary" id="btn-imprimir">🖨 Imprimir / salvar em PDF</button>
+        <a class="btn btn-ghost" href="index.html">← Voltar ao painel</a>
+    </div>
+
+    <div id="estado" class="auth-loader" style="justify-content:center;margin-top:60px"><span class="spinner"></span> Carregando nota…</div>
+
+    <div id="login" class="auth-card no-print" hidden style="margin:40px auto">
+        <h2 class="auth-title">Entre para ver a nota</h2>
+        <p class="auth-sub">Use a conta Google da loja que fez o pedido.</p>
+        <button class="btn btn-google-login" id="btn-entrar">Continuar com Google</button>
+    </div>
+
+    <article class="nota" id="nota" hidden></article>
+</div>
+
+<script type="module" src="nota.js"></script>
+</body>
+</html>

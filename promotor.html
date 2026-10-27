@@ -1,0 +1,271 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Abastece Já — Portal do promotor</title>
+    <meta name="description" content="Pegue turnos de reposição perto de você e receba na sua carteira digital. Cadastro a partir dos 16 anos.">
+    <meta name="theme-color" content="#07090e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login" class="screen active login-screen">
+    <div class="auth-card">
+        <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
+        <div class="auth-switch"><a href="index.html">Sou loja</a><a href="promotor.html" class="on">Sou promotor</a></div>
+        <h2 class="auth-title">Comece a pegar turnos</h2>
+        <p class="auth-sub" id="login-sub">Cadastro rápido com Google. Depois de aprovado, você vê as ofertas da região.</p>
+        <div class="beneficios">
+            <div>Você escolhe os turnos e o valor mínimo</div>
+            <div>Recebe na carteira digital e saca por Pix</div>
+            <div id="benef-split"></div>
+        </div>
+        <label class="check-line"><input type="checkbox" id="check-termos"><span>Li e concordo com os <a href="#" id="link-termos">Termos de Uso e Taxas</a></span></label>
+        <button id="btn-login" class="btn btn-google-login" disabled><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Continuar com Google</button>
+        <div id="bloco-teste" class="banner mt" hidden>
+            <span class="ico">🧪</span>
+            <div class="grow"><strong>Modo de teste (sandbox)</strong><br><span class="muted small">Entre sem Google e sem Mercado Pago para validar o fluxo.</span>
+                <button type="button" class="btn btn-ghost btn-sm mt" id="btn-login-teste">Entrar como Promotor (teste)</button>
+                <a class="small" href="index.html" style="display:block;margin-top:8px">Ou entrar como Loja (teste) ›</a></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ CADASTRO (primeiro acesso) ============ -->
+<div id="screen-cadastro" class="screen login-screen">
+    <div class="auth-card">
+        <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Complete seu cadastro</p></div>
+        <h2 class="auth-title">Quase lá</h2>
+        <p class="auth-sub">Precisamos destes dados para liberar sua conta. Eles ficam guardados cifrados e não aparecem para as lojas.</p>
+        <div class="field"><label for="c-nasc">Data de nascimento</label><input id="c-nasc" type="date" autocomplete="bday"><span class="muted small" id="c-nasc-dica"></span><span class="msg-erro" id="e-c-nasc"></span></div>
+        <div class="field"><label for="c-cpf">CPF</label><input id="c-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="msg-erro" id="e-c-cpf"></span></div>
+        <div class="field"><label for="c-tel">WhatsApp</label><input id="c-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="tel"><span class="msg-erro" id="e-c-tel"></span></div>
+        <div id="bloco-resp" class="card gold mb" hidden>
+            <h4>Autorização do responsável legal</h4>
+            <p class="small muted mb">De 16 a 17 anos é obrigatório informar um responsável (mãe, pai ou responsável legal) que autoriza o trabalho. O horário é só diurno e alguns setores não ficam disponíveis.</p>
+            <div class="field"><label for="c-resp-nome">Nome completo do responsável</label><input id="c-resp-nome" type="text" maxlength="100" autocomplete="off"><span class="msg-erro" id="e-c-resp-nome"></span></div>
+            <div class="grid-2">
+                <div class="field"><label for="c-resp-cpf">CPF do responsável</label><input id="c-resp-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="msg-erro" id="e-c-resp-cpf"></span></div>
+                <div class="field"><label for="c-resp-tel">Telefone</label><input id="c-resp-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="off"><span class="msg-erro" id="e-c-resp-tel"></span></div>
+            </div>
+            <div class="field"><label for="c-resp-par">Parentesco</label><select id="c-resp-par"><option>Mãe</option><option>Pai</option><option>Responsável legal</option></select></div>
+            <label class="check-line"><input type="checkbox" id="c-resp-ok"><span>Declaro que o responsável acima conhece e autoriza este cadastro e o trabalho nas condições dos Termos.</span></label>
+        </div>
+        <label class="check-line"><input type="checkbox" id="c-termos"><span>Li e concordo com os <a href="#" id="link-termos2">Termos de Uso e Taxas</a></span></label>
+        <button id="btn-cadastrar" class="btn btn-primary mt">Concluir cadastro</button>
+        <button id="btn-cadastro-sair" class="btn btn-ghost mt" type="button">Sair</button>
+    </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="screen-dashboard" class="screen main-app-screen">
+
+    <!-- INÍCIO -->
+    <section id="tab-inicio" class="tab-content active">
+        <div class="page-head"><div><h2>Olá, <span id="nome-home" class="highlight">promotor</span> 👋</h2><p id="sub-home">Vamos abastecer?</p></div><div class="avatar" id="avatar-home">P</div></div>
+
+        <div id="card-onboarding" class="card gold mb">
+            <div class="row between"><h3 id="ob-titulo">Falta pouco para liberar as ofertas</h3><span class="badge" id="ob-pct">0%</span></div>
+            <div class="progress"><i id="ob-bar" style="width:0%"></i></div>
+            <div id="ob-lista"></div>
+        </div>
+
+        <div class="stats mb">
+            <div class="stat hero"><span>Já recebido</span><h3 id="i-recebido">R$ 0,00</h3></div>
+            <div class="stat"><span>A receber (turnos aceitos)</span><h3 id="i-receber">R$ 0,00</h3></div>
+            <div class="stat"><span>Sua avaliação</span><h3 id="i-rating">—</h3></div>
+        </div>
+
+        <div class="section-title">Próximos turnos</div>
+        <div id="lista-proximos" class="stack"></div>
+    </section>
+
+    <!-- OFERTAS -->
+    <section id="tab-ofertas" class="tab-content">
+        <div class="page-head"><div><h2>Ofertas</h2><p>Lojas buscando promotores agora.</p></div><button class="btn btn-ghost btn-sm" id="btn-ordenar">Maior valor ↓</button></div>
+        <div class="pills mb" id="filtro-setor"></div>
+        <div id="lista-ofertas" class="stack"></div>
+    </section>
+
+    <!-- AGENDA -->
+    <section id="tab-agenda" class="tab-content">
+        <div class="page-head"><div><h2>Minha escala</h2><p>Dias com turno aparecem marcados.</p></div></div>
+        <div class="card mb">
+            <div class="cal-head"><button class="btn-cal" id="cal-prev" aria-label="Mês anterior">◀</button><h3 id="cal-titulo"></h3><button class="btn-cal" id="cal-next" aria-label="Próximo mês">▶</button></div>
+            <div class="cal-week"><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div><div>D</div></div>
+            <div class="cal-grid" id="cal-grid"></div>
+        </div>
+        <p id="cal-label" class="muted small center mb">Escolha uma data para ver seus turnos.</p>
+        <div id="lista-agenda" class="stack"></div>
+    </section>
+
+    <!-- CARTEIRA -->
+    <section id="tab-carteira" class="tab-content">
+        <div class="page-head"><div><h2>Carteira</h2><p>Seus ganhos na plataforma.</p></div><button class="btn btn-ghost btn-sm" id="btn-csv">⬇ CSV</button></div>
+
+        <div class="stats mb">
+            <div class="stat hero"><span>Disponível para saque</span><h3 id="c-disponivel">R$ 0,00</h3></div>
+            <div class="stat"><span>Em carência</span><h3 id="c-pendente">R$ 0,00</h3></div>
+            <div class="stat"><span>A receber (turnos aceitos)</span><h3 id="c-receber">R$ 0,00</h3></div>
+        </div>
+        <button class="btn btn-primary mb" id="btn-sacar">💸 Sacar por Pix</button>
+        <p class="muted small mb" id="c-carencia"></p>
+
+        <div class="section-title">Extrato</div>
+        <div class="card mb"><div id="c-extrato" class="extrato"></div></div>
+        <div class="section-title">Meus saques</div>
+        <div class="card"><div id="c-saques" class="extrato"></div></div>
+        <p class="muted small mt" id="nota-taxa-mp"></p>
+    </section>
+
+    <!-- TREINAMENTO -->
+    <section id="tab-treino" class="tab-content">
+        <div class="page-head"><div><h2>Treinamento PRATICAMENTE</h2><p>Conclua todos os vídeos para liberar os turnos.</p></div></div>
+        <div class="card mb"><div class="row between"><h3>Seu progresso</h3><span class="badge" id="tr-pct">0/0</span></div><div class="progress"><i id="tr-bar" style="width:0%"></i></div>
+            <p class="muted small mt" id="tr-aviso">Assista cada vídeo do começo ao fim, na ordem. O avanço só conta quando o vídeo está tocando.</p></div>
+        <div id="lista-treino" class="stack"></div>
+    </section>
+
+    <!-- CHAT -->
+    <section id="tab-chat" class="tab-content">
+        <div class="page-head"><div><h2>Conversas</h2><p>Fale com a loja do seu turno.</p></div></div>
+        <div id="lista-conversas" class="stack"></div>
+    </section>
+
+    <!-- MENU -->
+    <section id="tab-menu" class="tab-content">
+        <div class="row mb" style="gap:14px">
+            <div class="avatar" style="width:64px;height:64px;font-size:26px" id="avatar-menu">P</div>
+            <div><h3 id="nome-menu">Promotor</h3><span class="badge" id="badge-status" style="margin-top:6px">Em análise</span></div>
+        </div>
+        <div class="menu-list mb">
+            <button class="menu-item" data-ir="tab-treino"><span class="ico">🎓</span><span>Treinamento PRATICAMENTE</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-perfil"><span class="ico">👤</span><span>Meus dados</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-pix"><span class="ico">💠</span><span>Chave Pix</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">⚙️</span><span>Preferências de turno</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Convidar amigos</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-notif"><span class="ico">🔔</span><span>Notificações</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-ajuda"><span class="ico">🌐</span><span>Ajuda e suporte</span><span class="seta">›</span></button>
+        </div>
+        <div class="card mb">
+            <div class="sw-row"><span>Modo claro</span><label class="theme-switch"><input type="checkbox" id="theme-toggle" aria-label="Modo claro"><span class="slider"></span></label></div>
+            <button class="btn btn-ghost btn-instalar" hidden id="btn-instalar" style="margin-top:12px">📲 Instalar o app no celular</button>
+        </div>
+        <button class="btn btn-ghost mb" id="btn-teste-reset" hidden>🧪 Zerar dados de teste</button>
+        <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
+    </section>
+
+    <nav class="bottom-nav" id="nav-personal" aria-label="Navegação principal">
+        <button class="nav-item active" data-tab="tab-inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Início</span></button>
+        <button class="nav-item" data-tab="tab-ofertas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg><span>Ofertas</span><b class="dot" id="dot-ofertas" hidden>0</b></button>
+        <button class="nav-item" data-tab="tab-agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Escala</span></button>
+        <button class="nav-item" data-tab="tab-carteira"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Carteira</span></button>
+        <button class="nav-item" data-tab="tab-chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>Chat</span></button>
+        <button class="nav-item" data-tab="tab-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span>Menu</span></button>
+    </nav>
+</div>
+
+<a href="#" target="_blank" rel="noopener" id="btn-whatsapp" class="btn-whatsapp" title="Suporte via WhatsApp" aria-label="Suporte via WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
+
+<!-- ============ SHEETS ============ -->
+<div id="sheet-perfil" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Meus dados</h2><button class="icon-btn" data-fechar="sheet-perfil" aria-label="Fechar">✕</button></div>
+    <div class="field"><label for="d-nome">Nome completo</label><input id="d-nome" type="text" maxlength="100"></div>
+    <div class="field"><label for="d-cpf">CPF</label><input id="d-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="muted small" id="d-cpf-dica"></span><span class="msg-erro" id="e-cpf"></span></div>
+    <div class="grid-2">
+        <div class="field"><label for="d-nasc">Nascimento</label><input id="d-nasc" type="date"><span class="muted small" id="d-nasc-dica"></span></div>
+        <div class="field"><label for="d-tel">WhatsApp</label><input id="d-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
+    </div>
+    <div class="field"><label for="d-cidade">Cidade</label><input id="d-cidade" type="text" placeholder="Ex: Itapira - SP" maxlength="80"></div>
+    <div class="field"><label for="d-bio">Sobre você</label><textarea id="d-bio" rows="3" maxlength="300" placeholder="Experiência em supermercados, marcas atendidas…"></textarea></div>
+    <button class="btn btn-primary" id="btn-salvar-perfil">Salvar</button>
+</div></div>
+
+<div id="sheet-pix" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Chave Pix</h2><button class="icon-btn" data-fechar="sheet-pix" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb">É para esta chave que enviamos seus saques. Por segurança, depois de trocar a chave os saques ficam bloqueados por 24 horas.</p>
+    <div class="field"><label for="x-tipo">Tipo</label><select id="x-tipo"><option>CPF</option><option>E-mail</option><option>Celular</option><option>Aleatória</option></select></div>
+    <div class="field"><label for="x-chave">Chave Pix</label><input id="x-chave" type="text" placeholder="Sua chave Pix" maxlength="80" autocomplete="off"><span class="muted small" id="x-atual"></span></div>
+    <button class="btn btn-primary" id="btn-salvar-pix">Salvar</button>
+</div></div>
+
+<div id="sheet-prefs" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Preferências de turno</h2><button class="icon-btn" data-fechar="sheet-prefs" aria-label="Fechar">✕</button></div>
+    <div class="field"><label for="pf-esp">Especialidade principal</label><select id="pf-esp"></select></div>
+    <div class="grid-2">
+        <div class="field"><label for="pf-ini">Disponível das</label><input id="pf-ini" type="time" value="06:00"></div>
+        <div class="field"><label for="pf-fim">Até</label><input id="pf-fim" type="time" value="22:00"></div>
+    </div>
+    <div class="field"><label for="pf-min">Valor mínimo por turno (R$)</label><input id="pf-min" type="text" inputmode="decimal" placeholder="Ex: 80,00"><span class="muted small">Ofertas abaixo disso não aparecem pra você. É o valor que você recebe pelo turno.</span></div>
+    <button class="btn btn-primary" id="btn-salvar-prefs">Salvar</button>
+</div></div>
+
+<div id="sheet-indicar" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Convidar amigos</h2><button class="icon-btn" data-fechar="sheet-indicar" aria-label="Fechar">✕</button></div>
+    <p class="muted mb" id="indicar-txt"></p>
+    <div class="field"><input id="link-indicar" type="text" readonly aria-label="Seu link"></div>
+    <div class="grid-2"><button class="btn btn-ghost" id="btn-copiar">📋 Copiar</button><button class="btn btn-green" id="btn-zap">WhatsApp</button></div>
+</div></div>
+
+<div id="sheet-notif" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Notificações</h2><button class="icon-btn" data-fechar="sheet-notif" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb">Avisamos quando surgir uma oferta nova e quando o pagamento de um turno cair.</p>
+    <button class="btn btn-primary" id="btn-ativar-notif">🔔 Ativar avisos no aparelho</button>
+</div></div>
+
+<div id="sheet-ajuda" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Ajuda e suporte</h2><button class="icon-btn" data-fechar="sheet-ajuda" aria-label="Fechar">✕</button></div>
+    <div class="card mb"><h4 class="highlight mb">Como você recebe</h4><p class="small muted" id="ajuda-split"></p></div>
+    <div class="card mb"><h4 class="highlight mb">Passo a passo</h4>
+        <p class="small muted" style="line-height:1.7">1. Complete seus dados e cadastre a chave Pix.<br>2. Assista aos vídeos do treinamento PRATICAMENTE.<br>3. Aguarde a aprovação do cadastro.<br>4. Aceite turnos em Ofertas.<br>5. Terminou? Em Escala, toque em “Cobrar” e mostre o QR Code para a loja.<br>6. O valor cai na Carteira e, após a carência, você saca por Pix.<br>5. O dinheiro cai na sua conta e a nota é emitida sozinha.</p></div>
+    <a class="btn btn-green" id="ajuda-zap" href="#" target="_blank" rel="noopener">Falar no WhatsApp</a>
+</div></div>
+
+<div id="sheet-saque" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Sacar por Pix</h2><button class="icon-btn" data-fechar="sheet-saque" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb" id="sq-info"></p>
+    <div class="field"><label for="sq-valor">Valor (R$)</label><input id="sq-valor" type="text" inputmode="decimal" placeholder="Ex: 150,00" autocomplete="off"><span class="msg-erro" id="e-sq-valor"></span></div>
+    <button class="btn btn-ghost btn-sm mb" id="sq-tudo" type="button">Sacar tudo</button>
+    <button class="btn btn-primary" id="sq-confirmar">Solicitar saque</button>
+</div></div>
+
+<div id="sheet-video" class="app-overlay" aria-hidden="true"><div class="sheet">
+    <div class="grab"></div>
+    <div class="sub-head"><h2 id="vd-titulo">Vídeo</h2><button class="icon-btn" data-fechar="sheet-video" id="vd-fechar" aria-label="Fechar">✕</button></div>
+    <div id="vd-player" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden"></div>
+    <div class="progress mt"><i id="vd-bar" style="width:0%"></i></div>
+    <p class="muted small mt" id="vd-info">Assista até o fim. Se avançar o vídeo, ele volta ao ponto já validado.</p>
+</div></div>
+
+<div id="sheet-termos" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Termos de Uso e Taxas</h2><button class="icon-btn" data-fechar="sheet-termos" aria-label="Fechar">✕</button></div>
+    <p class="small muted" style="line-height:1.6" id="termos-texto"></p>
+    <button class="btn btn-primary mt" id="btn-aceitar-termos">Li e concordo</button>
+</div></div>
+
+<div id="sheet-qr" class="app-overlay centro" aria-hidden="true"><div class="modal-box">
+    <h3 class="highlight mb">Cobrar a loja</h3>
+    <p class="muted small mb">A loja escaneia, paga com Pix ou cartão e a nota sai automaticamente.</p>
+    <div id="qr-box" style="background:#fff;padding:14px;border-radius:14px;display:inline-block"></div>
+    <p id="qr-total" style="margin:14px 0 4px;font-weight:800;font-size:18px"></p>
+    <p id="qr-liquido" class="muted small mb"></p>
+    <div class="grid-2"><button class="btn btn-ghost" id="qr-copiar">📋 Copiar link</button><button class="btn btn-green" id="qr-zap">WhatsApp</button></div>
+    <button class="btn btn-ghost mt" data-fechar="sheet-qr">Fechar</button>
+</div></div>
+
+<div id="sheet-chat" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2 id="chat-titulo">Conversa</h2><button class="icon-btn" data-fechar="sheet-chat" aria-label="Fechar">✕</button></div>
+    <div class="chat-box" id="chat-box" aria-live="polite"></div>
+    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script type="module" src="script-personal.js"></script>
+</body>
+</html>
