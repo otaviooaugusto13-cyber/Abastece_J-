@@ -114,6 +114,16 @@ module.exports = (app, x) => {
     res.json(s.docs.map((d) => ({ id: d.id, ...d.data(), em: iso(d.data().em) })));
   }));
 
+  // ---------- Aviso global (exibido aos usuários via GET /aviso) ----------
+  const AVISO = () => db.collection("configuracoes").doc("aviso");
+  app.get("/admin/aviso", ...ADM, envelope(async (req, res) => { const d = (await AVISO().get()).data() || {}; res.json({ ativo: !!d.ativo, nivel: d.nivel || "info", texto: d.texto || "" }); }));
+  app.put("/admin/aviso", ...ADM, envelope(async (req, res) => {
+    const texto = V.texto(req.body?.texto || "", "texto", { max: 280, obrigatorio: false }), nivel = V.opcao(req.body?.nivel || "info", ["info", "alerta"], "nivel"), ativo = !!req.body?.ativo && !!texto;
+    await AVISO().set({ ativo, nivel, texto, porUid: req.usuario.uid, em: FieldValue.serverTimestamp() });
+    await auth.auditar(req, "admin.aviso.salvar", "", { ativo, nivel }); res.json({ ok: true, ativo });
+  }));
+  app.get("/aviso", limitar({ janelaMs: 60_000, max: 60, nome: "aviso" }), envelope(async (req, res) => { const d = (await AVISO().get()).data() || {}; res.json(d.ativo ? { ativo: true, nivel: d.nivel || "info", texto: d.texto } : { ativo: false }); }));
+
   // ---------- Exportações CSV ----------
   app.get("/admin/exportar/:tipo", limitar({ janelaMs: 60_000, max: 6, nome: "csv", porUsuario: true }), auth.exigir("admin"), envelope(async (req, res) => {
     const tipo = V.opcao(String(req.params.tipo).replace(/\.csv$/, ""), ["lancamentos", "pagamentos", "saques", "estornos", "conciliacao"], "tipo");

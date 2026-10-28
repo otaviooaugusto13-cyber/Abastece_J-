@@ -101,7 +101,7 @@ app.use(cors(Seg.opcoesCors(permitidas)));
 app.use(express.json({ limit: C.BODY_LIMITE }));
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|teste)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
