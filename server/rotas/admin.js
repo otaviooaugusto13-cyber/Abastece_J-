@@ -31,9 +31,20 @@ module.exports = (app, x) => {
     });
   }));
 
+  /** Recado do suporte para um promotor ou uma loja, sem mudar status (ex.: "confira seu CPF e fale com o suporte"). */
+  app.post("/admin/recado/:tipo/:uid", ...ADM, envelope(async (req, res) => {
+    const tipo = V.opcao(req.params.tipo, ["loja", "promotor"], "tipo"), uid = V.idDoc(req.params.uid, "uid");
+    const texto = V.texto(req.body?.texto, "mensagem", { min: 3, max: 300 });
+    const ref = db.collection(tipo === "loja" ? "contratantes" : "profissionais").doc(uid);
+    if (!(await ref.get()).exists) throw new Falha(404, "Cadastro não encontrado.", "nao-encontrado");
+    await ref.set({ recado: { texto, tipo: "info", por: "suporte", em: FieldValue.serverTimestamp() } }, { merge: true });
+    await auth.auditar(req, "admin.recado.enviar", uid, { tipo, texto });
+    res.json({ ok: true });
+  }));
+
   app.post("/admin/promotores/:uid/status", ...ADM, envelope(async (req, res) => {
     const uid = V.idDoc(req.params.uid, "uid"), status = V.opcao(req.body?.status, ["ativo", "pendente", "bloqueado"], "status");
-    const motivo = V.texto(req.body?.motivo || "", "motivo", { max: 200, obrigatorio: false });
+    const motivo = V.texto(req.body?.motivo || "", "motivo", { max: 300, obrigatorio: false });
     const { pub, priv, nascimento } = await habilitacao.perfil(uid);
     if (!pub) throw new Falha(404, "Profissional não encontrado.", "nao-encontrado");
     if (status === "ativo") {                                                    // aprovar exige cadastro legalmente completo
@@ -42,7 +53,9 @@ module.exports = (app, x) => {
       if (idade < C.IDADE_MINIMA) throw new Falha(409, `Não é possível aprovar: menor de ${C.IDADE_MINIMA} anos.`, "idade-minima");
       if (idade < C.IDADE_MAIORIDADE && !(priv.responsavelEnc && priv.autorizacaoResponsavelEm)) throw new Falha(409, "Não é possível aprovar: falta autorização do responsável legal.", "responsavel-pendente");
     }
-    await db.collection("profissionais").doc(uid).set({ status, statusMotivo: motivo, statusPor: req.usuario.uid, statusEm: FieldValue.serverTimestamp() }, { merge: true });
+    // O motivo vira um recado visível para o próprio promotor (ao aprovar, o recado antigo some).
+    const recado = motivo && status !== "ativo" ? { texto: motivo, tipo: status, por: "suporte", em: FieldValue.serverTimestamp() } : FieldValue.delete();
+    await db.collection("profissionais").doc(uid).set({ status, statusMotivo: motivo, statusPor: req.usuario.uid, statusEm: FieldValue.serverTimestamp(), recado }, { merge: true });
     if (status === "bloqueado") await admin.auth().revokeRefreshTokens(uid);   // derruba as sessões do bloqueado
     await auth.auditar(req, "admin.promotor.status", uid, { status, motivo });
     res.json({ ok: true, status });

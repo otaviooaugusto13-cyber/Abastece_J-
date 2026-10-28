@@ -132,6 +132,13 @@ module.exports = (app, x) => {
     });
   }));
 
+  /** "Entendi": a pessoa dispensa o recado do suporte (só o próprio, pelo papel ativo). */
+  app.post("/perfil/recado/lido", lim, auth.exigir("loja", "promotor"), envelope(async (req, res) => {
+    const ref = db.collection(req.usuario.role === "loja" ? "contratantes" : "profissionais").doc(req.usuario.uid);
+    if ((await ref.get()).exists) await ref.set({ recado: FieldValue.delete() }, { merge: true });
+    res.json({ ok: true });
+  }));
+
   app.get("/habilitacao", auth.exigir("promotor"), envelope(async (req, res) => res.json(await habilitacao.situacao(req.usuario.uid))));
 
   /**

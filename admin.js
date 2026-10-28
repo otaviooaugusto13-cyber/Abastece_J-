@@ -39,8 +39,21 @@ async function sensivel(fn) {
     }
 }
 /** Substitui prompt()/confirm(): retorna true/texto ao confirmar, null ao cancelar. */
-function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", perigo = false }) {
+const MODELOS = [
+    ["Conferir CPF", "Olá, tudo bem? O CPF informado no seu cadastro não confere. Fale com o suporte pelo WhatsApp informando o CPF correto para a gente corrigir e liberar seu acesso."],
+    ["Conferir nascimento", "Olá! A data de nascimento do seu cadastro não confere com seu documento. Fale com o suporte pelo WhatsApp para corrigirmos e liberar seu acesso."],
+    ["Responsável legal", "Bom dia! Para liberar seu acesso falta a autorização do responsável legal. Complete essa etapa no cadastro ou fale com o suporte pelo WhatsApp."],
+    ["Treinamento", "Olá! Para liberar os turnos falta concluir o treinamento PRATICAMENTE. Assim que terminar, é só nos avisar."],
+    ["Só um oi", "Oi, tudo bem? Passando para falar do seu cadastro no Abastece Já. Pode nos responder pelo WhatsApp?"]
+];
+function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", perigo = false, modelos = false }) {
     const d = $("ax-dlg"), i = $("ax-dlg-i"), b = $("ax-dlg-ok");
+    $("ax-dlg-m")?.remove();
+    if (modelos && rotulo) {                                                    // atalhos de mensagem pronta (o admin ainda pode editar)
+        const m = document.createElement("div"); m.id = "ax-dlg-m"; m.className = "ax-row"; m.style.cssText = "flex-wrap:wrap;gap:6px;margin-bottom:8px";
+        for (const [nome, msg] of MODELOS) { const x = document.createElement("button"); x.type = "button"; x.className = "ax-btn sm"; x.textContent = nome; x.addEventListener("click", () => { i.value = msg; i.focus(); }); m.appendChild(x); }
+        $("ax-dlg-c").insertBefore(m, $("ax-dlg-l"));
+    }
     $("ax-dlg-t").textContent = titulo; $("ax-dlg-p").textContent = texto; $("ax-dlg-c").hidden = !rotulo; $("ax-dlg-l").textContent = rotulo;
     i.value = ""; $("ax-dlg-e").textContent = ""; b.textContent = ok; b.className = "ax-btn " + (perigo ? "danger" : "pri");
     return new Promise((res) => {
@@ -159,6 +172,7 @@ function renderPromotores() {
     $("u-head").innerHTML = "<tr><th>Nome</th><th>Cidade</th><th>Treino</th><th>Nota</th><th>Criado</th><th></th></tr>";
     $("u-body").innerHTML = l.length ? l.map((p) => `<tr>${td("Nome", esc(p.nome))}${td("Cidade", esc(p.cidade || "—"))}${td("Treino", p.treinamentoOk ? '<span class="ax-ok">✓</span>' : "—")}${td("Nota", p.ratingMedia ? esc(p.ratingMedia) : "—")}${td("Criado", dt(p.criadoEm))}${td("", `<div class="ax-acts">
         <button class="ax-btn sm" data-acao="ficha" data-uid="${esc(p.uid)}">Perfil</button>
+        <button class="ax-btn sm" data-acao="recado" data-tipo="promotor" data-uid="${esc(p.uid)}">Recado</button>
         ${p.status !== "ativo" ? `<button class="ax-btn sm ok" data-acao="aprovar" data-uid="${esc(p.uid)}">${p.status === "bloqueado" ? "Reativar" : "Aprovar"}</button>` : ""}
         ${p.status !== "bloqueado" ? `<button class="ax-btn sm danger" data-acao="bloquear" data-uid="${esc(p.uid)}">Bloquear</button>` : ""}</div>`, "acts")}</tr>`).join("") : vazio(6, "Nenhum cadastro neste filtro.");
 }
@@ -166,7 +180,7 @@ function renderLojas() {
     const q = filtrosUsuarios(), l = S.lojas.filter((x) => buscaOk([x.razaoSocial, x.nome, x.email, x.documento], q));
     $("u-nota").textContent = "Lojas entram ativas no cadastro; o backend ainda não tem status de aprovação/suspensão de loja (ver observações da entrega).";
     $("u-head").innerHTML = "<tr><th>Loja</th><th>Ramo</th><th>E-mail</th><th>Cadastro</th><th></th></tr>";
-    $("u-body").innerHTML = l.length ? l.map((x) => `<tr>${td("Loja", esc(x.razaoSocial || x.nome || "—"))}${td("Ramo", esc(x.ramo || "—"))}${td("E-mail", esc(x.email || "—"))}${td("Cadastro", dt(x.criadoEm))}${td("", `<button class="ax-btn sm" data-acao="ficha-loja" data-uid="${esc(x.uid)}">Perfil</button>`, "acts")}</tr>`).join("") : vazio(5, "Nenhuma loja encontrada.");
+    $("u-body").innerHTML = l.length ? l.map((x) => `<tr>${td("Loja", esc(x.razaoSocial || x.nome || "—"))}${td("Ramo", esc(x.ramo || "—"))}${td("E-mail", esc(x.email || "—"))}${td("Cadastro", dt(x.criadoEm))}${td("", `<button class="ax-btn sm" data-acao="ficha-loja" data-uid="${esc(x.uid)}">Perfil</button> <button class="ax-btn sm" data-acao="recado" data-tipo="loja" data-uid="${esc(x.uid)}">Recado</button>`, "acts")}</tr>`).join("") : vazio(5, "Nenhuma loja encontrada.");
 }
 $("u-tipo").addEventListener("click", (e) => { const b = e.target.closest("[data-t]"); if (b) { S.ut = b.dataset.t; seguro(carregarUsuarios)(); } });
 $("u-status").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) { S.us = b.dataset.s; seguro(carregarUsuarios)(); } });
@@ -183,17 +197,24 @@ async function abrirFicha(uid) {
         <dl class="ax-dl"><dt>E-mail</dt><dd>${esc(p.email)}</dd><dt>Telefone</dt><dd>${esc(p.telefone)}</dd><dt>CPF</dt><dd>${esc(p.cpfMascarado)}</dd><dt>Cidade</dt><dd>${esc(p.cidade || "—")}</dd><dt>Nascimento</dt><dd>${esc(p.nascimento || "—")} (${esc(p.idade ?? "?")} anos)</dd>
         <dt>Treinamento</dt><dd>${esc(p.treinamento?.concluidos)}/${esc(p.treinamento?.total)}</dd><dt>Pendências</dt><dd>${esc((t.pendencias || []).join(", ") || "nenhuma")}</dd></dl>
         ${r ? `<div class="ax-alert w"><div><strong>Responsável legal:</strong> ${esc(r.nome)} (${esc(r.parentesco)}) · CPF ${esc(r.cpfMascarado)} · Tel. ${esc(r.telefone)}<br><span class="ax-xs ax-mut">Autorização registrada em ${esc(dt(p.autorizacaoEm))}. Confirme com o responsável antes de aprovar.</span></div></div>` : p.menor ? '<p class="ax-bad">Falta autorização do responsável — não é possível aprovar.</p>' : ""}`,
-        `<button class="ax-btn ok" data-acao="aprovar" data-uid="${esc(uid)}">Aprovar</button><button class="ax-btn" data-acao="analise" data-uid="${esc(uid)}">Voltar p/ análise</button><button class="ax-btn danger" data-acao="bloquear" data-uid="${esc(uid)}">Bloquear</button>`);
+        `<button class="ax-btn ok" data-acao="aprovar" data-uid="${esc(uid)}">Aprovar</button><button class="ax-btn" data-acao="recado" data-tipo="promotor" data-uid="${esc(uid)}">Enviar recado</button><button class="ax-btn" data-acao="analise" data-uid="${esc(uid)}">Voltar p/ análise</button><button class="ax-btn danger" data-acao="bloquear" data-uid="${esc(uid)}">Bloquear</button>`);
 }
 function abrirFichaLoja(uid) {
     const x = S.lojas.find((l) => l.uid === uid); if (!x) return;
     fichaAbrir(`<h2>${esc(x.razaoSocial || x.nome || "Loja")}</h2><dl class="ax-dl"><dt>Documento</dt><dd>${esc(x.documento || "—")}</dd><dt>Ramo</dt><dd>${esc(x.ramo || "—")}</dd><dt>E-mail</dt><dd>${esc(x.email || "—")}</dd><dt>Telefone</dt><dd>${esc(x.telefone || "—")}</dd><dt>Endereço</dt><dd>${esc(x.endereco || "—")}</dd><dt>Cadastro</dt><dd>${esc(dt(x.criadoEm))}</dd><dt>UID</dt><dd>${esc(x.uid)}</dd></dl>
-        <p class="ax-xs ax-mut">Missões desta loja: ${S.missoes.filter((m) => m.uid === uid).length} (entre as 400 mais recentes).</p>`, "");
+        <p class="ax-xs ax-mut">Missões desta loja: ${S.missoes.filter((m) => m.uid === uid).length} (entre as 400 mais recentes).</p>`, `<button class="ax-btn" data-acao="recado" data-tipo="loja" data-uid="${esc(uid)}">Enviar recado</button>`);
+}
+/** Recado avulso (sem mudar status) para um promotor ou uma loja. */
+async function enviarRecado(tipo, uid) {
+    const texto = await pedir({ titulo: tipo === "loja" ? "Recado para a loja" : "Recado para o promotor", texto: "Aparece no painel dele(a), com botão para responder no WhatsApp. Fica registrado na auditoria.", rotulo: "Mensagem", min: 3, ok: "Enviar", modelos: true });
+    if (!texto) return;
+    await chamarFuncao(`admin/recado/${tipo}/${encodeURIComponent(uid)}`, { texto });
+    toast("Recado enviado.", "ok");
 }
 async function mudarStatus(uid, novo) {
     let motivo = "";
     if (novo === "ativo") { if (!(await pedir({ titulo: "Aprovar cadastro?", texto: "O servidor confere idade e autorização do responsável antes de aprovar.", ok: "Aprovar" }))) return; }
-    else { motivo = await pedir({ titulo: novo === "bloqueado" ? "Bloquear usuário" : "Voltar para análise", texto: novo === "bloqueado" ? "As sessões do usuário serão derrubadas. O motivo fica na auditoria." : "O motivo fica na auditoria.", rotulo: "Motivo", min: 3, ok: "Confirmar", perigo: novo === "bloqueado" }); if (!motivo) return; }
+    else { motivo = await pedir({ titulo: novo === "bloqueado" ? "Bloquear usuário" : "Voltar para análise", texto: novo === "bloqueado" ? "As sessões do usuário serão derrubadas. O motivo aparece para ele e fica na auditoria." : "O cadastro volta para análise. A mensagem abaixo aparece para o promotor no portal dele e fica na auditoria.", rotulo: novo === "bloqueado" ? "Motivo" : "Mensagem para o promotor", min: 3, ok: "Confirmar", perigo: novo === "bloqueado", modelos: novo !== "bloqueado" }); if (!motivo) return; }
     await chamarFuncao(`admin/promotores/${encodeURIComponent(uid)}/status`, { status: novo, motivo });
     toast("Status atualizado.", "ok"); if ($("ax-ficha").open) $("ax-ficha").close(); await carregarUsuarios(); seguro(kpiContagens)();
 }
@@ -204,6 +225,7 @@ document.addEventListener("click", seguro(async (e) => {
         case "ficha-loja": return abrirFichaLoja(uid);
         case "aprovar": return mudarStatus(uid, "ativo");
         case "analise": return mudarStatus(uid, "pendente");
+        case "recado": return enviarRecado(b.dataset.tipo || "promotor", uid);
         case "bloquear": return mudarStatus(uid, "bloqueado");
         case "fechar": return $("ax-ficha").close();
     }

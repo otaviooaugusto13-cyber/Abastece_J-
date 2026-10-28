@@ -6,6 +6,7 @@ import { collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, onSnaps
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
+import { pintarRecado } from "./recado.js";
 import { WHATSAPP_SUPORTE, REPASSE_PROFISSIONAL_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS } from "./config.js";
 import { brl, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
@@ -74,7 +75,7 @@ async function entrar(u) {
     const s = await getDoc(doc(db, "profissionais", u.uid));
     if (!s.exists()) return abrirCadastro(false);
     pub = s.data();
-    if (pub.status === "bloqueado") { erro("Acesso não liberado para esta conta."); return sair(); }
+    if (pub.status === "bloqueado") { erro("Acesso não liberado para esta conta." + (pub.recado?.texto ? ` ${pub.recado.texto}` : "")); return sair(); }
     await Promise.all([carregarPrivado(), carregarHabilitacao()]);
     if (!priv.nascimento || !priv.temCpf || (priv.menor && !priv.autorizacaoResponsavel)) return abrirCadastro(true);   // conta antiga ou dados faltando
     tela("screen-dashboard");
@@ -140,6 +141,7 @@ const textoPendencias = () => (hab.pendencias || []).map((p) => PENDENCIA[p] || 
 
 // ---------- perfil + onboarding ----------
 function pintarPerfil() {
+    pintarRecado($("sub-home").closest(".page-head"), pub.recado);
     const nome = nomeProm(), ini = nome[0].toUpperCase();
     $("nome-home").textContent = nome.split(" ")[0]; $("nome-menu").textContent = nome;
     for (const id of ["avatar-home", "avatar-menu"]) { const a = $(id); a.textContent = ini; if (pub.fotoGoogle) a.innerHTML = `<img src="${esc(pub.fotoGoogle)}" alt="" referrerpolicy="no-referrer">`; }

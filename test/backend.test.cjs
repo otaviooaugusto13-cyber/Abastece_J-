@@ -389,6 +389,28 @@ t("cadastro: conflito de perfil devolve 409 amigável com a sugestão de painel"
   assert.equal((await get("profissionais", "lojaA")), undefined);
 });
 
+// =================== 6. RECADO DO SUPORTE (admin → promotor/loja) ===================
+t("recado: admin envia a promotor e loja; motivo de 'voltar p/ análise' vira recado; aprovar limpa; 'entendi' só limpa o próprio", async () => {
+  await semear({ status: "ativo" }); await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Loja A" });
+  ok(await chamar("POST", "/admin/recado/promotor/prom1", { token: "adm", body: { texto: "Olá! Confira seu CPF e fale com o suporte." } }));
+  assert.deepEqual([(await get("profissionais", "prom1")).recado.texto, (await get("profissionais", "prom1")).recado.tipo], ["Olá! Confira seu CPF e fale com o suporte.", "info"]);
+  ok(await chamar("POST", "/admin/recado/loja/lojaA", { token: "adm", body: { texto: "Bom dia! Complete os dados fiscais." } })); assert.equal((await get("contratantes", "lojaA")).recado.texto, "Bom dia! Complete os dados fiscais.");
+  ok(await chamar("POST", "/admin/promotores/prom1/status", { token: "adm", body: { status: "pendente", motivo: "CPF não confere" } }));
+  const p = await get("profissionais", "prom1"); assert.deepEqual([p.status, p.recado.texto, p.recado.tipo], ["pendente", "CPF não confere", "pendente"]);
+  ok(await chamar("POST", "/perfil/recado/lido", { token: "lojaA" })); assert.equal((await get("contratantes", "lojaA")).recado, undefined); assert.equal((await get("profissionais", "prom1")).recado.texto, "CPF não confere");
+  ok(await chamar("POST", "/admin/promotores/prom1/status", { token: "adm", body: { status: "ativo" } })); assert.equal((await get("profissionais", "prom1")).recado, undefined);
+});
+t("recado: só admin envia; validação de tipo/tamanho; cadastro inexistente → 404; o cliente não escreve recado (regras)", async () => {
+  await semear({ status: "ativo" });
+  for (const tk of ["lojaA", "prom1"]) falha(await chamar("POST", "/admin/recado/promotor/prom1", { token: tk, body: { texto: "oi, tudo bem?" } }), 403, "sem-permissao");
+  falha(await chamar("POST", "/admin/recado/admin/prom1", { token: "adm", body: { texto: "oi, tudo bem?" } }), 400);
+  falha(await chamar("POST", "/admin/recado/promotor/prom1", { token: "adm", body: { texto: "x" } }), 400);
+  falha(await chamar("POST", "/admin/recado/promotor/prom1", { token: "adm", body: { texto: "a".repeat(301) } }), 400);
+  falha(await chamar("POST", "/admin/recado/promotor/fantasma", { token: "adm", body: { texto: "oi, tudo bem?" } }), 404, "nao-encontrado");
+  falha(await chamar("POST", "/perfil/recado/lido", {}), 401, "nao-autenticado");
+  const regras = require("node:fs").readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8"); assert.ok(!/'recado'/.test(regras), "recado não pode estar na lista de campos graváveis pelo cliente");
+});
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {

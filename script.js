@@ -6,6 +6,7 @@ import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnaps
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, db, googleProvider, chamarFuncao, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
+import { pintarRecado } from "./recado.js";
 import { WHATSAPP_SUPORTE, VALOR_DIARIA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MP_PUBLIC_KEY } from "./config.js";
 import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
@@ -94,6 +95,7 @@ async function carregarPerfil(u) {
 }
 
 function pintarPerfil() {
+    pintarRecado($("nome-home").closest(".page-head"), perfil.recado);
     const nome = perfil.razaoSocial || usuario.displayName || (usuario.email || "loja").split("@")[0];
     $("nome-home").textContent = nome.split(" ")[0]; $("nome-menu").textContent = nome;
     for (const id of ["avatar-home", "avatar-menu"]) {
