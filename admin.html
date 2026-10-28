@@ -120,11 +120,15 @@
             <div><label class="ax-lbl" for="t-ref">ID do YouTube ou URL</label><input class="ax-in" id="t-ref"></div>
             <div><label class="ax-lbl" for="t-dur">Duração real (segundos)</label><input class="ax-in" id="t-dur" type="number" min="30"></div>
           </div>
+          <div class="ax-grid ax-g2">
+            <div><label class="ax-lbl" for="t-cat">Categoria (cursos opcionais)</label><select class="ax-sel" id="t-cat"><option value="reposicao">Reposição e mercearia</option><option value="perdas">Prevenção de perdas</option><option value="atendimento">Atendimento e postura</option><option value="seguranca">Segurança e saúde</option><option value="carreira">Carreira e finanças</option><option value="geral">Outros cursos</option></select></div>
+          </div>
+          <label class="ax-chk"><input type="checkbox" id="t-obrig" checked> Obrigatório (faz parte da habilitação PRATICAMENTE)</label>
           <label class="ax-chk"><input type="checkbox" id="t-ativo" checked> Módulo ativo</label>
           <div class="ax-row"><button class="ax-btn pri" id="t-salvar">Salvar módulo</button><button class="ax-btn" id="t-limpar">Limpar</button></div>
-          <p class="ax-xs ax-mut ax-mt">Sem módulo ativo, ninguém é habilitado a aceitar turnos. O profissional precisa assistir pelo menos 90%.</p>
+          <p class="ax-xs ax-mut ax-mt"><strong>Obrigatório</strong> = sequencial e libera os turnos. Desmarcado = curso opcional que aparece em Menu → Cursos, na categoria escolhida. Sem módulo obrigatório ativo, ninguém é habilitado a aceitar turnos. O profissional precisa assistir pelo menos 90%.</p>
         </div>
-        <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Ordem</th><th>Título</th><th>Fonte</th><th>Duração</th><th>Ativo</th><th></th></tr></thead><tbody id="t-body"></tbody></table></div></div>
+        <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Ordem</th><th>Título</th><th>Fonte</th><th>Tipo</th><th>Duração</th><th>Ativo</th><th></th></tr></thead><tbody id="t-body"></tbody></table></div></div>
       </section>
 
       <!-- MODERAÇÃO -->

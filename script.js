@@ -9,9 +9,11 @@ import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.j
 import { pintarRecado } from "./recado.js";
 import { WHATSAPP_SUPORTE, VALOR_DIARIA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MP_PUBLIC_KEY } from "./config.js";
 import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
+import { CIDADES, acharCidade, rotuloCidade, cidadeMaisProxima, capturarPosicao } from "./geo.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
 // ---------- estado ----------
+let lojaGeo = null;   // { cidade, uf, lat, lng } — vira a localização das vagas (o servidor copia para cada pedido)
 let usuario = null, perfil = {}, pedidos = [], promotores = [], cartaoLoja = null, ehTeste = false;
 const fin = new Map();   // valores que a LOJA enxerga (valor + taxa fixa + total), por pedido
 let filtro = "ativos", setorSel = SETORES[0].v, preferido = "", dataCal = new Date(), diaSel = "";
@@ -104,6 +106,9 @@ function pintarPerfil() {
     }
     $("aviso-fiscal").hidden = !!(perfil.razaoSocial && perfil.documento);
     $("f-razao").value = perfil.razaoSocial || ""; $("f-doc").value = perfil.documento ? mascaraDoc(perfil.documento) : "";
+    $("lista-cidades").innerHTML = CIDADES.map((c) => `<option value="${esc(rotuloCidade(c))}">`).join("");
+    lojaGeo = Number.isFinite(perfil.lat) && Number.isFinite(perfil.lng) ? { cidade: perfil.cidade || "", uf: perfil.uf || "", lat: perfil.lat, lng: perfil.lng, exata: true } : null;
+    $("f-cidade").value = perfil.cidade ? (perfil.uf ? `${perfil.cidade} - ${perfil.uf}` : perfil.cidade) : "";
     $("f-end").value = perfil.endereco || ""; $("f-email").value = perfil.email || usuario.email || "";
     $("f-tel").value = perfil.telefone ? mascaraTelefone(perfil.telefone) : ""; if (perfil.ramo) $("f-ramo").value = perfil.ramo;
     $("pref-setor").innerHTML = SETORES.map((s) => `<option value="${esc(s.v)}">${esc(s.label)}</option>`).join("");
@@ -354,13 +359,27 @@ async function salvarPerfil(dados, msg, sheet) {
     try { await setDoc(doc(db, "contratantes", usuario.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); perfil = { ...perfil, ...dados }; ok(msg); if (sheet) fechar(sheet); pintarPerfil(); return true; }
     catch (e) { console.error(e); erro("Não foi possível salvar. Verifique as regras do Firestore."); return false; }
 }
+$("f-cidade").addEventListener("change", () => {
+    const c = acharCidade($("f-cidade").value);
+    if (c) { lojaGeo = { cidade: c.n, uf: c.uf, lat: c.lat, lng: c.lng, exata: false }; $("f-geo-dica").textContent = `Usando o centro de ${rotuloCidade(c)}. Para precisão de rua, use sua localização.`; }
+    else if ($("f-cidade").value.trim()) { lojaGeo = null; $("f-geo-dica").textContent = "Cidade fora da lista: escolha uma sugerida ou use sua localização."; }
+});
+$("btn-gps-loja").addEventListener("click", async () => {
+    const b = $("btn-gps-loja"); b.disabled = true;
+    try {
+        const p = await capturarPosicao({ timeout: 12_000, maxAge: 0 }), c = cidadeMaisProxima(p, 30);
+        lojaGeo = { cidade: c?.n || "", uf: c?.uf || "", lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5, exata: true };
+        if (c) $("f-cidade").value = rotuloCidade(c);
+        $("f-geo-dica").textContent = `Localização exata capturada (±${Math.round(p.precisaoM)} m). Salve para aplicar.`; ok("Localização capturada ✓");
+    } catch (e) { erro(e.message); } finally { b.disabled = false; }
+});
 $("btn-salvar-fiscal").addEventListener("click", async () => {
     $("e-doc").textContent = ""; $("f-doc").classList.remove("invalido");
     const razao = $("f-razao").value.trim(), documento = soDigitos($("f-doc").value), email = $("f-email").value.trim();
     if (razao.length < 3) return erro("Informe a razão social ou o nome da empresa.");
     if (!docValido(documento)) { $("e-doc").textContent = "CNPJ ou CPF inválido. Confira os dígitos."; $("f-doc").classList.add("invalido"); return $("f-doc").focus(); }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) return erro("E-mail inválido.");
-    await salvarPerfil({ razaoSocial: razao, documento, endereco: $("f-end").value.trim(), email, telefone: soDigitos($("f-tel").value), ramo: $("f-ramo").value }, "Dados da empresa salvos ✓", "sheet-fiscal");
+    await salvarPerfil({ razaoSocial: razao, documento, endereco: $("f-end").value.trim(), email, telefone: soDigitos($("f-tel").value), ramo: $("f-ramo").value, ...(lojaGeo ? { cidade: lojaGeo.cidade, uf: lojaGeo.uf, lat: lojaGeo.lat, lng: lojaGeo.lng } : {}) }, "Dados da empresa salvos ✓", "sheet-fiscal");
 });
 $("btn-salvar-prefs").addEventListener("click", async () => {
     if (await salvarPerfil({ prefs: { setor: $("pref-setor").value, entrada: $("pref-entrada").value, saida: $("pref-saida").value } }, "Preferências salvas ✓", "sheet-prefs")) { setorSel = $("pref-setor").value; iniciarFormulario(); }

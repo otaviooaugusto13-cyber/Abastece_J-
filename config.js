@@ -24,6 +24,17 @@ export const MENOR_JANELA_INICIO = "05:00";          // menores de 18: só turno
 export const MENOR_JANELA_FIM = "22:00";
 export const MENOR_SETORES_VEDADOS = ["Frios & Laticínios", "Bebidas", "Montagem de ilhas"];
 
+// ---- Ofertas por localização -------------------------------
+export const RAIO_KM_OFERTAS = 20;                   // "Perto de mim": só vagas até 20 km da posição do promotor
+export const LOCAL_MAX_IDADE_MS = 120_000;           // posição em cache aceita por até 2 min (economiza bateria)
+export const LOCAL_MOVIMENTO_MIN_KM = 0.2;           // só recalcula o ranking se o promotor andou mais que 200 m
+
+// ---- Eneagrama (teste do PRATICAMENTE) ----------------------
+// Se o teste estiver hospedado (ex.: GitHub Pages), informe a URL https para ele abrir DENTRO do app (modal com iframe).
+// O servidor precisa liberar a origem: defina ENEAGRAMA_TESTE_ORIGEM no Render com a mesma origem. Vazio = só seleção manual/código.
+export const ENEAGRAMA_TESTE_URL = "";
+export const ENEAGRAMA_TESTE_ORIGEM = (() => { try { return ENEAGRAMA_TESTE_URL ? new URL(ENEAGRAMA_TESTE_URL).origin : ""; } catch (e) { return ""; } })();
+
 // ---- Empresa emissora da nota ------------------------------
 // Aparece no cabeçalho da Nota de Serviço. Preencha com os dados reais.
 export const EMPRESA = {

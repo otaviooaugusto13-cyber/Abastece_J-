@@ -286,17 +286,17 @@ $("c-rodar").addEventListener("click", seguro(() => conciliar(false))); $("c-rod
 // ---------- treinamento ----------
 async function carregarModulos() {
     S.mods = await consultar("admin/treinamento/modulos");
-    $("t-body").innerHTML = S.mods.length ? S.mods.map((m) => `<tr>${td("Ordem", esc(m.ordem))}${td("Título", `${esc(m.titulo)}<br><span class="ax-xs ax-mut">${esc(m.id)}</span>`)}${td("Fonte", esc(m.provedor))}${td("Duração", Math.round(m.duracaoSeg / 60) + " min")}${td("Ativo", m.ativo ? '<span class="ax-ok">sim</span>' : "não")}${td("", `<button class="ax-btn sm" data-edit-mod="${esc(m.id)}">Editar</button>`, "acts")}</tr>`).join("") : `<tr><td colspan="6" class="ax-empty ax-bad">Nenhum módulo: ninguém consegue aceitar turnos até você publicar o treinamento.</td></tr>`;
+    $("t-body").innerHTML = S.mods.length ? S.mods.map((m) => `<tr>${td("Ordem", esc(m.ordem))}${td("Título", `${esc(m.titulo)}<br><span class="ax-xs ax-mut">${esc(m.id)}</span>`)}${td("Fonte", esc(m.provedor))}${td("Tipo", m.obrigatorio === false ? "opcional · " + esc(m.categoria || "geral") : "obrigatório")}${td("Duração", Math.round(m.duracaoSeg / 60) + " min")}${td("Ativo", m.ativo ? '<span class="ax-ok">sim</span>' : "não")}${td("", `<button class="ax-btn sm" data-edit-mod="${esc(m.id)}">Editar</button>`, "acts")}</tr>`).join("") : `<tr><td colspan="7" class="ax-empty ax-bad">Nenhum módulo: ninguém consegue aceitar turnos até você publicar o treinamento.</td></tr>`;
 }
-const limparModulo = () => { for (const x of ["t-id", "t-ordem", "t-titulo", "t-ref", "t-dur"]) $(x).value = ""; $("t-ativo").checked = true; };
+const limparModulo = () => { for (const x of ["t-id", "t-ordem", "t-titulo", "t-ref", "t-dur"]) $(x).value = ""; $("t-ativo").checked = true; $("t-obrig").checked = true; };
 $("t-limpar").addEventListener("click", limparModulo);
 document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-edit-mod]"); if (!b) return; const m = S.mods.find((x) => x.id === b.dataset.editMod); if (!m) return;
-    $("t-id").value = m.id; $("t-ordem").value = m.ordem; $("t-titulo").value = m.titulo; $("t-prov").value = m.provedor; $("t-ref").value = m.videoRef; $("t-dur").value = m.duracaoSeg; $("t-ativo").checked = !!m.ativo;
+    $("t-id").value = m.id; $("t-ordem").value = m.ordem; $("t-titulo").value = m.titulo; $("t-prov").value = m.provedor; $("t-ref").value = m.videoRef; $("t-dur").value = m.duracaoSeg; $("t-ativo").checked = !!m.ativo; $("t-obrig").checked = m.obrigatorio !== false; if (m.categoria && m.categoria !== "habilitacao") $("t-cat").value = m.categoria;
     $("t-titulo").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 $("t-salvar").addEventListener("click", seguro(async () => {
-    const id = $("t-id").value.trim(), corpo = { ordem: Number($("t-ordem").value), titulo: $("t-titulo").value.trim(), provedor: $("t-prov").value, videoRef: $("t-ref").value.trim(), duracaoSeg: Number($("t-dur").value), ativo: $("t-ativo").checked };
+    const id = $("t-id").value.trim(), corpo = { ordem: Number($("t-ordem").value), titulo: $("t-titulo").value.trim(), provedor: $("t-prov").value, videoRef: $("t-ref").value.trim(), duracaoSeg: Number($("t-dur").value), ativo: $("t-ativo").checked, obrigatorio: $("t-obrig").checked, categoria: $("t-obrig").checked ? "habilitacao" : $("t-cat").value };
     await chamarFuncao(id ? `admin/treinamento/modulos/${encodeURIComponent(id)}` : "admin/treinamento/modulos", corpo, id ? "PUT" : "POST");
     toast("Módulo salvo.", "ok"); limparModulo(); await carregarModulos();
 }));

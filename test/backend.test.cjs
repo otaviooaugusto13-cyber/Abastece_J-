@@ -345,6 +345,74 @@ t("regras do Firestore: deny-by-default, sem escrita aberta, campos sensíveis p
   assert.match(rules, /match \/solicitacoes\/\{id\} \{[\s\S]*?allow write: if false;/);
 });
 
+// =================== 8. CURSOS, PERFIL INTELIGENTE E GEOLOCALIZAÇÃO ===================
+t("cursos opcionais não bloqueiam nem entram na habilitação; obrigatórios seguem em ordem", async () => {
+  await semear();
+  await set("treinamento_modulos", "o1", { ordem: 1, titulo: "Obrigatório 1", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 100, ativo: true });
+  await set("treinamento_modulos", "c1", { ordem: 2, titulo: "Curso opcional", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 100, ativo: true, obrigatorio: false, categoria: "perdas" });
+  await set("treinamento_modulos", "o2", { ordem: 3, titulo: "Obrigatório 2", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 100, ativo: true });
+  const r = await chamar("GET", "/treinamento", { token: "prom1" }); ok(r);
+  const m = Object.fromEntries(r.json.modulos.map((x) => [x.id, x]));
+  assert.equal(m.c1.bloqueado, false, "opcional sempre aberto"); assert.equal(m.c1.categoria, "perdas"); assert.equal(m.c1.obrigatorio, false);
+  assert.equal(m.o2.bloqueado, true, "o2 espera o1"); assert.equal(m.o1.categoria, "habilitacao");
+  assert.equal(r.json.total, 2, "só obrigatórios contam"); assert.deepEqual(r.json.opcionais, { concluidos: 0, total: 1 });
+  await set("treinamento_progresso", "prom1_o1", { uid: "prom1", moduloId: "o1", validoSeg: 100, concluido: true });
+  await set("treinamento_progresso", "prom1_o2", { uid: "prom1", moduloId: "o2", validoSeg: 100, concluido: true });
+  const f = await chamar("GET", "/treinamento", { token: "prom1" }); assert.equal(f.json.completo, true, "habilitado sem fazer o curso opcional");
+});
+t("admin cadastra curso opcional por categoria; obrigatório sempre cai em 'habilitacao'; categoria inválida é recusada", async () => {
+  const b = { ordem: 5, titulo: "Prevenção de perdas na prática", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 300 };
+  const r = await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...b, obrigatorio: false, categoria: "perdas" } }); ok(r);
+  assert.deepEqual([(await get("treinamento_modulos", r.json.id)).obrigatorio, (await get("treinamento_modulos", r.json.id)).categoria], [false, "perdas"]);
+  const r2 = await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...b, categoria: "reposicao" } }); ok(r2);
+  assert.equal((await get("treinamento_modulos", r2.json.id)).categoria, "habilitacao");
+  falha(await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...b, obrigatorio: false, categoria: "inventada" } }), 400, "dados-invalidos");
+  falha(await chamar("POST", "/admin/treinamento/modulos", { token: "prom1", body: b }), 403, "sem-permissao");
+});
+t("perfil inteligente: promotor salva experiência+Eneagrama; bio/palavras vão ao perfil público, Eneagrama NÃO", async () => {
+  await semear();
+  const corpo = { experiencias: [{ area: "Mercearia", anos: 3 }, { area: "Prevenção de perdas", anos: 2, detalhe: "quebras e validade" }], eneagrama: { tipo: 1, asa: 2, instinto: "SP" }, palavrasChave: ["mercearia", "prevenção de perdas", "3+ anos de experiência"], bio: "Profissional de reposição com 3 anos em mercearia.", bioAuto: true };
+  ok(await chamar("PUT", "/perfil/promotor/inteligente", { token: "prom1", body: corpo }));
+  const pub = await get("profissionais", "prom1");
+  assert.equal(pub.bio, corpo.bio); assert.deepEqual(pub.palavrasChave, corpo.palavrasChave); assert.deepEqual(pub.areasExperiencia, ["Mercearia", "Prevenção de perdas"]);
+  assert.equal(pub.eneagrama, undefined, "Eneagrama não é público"); assert.equal(pub.status, "ativo");
+  const lido = await chamar("GET", "/perfil/promotor/inteligente", { token: "prom1" }); ok(lido); assert.deepEqual(lido.json.eneagrama, { tipo: 1, asa: 2, instinto: "SP" }); assert.equal(lido.json.experiencias.length, 2);
+});
+t("perfil inteligente: validação rígida (área, asa não vizinha, tipo, palavras, tamanho) e campos extras ignorados", async () => {
+  await semear(); const put = (b) => chamar("PUT", "/perfil/promotor/inteligente", { token: "prom1", body: b });
+  falha(await put({ experiencias: [{ area: "Hacker", anos: 1 }] }), 400, "dados-invalidos");
+  falha(await put({ experiencias: [{ area: "Bebidas", anos: 1 }, { area: "Bebidas", anos: 2 }] }), 400, "dados-invalidos");
+  falha(await put({ experiencias: [{ area: "Bebidas", anos: 99 }] }), 400, "dados-invalidos");
+  falha(await put({ eneagrama: { tipo: 10 } }), 400, "dados-invalidos"); falha(await put({ eneagrama: { tipo: 1, asa: 5 } }), 400, "dados-invalidos"); falha(await put({ eneagrama: { tipo: 1, instinto: "XX" } }), 400, "dados-invalidos");
+  falha(await put({ palavrasChave: ["<script>alert(1)</script>"] }), 400, "dados-invalidos"); falha(await put({ palavrasChave: Array(13).fill("ok x") }), 400, "dados-invalidos");
+  falha(await put({ bio: "x".repeat(301) }), 400, "dados-invalidos");
+  ok(await put({ experiencias: [], eneagrama: null, bio: "ok", status: "ativo", treinamentoOk: true, ratingMedia: 5 }));
+  const p = await get("profissionais", "prom1"); assert.equal(p.treinamentoOk, false); assert.equal(p.ratingMedia, undefined);
+  falha(await chamar("PUT", "/perfil/promotor/inteligente", { token: "lojaA", body: {} }), 403, "sem-permissao");
+});
+t("vaga herda cidade e coordenadas da loja (servidor); o cliente não consegue forçar coordenadas no pedido", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", cidade: "Itapira", uf: "SP", lat: -22.4358, lng: -46.8231 }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
+  const r = await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia", lat: 0, lng: 0, cidade: "Outra" } }); ok(r);
+  const v = await get("solicitacoes", r.json.id); assert.deepEqual([v.cidade, v.uf, v.lat, v.lng], ["Itapira", "SP", -22.4358, -46.8231]);
+});
+t("vaga sem localização válida da loja é criada sem coordenadas (coordenada fora do Brasil é descartada)", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", cidade: "Lugar", lat: 48.85, lng: 2.35 }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
+  const r = await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia" } }); ok(r);
+  const v = await get("solicitacoes", r.json.id); assert.equal(v.lat, undefined); assert.equal(v.cidade, undefined);
+});
+t("regras do Firestore: loja grava localização só com números dentro do Brasil; promotor continua sem poder gravar perfil inteligente", async () => {
+  const fs = require("node:fs"), rules = fs.readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8");
+  const lojaUpd = /match \/contratantes\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
+  for (const c of ["cidade", "uf", "lat", "lng"]) assert.ok(lojaUpd.includes(`'${c}'`), c);
+  assert.match(rules, /lat is number && request\.resource\.data\.lat >= -34/); assert.match(rules, /lng is number && request\.resource\.data\.lng >= -74/);
+  const promUpd = /match \/profissionais\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
+  for (const c of ["eneagrama", "experiencias", "palavrasChave", "areasExperiencia"]) assert.ok(!promUpd.includes(`'${c}'`), c);
+});
+t("cabeçalhos: geolocalização liberada só para a própria origem; câmera e microfone seguem bloqueados", async () => {
+  const Seg = ctx.Seg || require("../server/lib/seguranca.js"), hs = {}; Seg.cabecalhos()({}, { setHeader: (k, v) => (hs[k] = v), removeHeader() {} }, () => {});
+  const pp = hs["Permissions-Policy"]; assert.match(pp, /geolocation=\(self\)/); assert.match(pp, /camera=\(\)/); assert.match(pp, /microphone=\(\)/);
+});
+
 // =================== 5. MULTI-PERFIL / TROCA DE PORTAL (/sessao) ===================
 t("sessão: conta com dois perfis NÃO trava; o portal aberto decide o perfil ativo e nenhum perfil se perde", async () => {
   await set("contratantes", "dual", { uid: "dual", razaoSocial: "Loja Dual" }); await set("profissionais", "dual", { uid: "dual", nome: "Dual", status: "ativo", treinamentoOk: true });

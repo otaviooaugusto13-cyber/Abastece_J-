@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/split.test.js && node test/backend.test.cjs",
+    "test": "node test/split.test.js && node test/perfil.test.js && node test/backend.test.cjs",
     "start": "node server/server.js",
     "dev": "node server/server.js",
     "gerar-chaves": "node scripts/gerar-chaves.js",

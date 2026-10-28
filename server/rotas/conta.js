@@ -132,6 +132,53 @@ module.exports = (app, x) => {
     });
   }));
 
+  // ---------- Perfil inteligente: experiência profissional + Eneagrama → palavras-chave e bio ----------
+  // Não é dado sensível (sem CPF/Pix), mas o Eneagrama é pessoal: fica em coleção só do servidor e NÃO vai para o perfil público.
+  // Público (lojas veem): bio, palavrasChave e áreas de experiência. Texto gerado no navegador é revalidado/sanitizado aqui.
+  const RE_PALAVRA = /^[\p{L}\p{N}][\p{L}\p{N} +\-\/&.()]{1,29}$/u;
+  function validarPerfilInteligente(b) {
+    const exps = Array.isArray(b.experiencias) ? b.experiencias : [];
+    if (exps.length > C.PERFIL_MAX_EXPERIENCIAS) throw new Falha(400, `Informe no máximo ${C.PERFIL_MAX_EXPERIENCIAS} experiências.`, "dados-invalidos");
+    const vistas = new Set();
+    const experiencias = exps.map((e) => {
+      if (!e || typeof e !== "object" || Array.isArray(e)) throw new Falha(400, "Experiência inválida.", "dados-invalidos");
+      const area = V.opcao(e.area, C.AREAS_EXPERIENCIA, "área de experiência");
+      if (vistas.has(area)) throw new Falha(400, "Área de experiência repetida.", "dados-invalidos");
+      vistas.add(area);
+      return { area, anos: V.inteiro(e.anos, "anos de experiência", { min: 0, max: 40 }), detalhe: V.texto(e.detalhe || "", "detalhe", { max: 80, obrigatorio: false }) };
+    });
+    let eneagrama = null;
+    if (b.eneagrama !== null && b.eneagrama !== undefined) {
+      const en = b.eneagrama;
+      if (typeof en !== "object" || Array.isArray(en)) throw new Falha(400, "Eneagrama inválido.", "dados-invalidos");
+      const tipo = V.inteiro(en.tipo, "tipo do Eneagrama", { min: 1, max: 9 });
+      const asa = en.asa === null || en.asa === undefined || en.asa === 0 ? 0 : V.inteiro(en.asa, "asa do Eneagrama", { min: 1, max: 9 });
+      const vizinhos = [tipo === 1 ? 9 : tipo - 1, tipo === 9 ? 1 : tipo + 1];
+      if (asa && !vizinhos.includes(asa)) throw new Falha(400, "A asa precisa ser um tipo vizinho ao tipo principal.", "dados-invalidos");
+      const instinto = en.instinto ? V.opcao(en.instinto, C.ENEAGRAMA_INSTINTOS, "instinto") : "";
+      eneagrama = { tipo, asa, instinto };
+    }
+    const palavrasBrutas = Array.isArray(b.palavrasChave) ? b.palavrasChave : [];
+    if (palavrasBrutas.length > C.PERFIL_MAX_PALAVRAS) throw new Falha(400, "Palavras-chave demais.", "dados-invalidos");
+    const palavrasChave = [...new Set(palavrasBrutas.map((p) => V.texto(p, "palavra-chave", { min: 2, max: 30, re: RE_PALAVRA })))];
+    const bio = V.texto(b.bio || "", "bio", { max: 300, obrigatorio: false });
+    return { experiencias, eneagrama, palavrasChave, bio, bioAuto: b.bioAuto === undefined ? true : V.booleano(b.bioAuto, "bioAuto") };
+  }
+  app.put("/perfil/promotor/inteligente", lim, auth.exigir("promotor"), envelope(async (req, res) => {
+    const uid = req.usuario.uid, b = V.somente(req.body, ["experiencias", "eneagrama", "palavrasChave", "bio", "bioAuto"]);
+    const p = validarPerfilInteligente(b);
+    const lote = db.batch();
+    lote.set(db.collection("profissionais_perfil").doc(uid), { uid, experiencias: p.experiencias, eneagrama: p.eneagrama, palavrasChave: p.palavrasChave, bioAuto: p.bioAuto, atualizadoEm: FieldValue.serverTimestamp() });
+    lote.set(db.collection("profissionais").doc(uid), { bio: p.bio, palavrasChave: p.palavrasChave, areasExperiencia: p.experiencias.map((e) => e.area), bioAuto: p.bioAuto }, { merge: true });
+    await lote.commit();
+    await auth.auditar(req, "perfil.inteligente.atualizar", uid, { experiencias: p.experiencias.length, eneagrama: !!p.eneagrama });
+    res.json({ ok: true, ...p });
+  }));
+  app.get("/perfil/promotor/inteligente", auth.exigir("promotor"), envelope(async (req, res) => {
+    const d = (await db.collection("profissionais_perfil").doc(req.usuario.uid).get()).data() || {};
+    res.json({ experiencias: d.experiencias || [], eneagrama: d.eneagrama || null, palavrasChave: d.palavrasChave || [], bioAuto: d.bioAuto !== false });
+  }));
+
   /** "Entendi": a pessoa dispensa o recado do suporte (só o próprio, pelo papel ativo). */
   app.post("/perfil/recado/lido", lim, auth.exigir("loja", "promotor"), envelope(async (req, res) => {
     const ref = db.collection(req.usuario.role === "loja" ? "contratantes" : "profissionais").doc(req.usuario.uid);

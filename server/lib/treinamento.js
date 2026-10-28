@@ -1,7 +1,8 @@
 // ============================================================
 // TREINAMENTO OBRIGATÓRIO — projeto PRATICAMENTE
 //
-// O profissional só aceita turnos depois de concluir TODOS os módulos ativos, em ordem.
+// O profissional só aceita turnos depois de concluir TODOS os módulos OBRIGATÓRIOS ativos, em ordem.
+// Cursos opcionais (obrigatorio:false, por categoria) ficam sempre abertos e NÃO entram na habilitação.
 // A conclusão NÃO é declarada pelo navegador: o cliente envia "pings" de reprodução e o servidor
 // credita apenas progresso contíguo e em tempo real (limitado ao relógio do servidor), a partir
 // do ponto já validado. Pular para o fim, acelerar o tempo ou repetir um trecho não conclui o módulo.
@@ -25,16 +26,21 @@ function criarTreinamento({ db, FieldValue, Timestamp, admin }) {
   async function estado(uid) {
     const modulos = await modulosAtivos();
     const progs = await Promise.all(modulos.map((m) => progRef(uid, m.id).get()));
-    let liberado = true; // módulo N só abre depois do N-1
+    let liberado = true; // módulo OBRIGATÓRIO N só abre depois do N-1; opcionais não entram na fila
     const lista = modulos.map((m, i) => {
       const p = progs[i].data() || {}, concluido = p.concluido === true;
-      const item = { id: m.id, ordem: m.ordem, titulo: m.titulo, descricao: m.descricao || "", provedor: m.provedor, videoRef: liberado ? m.videoRef : null,
-        duracaoSeg: m.duracaoSeg, validoSeg: p.validoSeg || 0, limiarSeg: limiar(m), concluido, bloqueado: !liberado };
-      if (!concluido) liberado = false;
+      const obrigatorio = m.obrigatorio !== false;                       // módulos antigos (sem o campo) continuam obrigatórios
+      const bloqueado = obrigatorio && !liberado;
+      const item = { id: m.id, ordem: m.ordem, titulo: m.titulo, descricao: m.descricao || "", provedor: m.provedor, videoRef: bloqueado ? null : m.videoRef,
+        duracaoSeg: m.duracaoSeg, validoSeg: p.validoSeg || 0, limiarSeg: limiar(m), concluido, bloqueado,
+        obrigatorio, categoria: obrigatorio ? "habilitacao" : (C.CURSO_CATEGORIAS.includes(m.categoria) && m.categoria !== "habilitacao" ? m.categoria : "geral") };
+      if (obrigatorio && !concluido) liberado = false;
       return item;
     });
-    const completo = lista.length > 0 && lista.every((m) => m.concluido);
-    return { projeto: "PRATICAMENTE", modulos: lista, concluidos: lista.filter((m) => m.concluido).length, total: lista.length, completo };
+    const obrig = lista.filter((m) => m.obrigatorio), opc = lista.filter((m) => !m.obrigatorio);
+    const completo = obrig.length > 0 && obrig.every((m) => m.concluido);
+    return { projeto: "PRATICAMENTE", modulos: lista, concluidos: obrig.filter((m) => m.concluido).length, total: obrig.length, completo,
+      opcionais: { concluidos: opc.filter((m) => m.concluido).length, total: opc.length } };
   }
 
   /** Autoridade única: pode aceitar turnos? (idempotente, lê direto dos módulos ativos) */
@@ -67,7 +73,7 @@ function criarTreinamento({ db, FieldValue, Timestamp, admin }) {
     const m = est.modulos.find((x) => x.id === moduloId);
     if (!m) throw new Falha(404, "Módulo não encontrado.", "modulo-inexistente");
     if (m.bloqueado) throw new Falha(403, "Conclua o módulo anterior primeiro.", "modulo-bloqueado");
-    if (m.concluido) return { moduloId, validoSeg: m.validoSeg, limiarSeg: m.limiarSeg, concluido: true, treinamentoCompleto: est.completo };
+    if (m.concluido) return { moduloId, validoSeg: m.validoSeg, limiarSeg: m.limiarSeg, concluido: true, obrigatorio: m.obrigatorio, treinamentoCompleto: est.completo };
 
     const ref = progRef(uid, moduloId), agora = Date.now();
     const r = await db.runTransaction(async (tx) => {
@@ -85,7 +91,7 @@ function criarTreinamento({ db, FieldValue, Timestamp, admin }) {
     });
     let completoAgora = false;
     if (r.concluiu) { completoAgora = (await estado(uid)).completo; await sincronizar(uid, completoAgora, claimsAtuais); }
-    return { moduloId, validoSeg: r.ate, limiarSeg: m.limiarSeg, concluido: r.concluiu, treinamentoCompleto: completoAgora, pontoDeRetomada: r.ate };
+    return { moduloId, validoSeg: r.ate, limiarSeg: m.limiarSeg, concluido: r.concluiu, obrigatorio: m.obrigatorio, treinamentoCompleto: completoAgora, pontoDeRetomada: r.ate };
   }
 
   // ---------- administração do catálogo ----------
@@ -105,6 +111,8 @@ function criarTreinamento({ db, FieldValue, Timestamp, admin }) {
     });
     if (b.pctMinimo !== undefined) o.pctMinimo = V.inteiro(b.pctMinimo, "pctMinimo", { min: 50, max: 100 });
     if (b.ativo !== undefined) o.ativo = V.booleano(b.ativo, "ativo");
+    if (b.obrigatorio !== undefined) o.obrigatorio = V.booleano(b.obrigatorio, "obrigatorio");
+    if (b.categoria !== undefined) o.categoria = V.opcao(b.categoria, C.CURSO_CATEGORIAS, "categoria");
     return o;
   }
   async function salvarModulo(id, b) {
@@ -112,6 +120,11 @@ function criarTreinamento({ db, FieldValue, Timestamp, admin }) {
     const existe = id ? (await ref.get()).exists : false;
     if (id && !existe) throw new Falha(404, "Módulo não encontrado.", "nao-encontrado");
     const dados = validarModulo(b, { parcial: existe });
+    // coerência: obrigatório ⇒ categoria "habilitacao"; opcional nunca fica em "habilitacao"
+    const atual = existe ? (await ref.get()).data() || {} : {};
+    const obrig = dados.obrigatorio ?? (atual.obrigatorio !== false);
+    dados.obrigatorio = obrig;
+    dados.categoria = obrig ? "habilitacao" : (dados.categoria && dados.categoria !== "habilitacao" ? dados.categoria : (atual.categoria && atual.categoria !== "habilitacao" ? atual.categoria : "geral"));
     await ref.set({ ...dados, ...(existe ? {} : { ativo: dados.ativo ?? true }), versao: FieldValue.increment ? FieldValue.increment(1) : 1, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
     return { id: ref.id };
   }

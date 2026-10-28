@@ -8,6 +8,21 @@ module.exports = {
   // ---- Setores de reposição (espelho de SETORES em ../../core.js; test/split.test.js confere) ----
   SETORES: ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"],
 
+  // ---- Perfil inteligente (espelho de AREAS_EXPERIENCIA em ../../perfil-inteligente.js; test/perfil.test.js confere) ----
+  AREAS_EXPERIENCIA: [
+    "Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas",
+    "Prevenção de perdas", "Estoque / Logística", "Caixa / Frente de loja", "Atendimento ao cliente", "Açougue / Padaria", "Liderança de equipe"
+  ],
+  ENEAGRAMA_INSTINTOS: ["SP", "SX", "SO"],
+  PERFIL_MAX_EXPERIENCIAS: 8,
+  PERFIL_MAX_PALAVRAS: 12,
+
+  // ---- Geolocalização das vagas ----
+  GEO: { LAT_MIN: -34, LAT_MAX: 6, LNG_MIN: -74, LNG_MAX: -28 },   // caixa do Brasil: rejeita coordenadas absurdas
+
+  // ---- Cursos (categorias do catálogo de treinamento; "habilitacao" = PRATICAMENTE obrigatório) ----
+  CURSO_CATEGORIAS: ["habilitacao", "reposicao", "perdas", "atendimento", "seguranca", "carreira", "geral"],
+
   // ---- Idade ----
   IDADE_MINIMA: 16,            // cadastro permitido a partir dos 16 anos
   IDADE_MAIORIDADE: 18,        // abaixo disso: regras de proteção ao adolescente trabalhador

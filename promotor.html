@@ -88,8 +88,16 @@
 
     <!-- OFERTAS -->
     <section id="tab-ofertas" class="tab-content">
-        <div class="page-head"><div><h2>Ofertas</h2><p>Lojas buscando promotores agora.</p></div><button class="btn btn-ghost btn-sm" id="btn-ordenar">Maior valor ↓</button></div>
+        <div class="page-head"><div><h2>Ofertas</h2><p>Vagas perto de você, ordenadas por compatibilidade.</p></div><button class="btn btn-ghost btn-sm" id="btn-ordenar">Melhor match ✨</button></div>
+        <div id="geo-status" class="geo-card mb" aria-live="polite"></div>
+        <div class="seg mb" id="seg-modo" role="tablist" aria-label="Modo de busca">
+            <button class="on" role="tab" data-modo="perto" id="seg-perto">📍 Perto de mim</button>
+            <button role="tab" data-modo="cidades">🏙️ Por cidade</button>
+        </div>
+        <div class="section-title" style="margin-top:6px">Ofertas da cidade</div>
+        <div class="pills mb" id="chips-cidades" aria-label="Vagas por cidade"></div>
         <div class="pills mb" id="filtro-setor"></div>
+        <div id="sugestoes" class="mb" hidden></div>
         <div id="lista-ofertas" class="stack"></div>
     </section>
 
@@ -145,6 +153,7 @@
             <div><h3 id="nome-menu">Promotor</h3><span class="badge" id="badge-status" style="margin-top:6px">Em análise</span></div>
         </div>
         <div class="menu-list mb">
+            <button class="menu-item" data-abrir="sheet-cursos"><span class="ico">📚</span><span>Cursos</span><span class="badge gray" id="menu-cursos-badge" hidden></span><span class="seta">›</span></button>
             <button class="menu-item" data-ir="tab-treino"><span class="ico">🎓</span><span>Treinamento PRATICAMENTE</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-perfil"><span class="ico">👤</span><span>Meus dados</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-pix"><span class="ico">💠</span><span>Chave Pix</span><span class="seta">›</span></button>
@@ -183,7 +192,36 @@
         <div class="field"><label for="d-tel">WhatsApp</label><input id="d-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
     </div>
     <div class="field"><label for="d-cidade">Cidade</label><input id="d-cidade" type="text" placeholder="Ex: Itapira - SP" maxlength="80"></div>
-    <div class="field"><label for="d-bio">Sobre você</label><textarea id="d-bio" rows="3" maxlength="300" placeholder="Experiência em supermercados, marcas atendidas…"></textarea></div>
+
+    <div class="section-title">Experiência profissional</div>
+    <p class="muted small mb">Conte onde você já trabalhou (mercearia, prevenção de perdas, estoque…). Isso melhora as vagas sugeridas e a sua bio.</p>
+    <div id="exp-lista" class="exp-lista"></div>
+    <div class="exp-add">
+        <select id="exp-area" aria-label="Área de experiência"></select>
+        <select id="exp-anos" aria-label="Tempo de experiência"><option value="0">Menos de 1 ano</option><option value="1">1 ano</option><option value="2">2 anos</option><option value="3">3 anos</option><option value="4">4 anos</option><option value="5">5 anos</option><option value="8">6 a 10 anos</option><option value="12">Mais de 10 anos</option></select>
+        <button type="button" class="btn btn-ghost btn-sm" id="exp-add">+ Adicionar</button>
+    </div>
+
+    <div class="section-title">Seu perfil — Eneagrama</div>
+    <p class="muted small mb">Resultado do teste PRATICAMENTE. Usamos só para sugerir vagas com a sua cara; não é critério de aprovação e não aparece para as lojas.</p>
+    <div class="grid-3">
+        <div class="field"><label for="en-tipo">Tipo</label><select id="en-tipo"><option value="">—</option></select></div>
+        <div class="field"><label for="en-asa">Asa</label><select id="en-asa"><option value="">—</option></select></div>
+        <div class="field"><label for="en-inst">Instinto</label><select id="en-inst"><option value="">—</option><option value="SP">Autopreservação</option><option value="SO">Social</option><option value="SX">Sexual</option></select></div>
+    </div>
+    <div class="en-codigo">
+        <input id="en-codigo" type="text" maxlength="24" placeholder="Ou cole o código do teste (ex.: PM-3w2-SO)" autocomplete="off" aria-label="Código do resultado do teste">
+        <button type="button" class="btn btn-ghost btn-sm" id="en-aplicar">Aplicar</button>
+    </div>
+    <span class="msg-erro" id="e-en-codigo"></span>
+    <button type="button" class="btn btn-ghost btn-sm mb" id="btn-teste-enea" hidden>🧠 Fazer o teste agora</button>
+    <div id="en-resumo" class="en-resumo" hidden></div>
+
+    <div class="section-title">Bio inteligente</div>
+    <label class="check-line"><input type="checkbox" id="bio-auto" checked><span>Atualizar a bio e as palavras-chave automaticamente</span></label>
+    <div class="field"><label for="d-bio">Sobre você <span class="muted small" id="bio-cont"></span></label><textarea id="d-bio" rows="5" maxlength="300" placeholder="Preencha a experiência acima e a bio é gerada para você."></textarea></div>
+    <div id="kw-chips" class="kw" aria-label="Palavras-chave"></div>
+    <button type="button" class="btn btn-ghost btn-sm mb" id="btn-regerar">✨ Gerar de novo</button>
     <button class="btn btn-primary" id="btn-salvar-perfil">Salvar</button>
 </div></div>
 
@@ -233,6 +271,23 @@
     <div class="field"><label for="sq-valor">Valor (R$)</label><input id="sq-valor" type="text" inputmode="decimal" placeholder="Ex: 150,00" autocomplete="off"><span class="msg-erro" id="e-sq-valor"></span></div>
     <button class="btn btn-ghost btn-sm mb" id="sq-tudo" type="button">Sacar tudo</button>
     <button class="btn btn-primary" id="sq-confirmar">Solicitar saque</button>
+</div></div>
+
+<div id="sheet-cursos" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2>Cursos</h2><button class="icon-btn" data-fechar="sheet-cursos" aria-label="Fechar">✕</button></div>
+    <div class="geo-card mb" id="cursos-resumo"></div>
+    <div id="cursos-lista"></div>
+</div></div>
+
+<div id="sheet-oferta" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
+    <div class="sub-head"><h2 id="of-titulo">Vaga</h2><button class="icon-btn" data-fechar="sheet-oferta" aria-label="Fechar">✕</button></div>
+    <div id="of-corpo"></div>
+</div></div>
+
+<div id="sheet-teste-enea" class="app-overlay" aria-hidden="true"><div class="sheet full"><div class="grab"></div>
+    <div class="sub-head"><h2>Teste do Eneagrama</h2><button class="icon-btn" data-fechar="sheet-teste-enea" id="enea-fechar" aria-label="Fechar">✕</button></div>
+    <p class="muted small mb">Ao terminar, o resultado é preenchido sozinho no seu perfil.</p>
+    <iframe id="enea-frame" title="Teste do Eneagrama" style="width:100%;height:calc(100dvh - 150px);border:1px solid var(--line);border-radius:14px;background:#000" referrerpolicy="no-referrer" loading="lazy"></iframe>
 </div></div>
 
 <div id="sheet-video" class="app-overlay" aria-hidden="true"><div class="sheet">

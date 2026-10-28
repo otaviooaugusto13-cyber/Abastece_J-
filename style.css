@@ -343,3 +343,90 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); p
 .theme-switch input:checked + .slider { background: var(--gold); }
 .theme-switch input:checked + .slider::before { transform: translateX(20px); }
 @media (max-width: 360px) { .chips { grid-template-columns: repeat(2, 1fr); } .grid-2 { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   Ofertas por localização · perfil inteligente · cursos
+   (dark premium + glassmorphism; tudo em tokens, funciona no tema claro)
+   ============================================================ */
+.geo-card {
+    position: relative; padding: 14px 16px; border-radius: var(--radius); font-size: 13px; line-height: 1.45;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 72%, transparent), color-mix(in srgb, var(--surface-2) 55%, transparent));
+    border: 1px solid var(--line-strong); box-shadow: var(--shadow);
+    backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.geo-card .linha { display: flex; align-items: center; gap: 10px; }
+.geo-card .linha .grow { min-width: 0; }
+.geo-card strong { font-weight: 700; }
+.geo-card select { margin-top: 10px; width: 100%; }
+.geo-pulso { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex: none; box-shadow: 0 0 0 0 rgba(61, 220, 151, .55); animation: pulso 2s infinite; }
+.geo-pulso.off { background: var(--muted); animation: none; }
+.geo-pulso.warn { background: var(--gold); animation: none; }
+@keyframes pulso { 70% { box-shadow: 0 0 0 9px rgba(61, 220, 151, 0); } 100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0); } }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { padding: 10px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s; }
+.seg button.on { background: var(--gold); color: var(--gold-ink); box-shadow: 0 6px 16px -8px var(--gold); }
+
+.pill.city b { margin-left: 6px; padding: 1px 7px; border-radius: 99px; font-size: 11.5px; background: var(--surface-2); color: var(--text); }
+.pill.city.sel b { background: rgba(0, 0, 0, .18); color: inherit; }
+.pill.city small { font-weight: 600; opacity: .75; margin-left: 3px; }
+
+/* cartão de oferta com match */
+.oferta .topo { align-items: flex-start; }
+.match { flex: none; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; text-align: center; line-height: 1;
+    background: conic-gradient(var(--mc, var(--gold)) calc(var(--p, 0) * 1%), var(--surface-2) 0); position: relative; }
+.match::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--surface); }
+.match b, .match span { position: relative; }
+.match b { font-size: 14px; font-weight: 800; }
+.match span { font-size: 8.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: -10px; }
+.match.alto { --mc: var(--green); } .match.medio { --mc: var(--gold); } .match.baixo { --mc: var(--blue); }
+.razoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.razoes span { font-size: 11.5px; padding: 4px 9px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
+.dist-tag { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 700; color: var(--blue); background: var(--blue-soft); padding: 3px 9px; border-radius: 99px; margin-top: 6px; }
+.oferta .acoes { display: flex; gap: 8px; }
+.oferta .acoes .btn { flex: 1; }
+.oferta .acoes .btn-ghost { flex: 0 0 auto; }
+
+.sug-row { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; scrollbar-width: none; }
+.sug-row::-webkit-scrollbar { display: none; }
+.sug-card { flex: 0 0 78%; max-width: 300px; scroll-snap-align: start; text-align: left; cursor: pointer; }
+.sug-card h4 { font-size: 15px; margin: 6px 0 2px; }
+.sug-card .meta { font-size: 12px; color: var(--muted); }
+.sug-top { display: flex; justify-content: space-between; align-items: center; }
+
+/* detalhes da vaga */
+.of-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.of-info div { padding: 11px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.of-info small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+.of-info strong { font-size: 14px; }
+.bar3 { margin: 8px 0; font-size: 12.5px; }
+.bar3 .row { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--muted); }
+.bar3 .progress { margin: 0; height: 6px; }
+.radar { display: block; width: 100%; max-width: 240px; margin: 4px auto 8px; }
+
+/* perfil inteligente */
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 10px; }
+.exp-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.exp-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13.5px; }
+.exp-item .grow { min-width: 0; } .exp-item small { color: var(--muted); display: block; }
+.exp-item button { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+.exp-add { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 8px; margin-bottom: 18px; align-items: center; }
+.en-codigo { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 6px; }
+.en-resumo { margin: 10px 0 16px; padding: 12px 14px; border-radius: 14px; font-size: 13px; background: var(--gold-soft); border: 1px solid rgba(245, 197, 66, .3); }
+.kw { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; min-height: 8px; }
+.kw span { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 99px; background: var(--gold-soft); color: var(--gold); border: 1px solid rgba(245, 197, 66, .25); }
+
+/* cursos por categoria */
+.cat { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-bottom: 12px; overflow: hidden; }
+.cat > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+.cat > summary::-webkit-details-marker { display: none; }
+.cat > summary .ico { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; background: var(--gold-soft); flex: none; }
+.cat > summary .grow { min-width: 0; } .cat > summary h4 { font-size: 15px; } .cat > summary p { font-size: 12px; color: var(--muted); }
+.cat > summary .seta { margin-left: auto; transition: transform .2s; color: var(--muted); }
+.cat[open] > summary .seta { transform: rotate(90deg); }
+.cat .cat-corpo { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.curso { padding: 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.curso .topo { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.curso h5 { font-size: 14px; } .curso .meta { font-size: 12px; color: var(--muted); }
+.curso .progress { margin: 8px 0; height: 6px; }
+@media (max-width: 380px) { .grid-3 { grid-template-columns: 1fr 1fr; } .grid-3 .field:last-child { grid-column: 1 / -1; } .exp-add { grid-template-columns: 1fr 1fr; } .exp-add button { grid-column: 1 / -1; } .sug-card { flex-basis: 88%; } }

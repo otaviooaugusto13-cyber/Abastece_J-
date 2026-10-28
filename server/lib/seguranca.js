@@ -4,6 +4,8 @@ const { Falha } = require("./erros");
 const C = require("./config");
 
 // ---------- Cabeçalhos (OWASP A05) ----------
+/** Origem (https) do teste do Eneagrama, se for exibido DENTRO do app (iframe). Vazio = desligado. */
+function origemTesteEneagrama() { try { const u = process.env.ENEAGRAMA_TESTE_ORIGEM; return u ? new URL(u).origin : ""; } catch { return ""; } }
 function cabecalhos({ extraConnect = [] } = {}) {
   const csp = [
     "default-src 'self'",
@@ -18,7 +20,7 @@ function cabecalhos({ extraConnect = [] } = {}) {
     "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com",
     "media-src 'self' https:",
     `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
-    "frame-src https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br",
+    `frame-src https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),
     "upgrade-insecure-requests"
   ].join("; ");
   return (req, res, next) => {
@@ -27,7 +29,7 @@ function cabecalhos({ extraConnect = [] } = {}) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(self), fullscreen=(self)");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self), payment=(self), fullscreen=(self)");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); // necessário para o login Google em popup
     res.setHeader("Cross-Origin-Resource-Policy", "same-site");
     res.setHeader("X-Permitted-Cross-Domain-Policies", "none");

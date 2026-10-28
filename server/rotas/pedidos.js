@@ -10,6 +10,16 @@ module.exports = (app, x) => {
   }
   const somaDias = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
+  /** {cidade, uf, lat, lng} válidos da loja (ou null). Coordenadas fora do Brasil são descartadas. */
+  const geoDaLoja = (c) => {
+    if (!c) return null;
+    const lat = Number(c.lat), lng = Number(c.lng), G = C.GEO;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < G.LAT_MIN || lat > G.LAT_MAX || lng < G.LNG_MIN || lng > G.LNG_MAX) return null;
+    const cidade = typeof c.cidade === "string" ? c.cidade.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 80) : "";
+    const uf = typeof c.uf === "string" && /^[A-Z]{2}$/.test(c.uf) ? c.uf : "";
+    return { lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5, ...(cidade ? { cidade } : {}), ...(uf ? { uf } : {}) };
+  };
+
   // ---------- Cartão (loja) ----------
   app.post("/cartao/registrar", porUsuario("cartao", 10), auth.exigir("loja"), envelope(async (req, res) => {
     const u = req.usuario, b = req.body || {};
@@ -57,6 +67,9 @@ module.exports = (app, x) => {
       uid: u.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, minutos: sp.minutos, foco,
       valorPromotorCentavos: sp.promotor, modelo: sp.modelo, status: "aberta", criadoEm: FieldValue.serverTimestamp()
     };
+    // Localização da vaga = localização cadastrada da loja (lida aqui, no servidor: o cliente não manda coordenadas no pedido).
+    const geo = geoDaLoja((await db.collection("contratantes").doc(u.uid).get()).data());
+    if (geo) Object.assign(pedido, geo);
     if (b.promotorPreferido) {
       const pid = V.idDoc(b.promotorPreferido, "promotorPreferido"), pp = (await db.collection("profissionais").doc(pid).get()).data();
       if (!pp || pp.status !== "ativo") throw new Falha(400, "Profissional indisponível para pedido direto.", "dados-invalidos");

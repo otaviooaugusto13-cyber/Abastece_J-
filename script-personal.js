@@ -7,12 +7,16 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuth
 import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
 import { pintarRecado } from "./recado.js";
-import { WHATSAPP_SUPORTE, REPASSE_PROFISSIONAL_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS } from "./config.js";
+import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, REPASSE_PROFISSIONAL_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS } from "./config.js";
 import { brl, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, textoTermos } from "./core.js";
+import { CIDADES, RAIO_KM, acharCidade, rotuloCidade, distanciaKm, cidadeMaisProxima, cidadeDaVaga, pontoDaVaga, contarPorCidade, filtrarPorRaio, fmtKm, rumoRad, observarPosicao } from "./geo.js";
+import { AREAS, AREA, ENEAGRAMA, INSTINTOS, MAX_EXPERIENCIAS, asasDoTipo, codigoEneagrama, lerCodigoEneagrama, eneagramaValido, normalizarExperiencias, gerarPerfil, pontuarOferta, ranquearOfertas } from "./perfil-inteligente.js";
+import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
 
 let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
-let ofertas = [], turnos = [], filtroSetor = "", ordem = "valor";
+let ofertas = [], turnos = [], filtroSetor = "", ordem = "match";
+let perfilIA = { experiencias: [], eneagrama: null, palavrasChave: [], bioAuto: true };
 let offUn = null, turnosUn = null, chatUn = null, chatPedido = null, qrAtual = null;
 let dataCal = new Date(), diaSel = "", prim = { o: true, t: true };
 const vistos = new Set(), statusAnt = new Map();
@@ -49,7 +53,7 @@ $("btn-login-teste").addEventListener("click", async () => {
     try { await loginDeTeste("promotor"); } catch (e) { console.error(e); erro("Não foi possível entrar no modo de teste."); b.disabled = false; }
 });
 getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); });
-const sair = async () => { offUn?.(); turnosUn?.(); chatUn?.(); pararPings(); await signOut(auth); };
+const sair = async () => { offUn?.(); turnosUn?.(); chatUn?.(); pararPings(); pararDeAcompanhar(); pos = null; posFonte = ""; await signOut(auth); };
 $("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair do portal?")) await sair(); });
 $("btn-cadastro-sair").addEventListener("click", sair);
 
@@ -80,7 +84,8 @@ async function entrar(u) {
     if (!priv.nascimento || !priv.temCpf || (priv.menor && !priv.autorizacaoResponsavel)) return abrirCadastro(true);   // conta antiga ou dados faltando
     tela("screen-dashboard");
     $("btn-teste-reset").hidden = !(await contaDeTeste());
-    montarSetoresPrefs(); pintarPerfil(); escutar(); carregarCarteira(); carregarTreino();
+    montarSetoresPrefs(); montarFormIA(); pintarPerfil(); escutar(); carregarCarteira(); carregarTreino(); carregarPerfilIA();
+    if (abaOfertasAtiva()) iniciarGeo();
     window.scrollTo(0, 0);
 }
 const carregarPrivado = async () => { try { priv = await consultar("perfil/privado"); } catch (e) { priv = {}; } };
@@ -203,31 +208,140 @@ const podeVer = (x) => !priv.menor || (x.entrada >= MENOR_JANELA_INICIO && x.sai
 const meu = (t) => valorPromotor(t);   // líquido do promotor: único valor exibido neste portal
 function renderTudo() { renderProximos(); renderAgenda(); renderCarteira(); renderCalendario(); renderConversas(); if (diaSel) renderDia(); }
 
-// ---------- ofertas ----------
+// ---------- ofertas: geolocalização em tempo real, contadores por cidade, raio de 20 km e ranking ----------
+const CHAVE_CIDADE = "abastece_cidade_manual";
+let pos = null, posFonte = "", geoEstado = "idle", geoErro = "", pararGeo = null, modo = "perto", filtroCidade = "", ofertasVistas = new Map();
+const ORDENS = ["match", "perto", "valor", "data"], ROT_ORDEM = { match: "Melhor match ✨", perto: "Mais perto 📍", valor: "Maior valor ↓", data: "Mais cedo ↑" };
+const cidadeManual = () => { try { return localStorage.getItem(CHAVE_CIDADE) || ""; } catch (e) { return ""; } };
+const cidadeFallback = () => acharCidade(cidadeManual()) || acharCidade(pub.cidade);
+const abaOfertasAtiva = () => $("tab-ofertas").classList.contains("active");
+
+function definirPosicao(p, fonte) {
+    const mudou = !pos || fonte !== posFonte || distanciaKm(pos, p) >= LOCAL_MOVIMENTO_MIN_KM;   // não redesenha a cada microvariação do GPS
+    pos = p; posFonte = fonte;
+    if (mudou) renderOfertas(); else desenharGeo();
+}
+/** Chamado ao abrir "Ofertas": pede a posição (o navegador mostra o aviso de permissão) e acompanha em tempo real. */
+function iniciarGeo() {
+    if (pararGeo || !habilitado()) return;
+    if (!pos) geoEstado = "buscando"; desenharGeo();
+    pararGeo = observarPosicao(
+        (p) => { geoEstado = "gps"; geoErro = ""; definirPosicao(p, "gps"); },
+        (e) => {
+            if (e.code === "tempo" && pos) return;                      // falha momentânea com posição já conhecida: ignora
+            pararGeo?.(); pararGeo = null; geoErro = e.message; geoEstado = e.code === "negado" ? "negado" : "indisponivel";
+            const c = posFonte === "gps" ? null : cidadeFallback();
+            if (c) definirPosicao({ lat: c.lat, lng: c.lng }, "cidade");
+            else if (!pos) { modo = "cidades"; atualizarSeg(); renderOfertas(); }
+            else desenharGeo();
+        });
+}
+function pararDeAcompanhar() { pararGeo?.(); pararGeo = null; if (geoEstado === "buscando") geoEstado = "idle"; }
+const reiniciarGeo = () => { pararDeAcompanhar(); geoEstado = "buscando"; if (posFonte === "cidade") { pos = null; posFonte = ""; } iniciarGeo(); };
+
+function desenharGeo() {
+    const el = $("geo-status"); if (!el) return;
+    const perto = pos ? cidadeMaisProxima(pos, 25) : null, nomePerto = perto ? rotuloCidade(perto) : "";
+    const seletor = `<select id="geo-cidade" aria-label="Escolher cidade manualmente"><option value="">Escolher outra cidade…</option>${CIDADES.map((c) => `<option value="${esc(rotuloCidade(c))}">${esc(rotuloCidade(c))}</option>`).join("")}</select>`;
+    let h;
+    if (geoEstado === "buscando" && !pos) h = `<div class="linha"><span class="geo-pulso warn"></span><div class="grow"><strong>Buscando sua localização…</strong><br><span class="muted">Permita o acesso quando o navegador perguntar.</span></div></div>`;
+    else if (posFonte === "gps") h = `<div class="linha"><span class="geo-pulso"></span><div class="grow"><strong>Localização em tempo real</strong>${nomePerto ? ` · ${esc(nomePerto)}` : ""}<br><span class="muted">Mostrando vagas em até ${RAIO_KM} km de você.</span></div><button class="btn btn-ghost btn-sm" data-geo="atualizar">Atualizar</button></div>`;
+    else if (posFonte === "cidade") h = `<div class="linha"><span class="geo-pulso warn"></span><div class="grow"><strong>Usando ${esc(nomePerto || "sua cidade")}</strong><br><span class="muted">${esc(geoErro || "Sem GPS.")} Ative o GPS para ver as vagas ao seu redor.</span></div><button class="btn btn-ghost btn-sm" data-geo="atualizar">Ativar GPS</button></div>${seletor}`;
+    else h = `<div class="linha"><span class="geo-pulso off"></span><div class="grow"><strong>Localização desligada</strong><br><span class="muted">${esc(geoErro || "Ative para ver vagas perto de você.")}${geoEstado === "negado" ? " Libere em Configurações do navegador → Localização (cadeado ao lado do endereço)." : ""}</span></div><button class="btn btn-ghost btn-sm" data-geo="atualizar">Tentar de novo</button></div>${seletor}`;
+    el.innerHTML = h;
+}
+function atualizarSeg() { document.querySelectorAll("#seg-modo button").forEach((b) => { const on = b.dataset.modo === modo; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); }); }
+
+const ofertasBase = () => ofertas.filter((x) => x.data >= hojeLocal() && valorFiltro(x) && podeVer(x));
+function desenharChips(base) {
+    const c = contarPorCidade(base), todas = modo === "cidades" && !filtroCidade;
+    $("chips-cidades").innerHTML = `<button class="pill city${todas ? " sel" : ""}" data-cidade="">Todas<b>${base.length}</b></button>` + c.map((x) => `<button class="pill city${modo === "cidades" && filtroCidade === x.cidade ? " sel" : ""}" data-cidade="${esc(x.cidade)}">${esc(x.cidade.replace(/ - [A-Z]{2}$/, ""))}<b>${x.vagas}</b><small>${x.vagas === 1 ? "vaga" : "vagas"}</small></button>`).join("");
+}
+function cartaoOferta(x, compacto = false) {
+    const m = x.match, paraMim = x.promotorPreferido && x.promotorPreferido === usuario.uid, cid = cidadeDaVaga(x);
+    const local = cid || x.distKm != null ? `<span class="dist-tag">📍 ${esc(cid)}${x.distKm != null && Number.isFinite(x.distKm) ? `${cid ? " · " : ""}${fmtKm(x.distKm)}` : ""}</span>` : "";
+    const anel = m?.score != null ? `<div class="match ${m.nivel}" style="--p:${m.score}" title="Compatibilidade com você"><b>${m.score}%</b><span>match</span></div>` : "";
+    if (compacto) return `<article class="card sug-card" data-det="${esc(x.id)}" role="button" tabindex="0"><div class="sug-top">${anel || "<span></span>"}<strong style="color:var(--green)">${brl(valorPromotor(x))}</strong></div><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}</article>`;
+    return `<article class="card pedido oferta"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}${paraMim ? ' <span class="badge green">Pedido para você</span>' : ""}</div>${anel}</div>
+        ${m?.razoes?.length ? `<div class="razoes">${m.razoes.map((r) => `<span>${esc(r)}</span>`).join("")}</div>` : ""}
+        <div class="ganho"><span>Você recebe<br><small class="muted">diária${x.minutos ? ` · ${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h` : ""}</small></span><strong>${brl(valorPromotor(x))}</strong></div>
+        <div class="acoes"><button class="btn btn-ghost btn-sm" data-det="${esc(x.id)}">Detalhes</button><button class="btn btn-primary btn-sm" data-aceitar="${esc(x.id)}">Aceitar turno</button></div></article>`;
+}
 function renderOfertas() {
     const el = $("lista-ofertas");
     if (!usuario) return;
     if (!habilitado()) {
-        $("dot-ofertas").hidden = true;
+        $("dot-ofertas").hidden = true; $("sugestoes").hidden = true; $("chips-cidades").innerHTML = ""; $("geo-status").hidden = true; $("seg-modo").hidden = true;
         el.innerHTML = vazio("🔒", "Ofertas liberadas após os requisitos", `Falta: ${textoPendencias() || "concluir seu cadastro"}.`, !hab.treinamento?.completo ? '<button class="btn btn-primary mt" data-ir="tab-treino">Ir para o treinamento</button>' : "");
         return;
     }
-    let l = ofertas.filter((x) => x.data >= hojeLocal() && valorFiltro(x) && podeVer(x) && (!filtroSetor || x.foco === filtroSetor));
-    l.sort((a, b) => ordem === "valor" ? valorPromotor(b) - valorPromotor(a) : `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
-    $("dot-ofertas").hidden = !l.length; $("dot-ofertas").textContent = l.length;
-    el.innerHTML = (priv.menor ? `<div class="banner mb"><span class="ico">🌞</span><div class="small">Como você tem menos de 18 anos, aparecem só turnos diurnos (${MENOR_JANELA_INICIO}–${MENOR_JANELA_FIM}) em setores permitidos.</div></div>` : "") + (l.length ? l.map((x) => {
-        const paraMim = x.promotorPreferido && x.promotorPreferido === usuario.uid;
-        return `<article class="card pedido oferta"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div></div>${paraMim ? '<span class="badge green">Pedido para você</span>' : ""}</div>
-            <div class="ganho"><span>Você recebe<br><small class="muted">diária${x.minutos ? ` · ${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h` : ""}</small></span><strong>${brl(valorPromotor(x))}</strong></div>
-            <div class="acoes"><button class="btn btn-primary btn-sm" data-aceitar="${esc(x.id)}">Aceitar turno</button></div></article>`;
-    }).join("") : vazio("🛒", "Sem ofertas por enquanto", pub.valorMin ? `Nenhuma proposta de ${brl(pub.valorMin)} ou mais agora. Ajuste o mínimo em Menu → Preferências.` : "Novas demandas da região aparecem aqui na hora."));
+    $("geo-status").hidden = false; $("seg-modo").hidden = false; atualizarSeg();
+    const base = ofertasBase(); desenharChips(base); desenharGeo();
+    let l = base.filter((x) => !filtroSetor || x.foco === filtroSetor);
+    if (modo === "perto") l = pos ? filtrarPorRaio(l, pos) : [];
+    else {
+        if (filtroCidade) l = l.filter((x) => cidadeDaVaga(x) === filtroCidade);
+        l = l.map((x) => { const d = pos ? distanciaKm(pos, pontoDaVaga(x)) : Infinity; return Number.isFinite(d) ? { ...x, distKm: d } : x; });
+    }
+    let rk = ranquearOfertas(l, { experiencias: perfilIA.experiencias, eneagrama: perfilIA.eneagrama, fmtKm });
+    if (ordem === "perto") rk.sort((a, b) => (a.distKm ?? 1e9) - (b.distKm ?? 1e9));
+    else if (ordem === "valor") rk.sort((a, b) => valorPromotor(b) - valorPromotor(a) || (b.match.score ?? -1) - (a.match.score ?? -1));
+    else if (ordem === "data") rk.sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+    ofertasVistas = new Map(rk.map((o) => [o.id, o]));
+    $("dot-ofertas").hidden = !rk.length; $("dot-ofertas").textContent = rk.length;
+    // "Sugeridas para você": as melhores do ranking (só com pelo menos 2 sinais conhecidos, senão o score não diz nada)
+    const top = ordem === "match" ? rk.filter((o) => o.match.nivel === "alto" && o.match.conhecidos >= 2).slice(0, 3) : [];
+    $("sugestoes").hidden = !top.length || rk.length < 2;
+    if (top.length) $("sugestoes").innerHTML = `<div class="section-title" style="margin-top:0">✨ Sugeridas para você</div><div class="sug-row">${top.map((o) => cartaoOferta(o, true)).join("")}</div>`;
+    const semPerfil = !perfilIA.experiencias.length && !perfilIA.eneagrama;
+    const aviso = (priv.menor ? `<div class="banner mb"><span class="ico">🌞</span><div class="small">Como você tem menos de 18 anos, aparecem só turnos diurnos (${MENOR_JANELA_INICIO}–${MENOR_JANELA_FIM}) em setores permitidos.</div></div>` : "")
+        + (semPerfil ? `<div class="banner mb"><span class="ico">🧠</span><div class="grow small"><strong>Receba vagas com a sua cara.</strong><br>Informe sua experiência e seu Eneagrama para ver a compatibilidade de cada vaga.<br><button class="btn btn-ghost btn-sm mt" data-abrir="sheet-perfil">Completar perfil</button></div></div>` : "");
+    let vz = "";
+    if (!rk.length) {
+        if (modo === "perto" && !pos) vz = vazio("📍", "Precisamos da sua localização", geoErro || "Ative a localização para ver as vagas em até 20 km.", '<button class="btn btn-primary mt" data-geo="atualizar">Ativar localização</button>');
+        else if (modo === "perto") vz = vazio("📍", `Nenhuma vaga em ${RAIO_KM} km`, "Veja as vagas das outras cidades.", '<button class="btn btn-primary mt" data-modo="cidades">Ver por cidade</button>');
+        else vz = vazio("🛒", "Sem ofertas por enquanto", pub.valorMin ? `Nenhuma proposta de ${brl(pub.valorMin)} ou mais agora. Ajuste o mínimo em Menu → Preferências.` : "Novas demandas da região aparecem aqui na hora.");
+    }
+    el.innerHTML = aviso + (rk.length ? rk.map((x) => cartaoOferta(x)).join("") : vz);
 }
 $("filtro-setor").addEventListener("click", (e) => { const b = e.target.closest(".pill"); if (!b) return; filtroSetor = b.dataset.s; document.querySelectorAll("#filtro-setor .pill").forEach((x) => x.classList.toggle("sel", x === b)); renderOfertas(); });
-$("btn-ordenar").addEventListener("click", () => { ordem = ordem === "valor" ? "data" : "valor"; $("btn-ordenar").textContent = ordem === "valor" ? "Maior valor ↓" : "Mais cedo ↑"; renderOfertas(); });
+$("btn-ordenar").addEventListener("click", () => { ordem = ORDENS[(ORDENS.indexOf(ordem) + 1) % ORDENS.length]; $("btn-ordenar").textContent = ROT_ORDEM[ordem]; renderOfertas(); });
+$("seg-modo").addEventListener("click", (e) => { const b = e.target.closest("[data-modo]"); if (!b) return; modo = b.dataset.modo; if (modo === "perto") filtroCidade = ""; renderOfertas(); });
+$("chips-cidades").addEventListener("click", (e) => { const b = e.target.closest("[data-cidade]"); if (!b) return; modo = "cidades"; filtroCidade = b.dataset.cidade; renderOfertas(); });
+$("geo-status").addEventListener("change", (e) => {
+    if (e.target.id !== "geo-cidade" || !e.target.value) return;
+    const c = acharCidade(e.target.value); if (!c) return;
+    try { localStorage.setItem(CHAVE_CIDADE, rotuloCidade(c)); } catch (err) {}
+    pararDeAcompanhar(); geoErro = "Cidade escolhida por você."; geoEstado = "idle"; modo = "perto"; definirPosicao({ lat: c.lat, lng: c.lng }, "cidade");
+});
+// economiza bateria: para de acompanhar quando o app vai para segundo plano e retoma ao voltar
+document.addEventListener("visibilitychange", () => { if (document.hidden) pararDeAcompanhar(); else if (usuario && abaOfertasAtiva()) iniciarGeo(); });
+
+// ---------- detalhe da vaga (modal interno — nada abre fora do app) ----------
+function radarSVG(x) {
+    const p = pos && pontoDaVaga(x); if (!p) return "";
+    const d = distanciaKm(pos, p), r = Math.min(88, (d / RAIO_KM) * 88), a = rumoRad(pos, p), cx = 100 + r * Math.sin(a), cy = 100 - r * Math.cos(a), fora = d > RAIO_KM;
+    return `<svg class="radar" viewBox="0 0 200 200" role="img" aria-label="Vaga a ${fmtKm(d)} de você"><circle cx="100" cy="100" r="88" fill="none" stroke="var(--line-strong)"/><circle cx="100" cy="100" r="44" fill="none" stroke="var(--line)" stroke-dasharray="3 4"/><line x1="100" y1="12" x2="100" y2="188" stroke="var(--line)"/><line x1="12" y1="100" x2="188" y2="100" stroke="var(--line)"/><text x="100" y="9" text-anchor="middle" font-size="9" fill="var(--muted)">N</text><text x="${100 + 88 - 2}" y="${100 - 4}" text-anchor="end" font-size="8" fill="var(--muted)">${RAIO_KM} km</text><circle cx="100" cy="100" r="5" fill="var(--blue)"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7" fill="${fora ? "var(--muted)" : "var(--green)"}" stroke="var(--bg)" stroke-width="2"/></svg>`;
+}
+function abrirDetalhe(id) {
+    const x = ofertasVistas.get(id) || ofertas.find((o) => o.id === id); if (!x) return;
+    const m = x.match || pontuarOferta(x, { distKm: pos ? distanciaKm(pos, pontoDaVaga(x)) : null, experiencias: perfilIA.experiencias, eneagrama: perfilIA.eneagrama, fmtKm });
+    const d = x.distKm ?? (pos ? distanciaKm(pos, pontoDaVaga(x)) : Infinity), cid = cidadeDaVaga(x);
+    const barra = (rot, v) => `<div class="bar3"><div class="row"><span>${rot}</span><span>${v === null ? "—" : Math.round(v * 100) + "%"}</span></div><div class="progress"><i style="width:${v === null ? 0 : Math.round(v * 100)}%"></i></div></div>`;
+    $("of-titulo").textContent = x.loja;
+    $("of-corpo").innerHTML = `<div class="row between"><div class="muted small">📍 ${esc(cid || "Localização não informada")}${Number.isFinite(d) ? ` · ${fmtKm(d)} de você` : ""}</div>${m.score != null ? `<span class="badge ${m.nivel === "alto" ? "green" : m.nivel === "medio" ? "" : "blue"}">${m.score}% de match</span>` : ""}</div>
+        ${radarSVG(x)}
+        <div class="of-info"><div><small>Data</small><strong>${fmtData(x.data)}</strong></div><div><small>Horário</small><strong>${esc(x.entrada)}–${esc(x.saida)}</strong></div><div><small>Setor</small><strong>${esc(x.foco)}</strong></div><div><small>Você recebe</small><strong style="color:var(--green)">${brl(valorPromotor(x))}</strong></div></div>
+        <div class="card flat mb"><h4 class="highlight mb">Por que combina com você</h4>${barra("Proximidade", m.partes.dist)}${barra("Experiência", m.partes.exp)}${barra("Perfil (Eneagrama)", m.partes.enea)}
+        ${m.razoes.length ? `<div class="razoes">${m.razoes.map((r) => `<span>${esc(r)}</span>`).join("")}</div>` : '<p class="muted small">Complete sua experiência e seu perfil para ver os motivos.</p>'}
+        ${m.conhecidos < 3 ? '<button class="btn btn-ghost btn-sm mt" data-fechar="sheet-oferta" data-abrir="sheet-perfil">Completar perfil</button>' : ""}</div>
+        <button class="btn btn-primary" data-aceitar="${esc(x.id)}">Aceitar turno</button>`;
+    abrir("sheet-oferta");
+}
 
 async function aceitar(id, b) {
     b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
-    try { await chamarFuncao("aceitarTurno", { solicitacaoId: id }); ok("Turno aceito! Ele já está na sua escala."); irPara("tab-agenda"); }
+    try { await chamarFuncao("aceitarTurno", { solicitacaoId: id }); ok("Turno aceito! Ele já está na sua escala."); fechar("sheet-oferta"); irPara("tab-agenda"); }
     catch (e) {
         console.error(e);
         const m = { "limite-semanal": e.message, "turno-indisponivel": e.message, "conflito-horario": e.message, exclusivo: e.message, "promotor-inativo": "Seu cadastro ainda não foi aprovado.", "treinamento-pendente": "Conclua o treinamento PRATICAMENTE para aceitar turnos.", "idade-nao-verificada": "Informe sua data de nascimento para continuar.", "responsavel-pendente": "Falta a autorização do responsável legal.", "menor-horario": e.message, "menor-setor": e.message }[e.code];
@@ -335,7 +449,9 @@ function renderTreino() {
     const t = treino; if (!t) { $("lista-treino").innerHTML = vazio("🎓", "Treinamento indisponível", "Tente novamente em instantes."); return; }
     $("tr-pct").textContent = `${t.concluidos}/${t.total}`; $("tr-bar").style.width = (t.total ? (t.concluidos / t.total) * 100 : 0) + "%";
     $("tr-aviso").textContent = t.completo ? "Treinamento concluído ✓ Você já pode aceitar turnos assim que seu cadastro for aprovado." : t.total ? "Assista cada vídeo do começo ao fim, na ordem. O avanço só conta quando o vídeo está tocando." : "O treinamento ainda não foi publicado pela equipe. Assim que estiver disponível, ele aparece aqui.";
-    $("lista-treino").innerHTML = t.modulos.length ? t.modulos.map((m) => {
+    renderCursos();
+    const obrig = t.modulos.filter((m) => m.obrigatorio !== false);
+    $("lista-treino").innerHTML = obrig.length ? obrig.map((m) => {
         const pct = m.concluido ? 100 : Math.min(99, Math.round((m.validoSeg / m.limiarSeg) * 100)), rot = m.concluido ? ["Concluído ✓", "green"] : m.bloqueado ? ["Bloqueado 🔒", ""] : m.validoSeg ? ["Em andamento", "blue"] : ["Não iniciado", ""];
         return `<article class="card pedido"><div class="topo"><div class="grow"><h4>${m.ordem}. ${esc(m.titulo)}</h4><div class="meta">${esc(m.descricao || "")} · ${Math.round(m.duracaoSeg / 60)} min</div></div><span class="badge ${rot[1]}">${rot[0]}</span></div>
             <div class="progress mt"><i style="width:${pct}%"></i></div>
@@ -371,7 +487,7 @@ async function enviarPing() {
         if (moduloAtual !== m) return;
         $("vd-bar").style.width = Math.min(100, (r.validoSeg / r.limiarSeg) * 100) + "%";
         if (!r.concluido && pos > r.validoSeg + 3) leitor.ir(r.validoSeg);              // não deixa pular: volta ao ponto já validado
-        if (r.concluido) { fechar("sheet-video"); pararPings(); ok(r.treinamentoCompleto ? "Treinamento PRATICAMENTE concluído! 🎓" : "Módulo concluído ✓"); await carregarTreino(); }
+        if (r.concluido) { fechar("sheet-video"); pararPings(); ok(r.obrigatorio !== false && r.treinamentoCompleto ? "Treinamento PRATICAMENTE concluído! 🎓" : r.obrigatorio === false ? "Curso concluído ✓" : "Módulo concluído ✓"); await carregarTreino(); }
     } catch (e) { if (e.code !== "ping-rapido") console.warn(e); }
 }
 $("vd-fechar").addEventListener("click", () => { pararPings(); carregarTreino(); });
@@ -405,8 +521,9 @@ $("btn-salvar-perfil").addEventListener("click", async () => {
     const tel = soDigitos($("d-tel").value), nome = $("d-nome").value.trim(); $("e-cpf").textContent = "";
     if (nome.length < 3) return erro("Informe seu nome completo.");
     if (tel && (tel.length < 10 || tel.length > 11)) return erro("Telefone inválido.");
-    const dados = { cidade: $("d-cidade").value.trim(), bio: $("d-bio").value.trim(), ...(pub.status === "pendente" && nome !== pub.nome ? { nome } : {}) };
+    const dados = { cidade: $("d-cidade").value.trim(), ...(pub.status === "pendente" && nome !== pub.nome ? { nome } : {}) };
     if (!(await salvarPublico(dados, "Dados salvos ✓"))) return;
+    if (!(await salvarIA())) return;               // experiência, Eneagrama, palavras-chave e bio (o servidor revalida)
     if (tel && tel !== soDigitos(priv.telefone || "")) { try { await chamarFuncao("perfil/promotor/privado", { telefone: tel }, "PUT"); await carregarPrivado(); } catch (e) { return erro(e.message || "Não foi possível salvar o telefone."); } }
     fechar("sheet-perfil"); pintarPerfil();
 });
@@ -430,6 +547,114 @@ $("btn-teste-reset").addEventListener("click", async () => {
 });
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
+
+// ---------- perfil inteligente: experiência + Eneagrama → palavras-chave e bio ----------
+const CHAVE_ENEA = "abastece_eneagrama";
+const ANOS_ROT = (n) => (n < 1 ? "menos de 1 ano" : n === 1 ? "1 ano" : n >= 12 ? "mais de 10 anos" : n >= 8 ? "6 a 10 anos" : `${n} anos`);
+let formIA = { experiencias: [], eneagrama: null, bioAuto: true }, kwAtual = [];
+
+async function carregarPerfilIA() {
+    try { const r = await consultar("perfil/promotor/inteligente"); perfilIA = { experiencias: normalizarExperiencias(r.experiencias), eneagrama: eneagramaValido(r.eneagrama) ? r.eneagrama : null, palavrasChave: r.palavrasChave || [], bioAuto: r.bioAuto !== false }; }
+    catch (e) { console.warn(e); }
+    pintarFormIA(); renderOfertas();
+    // resultado do teste recebido por link (?eneagrama=PM-3w2-SO) e ainda não salvo no perfil
+    let salvo = null; try { salvo = lerCodigoEneagrama(localStorage.getItem(CHAVE_ENEA) || ""); } catch (e) {}
+    if (salvo && eneagramaValido(salvo) && !perfilIA.eneagrama) aplicarEneagrama(salvo, true);
+}
+function montarFormIA() {
+    $("exp-area").innerHTML = AREAS.map((a) => `<option value="${esc(a.v)}">${a.ico} ${esc(a.v)}</option>`).join("");
+    $("en-tipo").innerHTML = `<option value="">—</option>` + Object.entries(ENEAGRAMA).map(([t, d]) => `<option value="${t}">${t} · ${esc(d.nome.replace(/^O /, ""))}</option>`).join("");
+    $("btn-teste-enea").hidden = !ENEAGRAMA_TESTE_URL;
+}
+function desenharExp() {
+    $("exp-lista").innerHTML = formIA.experiencias.map((e) => `<div class="exp-item"><span>${AREA[e.area].ico}</span><div class="grow"><strong>${esc(e.area)}</strong><small>${ANOS_ROT(e.anos)}</small></div><button type="button" data-exp-rm="${esc(e.area)}" aria-label="Remover ${esc(e.area)}">✕</button></div>`).join("");
+}
+function desenharEnea() {
+    const e = formIA.eneagrama;
+    $("en-tipo").value = e ? String(e.tipo) : "";
+    $("en-asa").innerHTML = `<option value="">—</option>` + (e ? asasDoTipo(e.tipo).map((a) => `<option value="${a}">${a}</option>`).join("") : "");
+    $("en-asa").value = e?.asa ? String(e.asa) : ""; $("en-asa").disabled = !e;
+    $("en-inst").value = e?.instinto || ""; $("en-inst").disabled = !e;
+    const r = $("en-resumo"); r.hidden = !e;
+    if (e) { const d = ENEAGRAMA[e.tipo]; r.innerHTML = `<strong>Tipo ${e.tipo} — ${esc(d.nome)}</strong>${e.asa ? ` · asa ${e.asa}` : ""}${e.instinto ? ` · ${INSTINTOS[e.instinto]}` : ""}<br><span class="muted">Pontos fortes no trabalho: ${esc(d.tracos.join(", "))}.</span><br><span class="muted small">Código: ${esc(codigoEneagrama(e))}</span>`; }
+}
+function pintarKw(l) { kwAtual = l; $("kw-chips").innerHTML = l.map((k) => `<span>${esc(k)}</span>`).join(""); }
+const contarBio = () => { $("bio-cont").textContent = `(${$("d-bio").value.length}/300)`; };
+function regenerar({ forcarBio = false } = {}) {
+    const g = gerarPerfil(formIA); pintarKw(g.palavrasChave);
+    if (formIA.bioAuto || forcarBio) { $("d-bio").value = g.bio; contarBio(); }
+}
+function pintarFormIA() {
+    if ($("sheet-perfil").classList.contains("active")) return;      // não sobrescreve o que a pessoa está editando
+    formIA = { experiencias: [...perfilIA.experiencias], eneagrama: perfilIA.eneagrama, bioAuto: perfilIA.bioAuto };
+    $("bio-auto").checked = formIA.bioAuto; desenharExp(); desenharEnea();
+    if (perfilIA.palavrasChave.length) pintarKw(perfilIA.palavrasChave); else regenerar();
+    if (!$("d-bio").value && (formIA.experiencias.length || formIA.eneagrama)) regenerar({ forcarBio: true });
+    contarBio();
+}
+function aplicarEneagrama(en, salvarAgora = false) {
+    formIA.eneagrama = en; perfilIA.eneagrama = salvarAgora ? en : perfilIA.eneagrama; desenharEnea(); regenerar();
+    try { localStorage.setItem(CHAVE_ENEA, codigoEneagrama(en)); } catch (e) {}
+    if (salvarAgora) salvarIA({ silencioso: true }).then((okk) => okk && toast("Resultado do teste aplicado ao seu perfil ✓"));
+}
+/** Envia ao servidor (que revalida e atualiza o perfil público: bio, palavras-chave e áreas). */
+async function salvarIA({ silencioso = false } = {}) {
+    const corpo = { experiencias: formIA.experiencias, eneagrama: formIA.eneagrama ? { tipo: formIA.eneagrama.tipo, asa: formIA.eneagrama.asa || 0, instinto: formIA.eneagrama.instinto || "" } : null, palavrasChave: kwAtual, bio: $("d-bio").value.trim(), bioAuto: formIA.bioAuto };
+    try {
+        const r = await chamarFuncao("perfil/promotor/inteligente", corpo, "PUT");
+        perfilIA = { experiencias: r.experiencias, eneagrama: r.eneagrama, palavrasChave: r.palavrasChave, bioAuto: r.bioAuto }; Object.assign(pub, { bio: r.bio, palavrasChave: r.palavrasChave });
+        renderOfertas(); return true;
+    } catch (e) { console.error(e); if (!silencioso) erro(e.message || "Não foi possível salvar seu perfil."); return false; }
+}
+$("exp-add").addEventListener("click", () => {
+    const area = $("exp-area").value, anos = Number($("exp-anos").value);
+    if (formIA.experiencias.length >= MAX_EXPERIENCIAS) return erro(`Máximo de ${MAX_EXPERIENCIAS} experiências.`);
+    if (formIA.experiencias.some((e) => e.area === area)) return toast("Essa área já está na lista. Remova para trocar o tempo.");
+    formIA.experiencias = normalizarExperiencias([...formIA.experiencias, { area, anos }]); desenharExp(); regenerar();
+});
+$("exp-lista").addEventListener("click", (e) => { const b = e.target.closest("[data-exp-rm]"); if (!b) return; formIA.experiencias = formIA.experiencias.filter((x) => x.area !== b.dataset.expRm); desenharExp(); regenerar(); });
+const lerEneaForm = () => {
+    const t = Number($("en-tipo").value); if (!t) return null;
+    const asa = Number($("en-asa").value) || 0;
+    return { tipo: t, asa: asasDoTipo(t).includes(asa) ? asa : 0, instinto: $("en-inst").value };
+};
+$("en-tipo").addEventListener("change", () => { const t = Number($("en-tipo").value); formIA.eneagrama = t ? { tipo: t, asa: 0, instinto: $("en-inst").value } : null; desenharEnea(); regenerar(); });
+$("en-asa").addEventListener("change", () => { formIA.eneagrama = lerEneaForm(); desenharEnea(); regenerar(); });
+$("en-inst").addEventListener("change", () => { formIA.eneagrama = lerEneaForm(); desenharEnea(); regenerar(); });
+$("en-aplicar").addEventListener("click", () => {
+    const en = lerCodigoEneagrama($("en-codigo").value); $("e-en-codigo").textContent = "";
+    if (!en || !eneagramaValido(en)) return ($("e-en-codigo").textContent = "Código inválido. Exemplo: PM-3w2-SO");
+    $("en-codigo").value = ""; aplicarEneagrama(en);
+});
+$("bio-auto").addEventListener("change", (e) => { formIA.bioAuto = e.target.checked; if (formIA.bioAuto) regenerar({ forcarBio: true }); });
+$("d-bio").addEventListener("input", () => { if (formIA.bioAuto) { formIA.bioAuto = false; $("bio-auto").checked = false; } contarBio(); });   // editou à mão: para de sobrescrever
+$("btn-regerar").addEventListener("click", () => { formIA.bioAuto = true; $("bio-auto").checked = true; regenerar({ forcarBio: true }); });
+// teste do Eneagrama dentro do app (iframe) — o teste avisa o resultado por postMessage
+$("btn-teste-enea").addEventListener("click", () => { $("enea-frame").src = ENEAGRAMA_TESTE_URL; abrir("sheet-teste-enea"); });
+$("enea-fechar").addEventListener("click", () => { $("enea-frame").src = "about:blank"; });
+window.addEventListener("message", (ev) => {
+    if (!ENEAGRAMA_TESTE_ORIGEM || ev.origin !== ENEAGRAMA_TESTE_ORIGEM) return;         // só a origem configurada
+    const d = ev.data; if (!d || d.evento !== "eneagrama") return;
+    const en = { tipo: Number(d.tipo), asa: Number(d.asa) || 0, instinto: String(d.instinto || "") };
+    if (!eneagramaValido(en)) return;
+    fechar("sheet-teste-enea"); $("enea-frame").src = "about:blank"; aplicarEneagrama(en, true);
+});
+try { const q = new URLSearchParams(location.search).get("eneagrama"); const en = q && lerCodigoEneagrama(q); if (en && eneagramaValido(en)) localStorage.setItem(CHAVE_ENEA, codigoEneagrama(en)); } catch (e) {}
+
+// ---------- cursos por categoria (modal interno) ----------
+function renderCursos() {
+    const t = treino, box = $("cursos-lista");
+    if (!t) { $("cursos-resumo").innerHTML = ""; box.innerHTML = vazio("📚", "Cursos indisponíveis", "Tente novamente em instantes."); return; }
+    const abertos = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.cat)), primeira = !box.children.length;
+    const grupos = agruparCursos(t.modulos), opc = t.opcionais || { concluidos: 0, total: 0 };
+    $("cursos-resumo").innerHTML = `<div class="linha"><span style="font-size:24px">📚</span><div class="grow"><strong>${t.concluidos}/${t.total} da habilitação</strong>${opc.total ? ` · ${opc.concluidos}/${opc.total} opcionais` : ""}<br><span class="muted">${t.completo ? "Habilitação concluída ✓" : "Conclua a habilitação para liberar os turnos."}</span></div></div>`;
+    $("menu-cursos-badge").hidden = !t.modulos.length; $("menu-cursos-badge").textContent = t.modulos.length;
+    box.innerHTML = grupos.length ? grupos.map((g, i) => `<details class="cat" data-cat="${g.id}" ${(primeira ? i === 0 : abertos.has(g.id)) ? "open" : ""}><summary><span class="ico">${g.ico}</span><div class="grow"><h4>${esc(g.titulo)}</h4><p>${esc(g.desc)}</p></div><span class="badge ${g.concluidos === g.total ? "green" : "gray"}">${g.concluidos}/${g.total}</span><span class="seta">›</span></summary>
+        <div class="cat-corpo">${g.itens.map((m) => {
+            const st = statusCurso(m), pct = m.concluido ? 100 : Math.min(99, Math.round((m.validoSeg / m.limiarSeg) * 100));
+            return `<div class="curso"><div class="topo"><div class="grow"><h5>${m.obrigatorio ? m.ordem + ". " : ""}${esc(m.titulo)}</h5><div class="meta">${esc(m.descricao || "")}${m.descricao ? " · " : ""}${Math.round(m.duracaoSeg / 60)} min</div></div><span class="badge ${st.cor}">${st.t}</span></div><div class="progress"><i style="width:${pct}%"></i></div>${m.bloqueado ? '<span class="muted small">Conclua o módulo anterior da habilitação.</span>' : `<button class="btn ${m.concluido ? "btn-ghost" : "btn-primary"} btn-sm" data-video="${esc(m.id)}">${m.concluido ? "Rever" : m.validoSeg ? "Continuar" : "Assistir"}</button>`}</div>`;
+        }).join("")}</div></details>`).join("") : vazio("📚", "Nenhum curso publicado", "A equipe ainda vai publicar os cursos. Volte em breve.");
+}
 
 // ---------- check-in / check-out (horário gravado pelo servidor; localização é opcional) ----------
 async function ponto(id, tipo) {
@@ -456,6 +681,10 @@ document.addEventListener("click", async (e) => {
         try { await chamarFuncao("desistirTurno", { solicitacaoId: t.id }); ok("Você saiu do turno. Ele voltou para a fila."); } catch (err) { erro("Não foi possível desistir agora."); }
     }
     if ((el = g("data-video"))) abrirVideo(el.dataset.video);
+    if ((el = g("data-det")) && !e.target.closest("[data-aceitar]")) abrirDetalhe(el.dataset.det);
+    if ((el = g("data-geo"))) reiniciarGeo();
+    if ((el = g("data-modo")) && !el.closest("#seg-modo")) { modo = el.dataset.modo; renderOfertas(); }
+    if ((el = g("data-abrir")) && el.dataset.abrir === "sheet-cursos") carregarTreino();
     if ((el = g("data-ir"))) { e.preventDefault(); irPara(el.dataset.ir); if (el.dataset.ir === "tab-treino") carregarTreino(); }
     if ((el = g("data-abrir"))) { e.preventDefault(); abrir(el.dataset.abrir); }
     if ((el = g("data-fechar"))) fechar(el.dataset.fechar);
@@ -466,5 +695,6 @@ document.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key ==
 function irPara(id) {
     document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
     document.querySelectorAll(".nav-item").forEach((i) => i.classList.toggle("active", i.dataset.tab === id)); window.scrollTo(0, 0);
+    if (id === "tab-ofertas") iniciarGeo(); else pararDeAcompanhar();          // GPS só liga enquanto a pessoa está vendo as ofertas
 }
 $("nav-personal").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });

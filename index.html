@@ -178,6 +178,9 @@
     <div class="field"><label for="f-razao">Razão social / nome</label><input id="f-razao" type="text" placeholder="Mercado Central Ltda" maxlength="120"></div>
     <div class="field"><label for="f-doc">CNPJ ou CPF</label><input id="f-doc" type="text" data-mask="doc" inputmode="numeric" placeholder="00.000.000/0000-00"><span class="msg-erro" id="e-doc"></span></div>
     <div class="field"><label for="f-end">Endereço</label><input id="f-end" type="text" placeholder="Rua, número, bairro, cidade" maxlength="200"></div>
+    <div class="field"><label for="f-cidade">Cidade da loja</label><input id="f-cidade" type="text" list="lista-cidades" placeholder="Ex.: Itapira - SP" maxlength="80" autocomplete="off"><datalist id="lista-cidades"></datalist>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-gps-loja" style="margin-top:8px">📍 Usar minha localização</button>
+        <span class="muted small" id="f-geo-dica">A cidade define onde seus pedidos aparecem para os promotores (raio de 20 km).</span></div>
     <div class="field"><label for="f-email">E-mail para receber a nota</label><input id="f-email" type="email" placeholder="financeiro@suaempresa.com.br"></div>
     <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
     <div class="field"><label for="f-ramo">Ramo</label><select id="f-ramo"><option>Supermercado</option><option>Atacarejo</option><option>Distribuidora</option><option>Loja de conveniência</option><option>Indústria / marca</option></select></div>

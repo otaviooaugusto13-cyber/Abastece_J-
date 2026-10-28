@@ -36,8 +36,12 @@ service cloud.firestore {
       allow read: if dono(uid) || ehAdmin();
       allow create, delete: if false;                           // criado por POST /cadastro/loja
       allow update: if dono(uid) && ehLoja()
-        && soMuda(['razaoSocial', 'documento', 'endereco', 'email', 'telefone', 'ramo', 'prefs', 'nome', 'atualizadoEm'])
+        && soMuda(['razaoSocial', 'documento', 'endereco', 'email', 'telefone', 'ramo', 'prefs', 'nome', 'atualizadoEm', 'cidade', 'uf', 'lat', 'lng'])
         && str('razaoSocial', 160) && str('documento', 20) && str('endereco', 200) && str('email', 120) && str('telefone', 20) && str('ramo', 60) && str('nome', 100)
+        && str('cidade', 80) && (!('uf' in request.resource.data) || (request.resource.data.uf is string && request.resource.data.uf.size() <= 2))
+        // localização da loja (usada para dar cidade/raio às vagas): números dentro da caixa do Brasil
+        && (!('lat' in request.resource.data) || (request.resource.data.lat is number && request.resource.data.lat >= -34 && request.resource.data.lat <= 6))
+        && (!('lng' in request.resource.data) || (request.resource.data.lng is number && request.resource.data.lng >= -74 && request.resource.data.lng <= -28))
         && (!('prefs' in request.resource.data) || request.resource.data.prefs is map);
     }
     match /cartoes/{uid} {                                      // só exibição (bandeira, final, validade); IDs do gateway ficam em cartoes_privado
