@@ -232,6 +232,7 @@ function cartaoTurno(t) {
     const st = t.status, pago = estaPago(t), cancel = st === "cancelada";
     const acoes = [];
     if (st === "aceita") acoes.push(`<button class="btn btn-primary btn-sm" data-qr="${t.id}">💳 Cobrar (QR)</button>`, `<button class="btn btn-danger btn-sm" data-desistir="${t.id}">Desistir</button>`);
+    if (!cancel && t.data === hojeLocal() && (st === "aceita" || pago)) { if (!t.checkinEm) acoes.push(`<button class="btn btn-green btn-sm" data-checkin="${t.id}">📍 Check-in</button>`); else if (!t.checkoutEm) acoes.push(`<button class="btn btn-green btn-sm" data-checkout="${t.id}">🏁 Check-out</button>`); }
     if (!cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-chat="${t.id}">💬 Chat</button>`);
     const rot = cancel ? ["Cancelado", "red"] : pago ? ["Recebido", "green"] : ["Aguardando pagamento", "blue"];
     return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(t.loja)}</h4><div class="meta">${fmtData(t.data)} · ${esc(t.entrada)}–${esc(t.saida)} · ${esc(t.foco)}</div></div>
@@ -420,6 +421,17 @@ $("btn-teste-reset").addEventListener("click", async () => {
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
 
+// ---------- check-in / check-out (horário gravado pelo servidor; localização é opcional) ----------
+async function ponto(id, tipo) {
+    const t = turnos.find((x) => x.id === id); if (!t) return;
+    if (tipo === "checkout" && !confirm(`Encerrar o turno em ${t.loja}?`)) return;
+    const pos = await new Promise((r) => { if (!navigator.geolocation) return r(null); navigator.geolocation.getCurrentPosition((p) => r({ lat: p.coords.latitude, lng: p.coords.longitude, prec: Math.round(p.coords.accuracy) }), () => r(null), { enableHighAccuracy: true, timeout: 8000 }); });
+    try {
+        const r = await chamarFuncao(`turnos/${encodeURIComponent(id)}/${tipo}`, pos || {});
+        ok(tipo === "checkin" ? (r.atrasoMin > 15 ? `Check-in registrado (${r.atrasoMin} min de atraso).` : "Check-in registrado ✓") : "Check-out registrado ✓");
+    } catch (e) { erro(e.message || "Não foi possível registrar agora."); }
+}
+
 // ---------- cliques globais (delegação) ----------
 document.addEventListener("click", async (e) => {
     const g = (a) => e.target.closest(`[${a}]`);
@@ -427,6 +439,8 @@ document.addEventListener("click", async (e) => {
     if ((el = g("data-aceitar"))) aceitar(el.dataset.aceitar, el);
     else if ((el = g("data-qr"))) { const t = turnos.find((x) => x.id === el.dataset.qr); if (t) abrirQR(t); }
     else if ((el = g("data-chat"))) { const t = turnos.find((x) => x.id === el.dataset.chat); if (t) abrirChat(t); }
+    else if ((el = g("data-checkin"))) ponto(el.dataset.checkin, "checkin");
+    else if ((el = g("data-checkout"))) ponto(el.dataset.checkout, "checkout");
     else if ((el = g("data-desistir"))) {
         const t = turnos.find((x) => x.id === el.dataset.desistir); if (!t || !confirm(`Desistir do turno em ${t.loja}? Ele volta para a fila de ofertas.`)) return;
         try { await chamarFuncao("desistirTurno", { solicitacaoId: t.id }); ok("Você saiu do turno. Ele voltou para a fila."); } catch (err) { erro("Não foi possível desistir agora."); }

@@ -101,11 +101,11 @@ app.use(cors(Seg.opcoesCors(permitidas)));
 app.use(express.json({ limit: C.BODY_LIMITE }));
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|turnos|teste)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "pedidos", "pagamentos", "carteira", "admin", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "pedidos", "turnos", "pagamentos", "carteira", "admin", "teste"]) require(`./rotas/${rota}`)(app, ctx);
 
 // ---------- Site estático (somente extensões permitidas; nada de código do servidor, regras ou segredos) ----------
 const RAIZ = path.join(__dirname, "..");

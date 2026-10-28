@@ -17,6 +17,8 @@ const badge = (s) => { const [t, c] = ST[s] || [s || "—", ""]; return `<span c
 const td = (l, h, c = "") => `<td data-l="${esc(l)}"${c ? ` class="${c}"` : ""}>${h}</td>`;
 const vazio = (n, t) => `<tr><td colspan="${n}" class="ax-empty">${esc(t)}</td></tr>`;
 const tsDate = (t) => (t?.toDate ? t.toDate() : t ? new Date(t) : null);
+const hm = (t) => tsDate(t)?.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) || "";
+const presenca = (m) => (m.checkoutEm ? `<span class="ax-ok">✓ ${hm(m.checkinEm)}–${hm(m.checkoutEm)}</span>${(m.divergencias || []).length ? ' <span class="ax-badge r">divergência</span>' : ""}` : m.checkinEm ? `<span class="ax-warn">desde ${hm(m.checkinEm)}</span>` : "—");
 const buscaOk = (campos, q) => !q || campos.some((c) => String(c ?? "").toLowerCase().includes(q));
 
 // ---------- toasts, erros, diálogos ----------
@@ -212,10 +214,10 @@ const listaMissoes = () => {
 function renderMissoes() {
     const l = listaMissoes();
     $("m-nota").textContent = `${l.length} de ${S.missoes.length} missões (as 400 mais recentes, atualizadas em tempo real).`;
-    $("m-body").innerHTML = l.length ? l.map((m) => `<tr>${td("Data", esc(fmtData(m.data)))}${td("Horário", esc(m.horario || "—"))}${td("Loja", esc(m.loja || "—"))}${td("Foco", esc(m.foco || "—"))}${td("Repasse", esc(brl(m.valorPromotorCentavos)))}${td("Promotor", esc(m.promotorNome || "—"))}${td("Status", badge(m.status))}</tr>`).join("") : vazio(7, "Nenhuma missão neste filtro.");
+    $("m-body").innerHTML = l.length ? l.map((m) => `<tr>${td("Data", esc(fmtData(m.data)))}${td("Horário", esc(m.horario || "—"))}${td("Loja", esc(m.loja || "—"))}${td("Foco", esc(m.foco || "—"))}${td("Repasse", esc(brl(m.valorPromotorCentavos)))}${td("Promotor", esc(m.promotorNome || "—"))}${td("Presença", presenca(m))}${td("Status", badge(m.status))}</tr>`).join("") : vazio(8, "Nenhuma missão neste filtro.");
 }
 for (const id of ["m-status", "m-busca", "m-de", "m-ate"]) $(id).addEventListener("input", renderMissoes);
-$("m-csv").addEventListener("click", () => baixarLinhas("missoes", ["ID", "Data", "Entrada", "Saída", "Loja", "Foco", "Repasse (R$)", "Promotor", "Status", "Criada em"], listaMissoes().map((m) => [m.id, m.data, m.entrada, m.saida, m.loja, m.foco, reais(m.valorPromotorCentavos), m.promotorNome, m.status, dt(m.criadoEm)])));
+$("m-csv").addEventListener("click", () => baixarLinhas("missoes", ["ID", "Data", "Entrada", "Saída", "Loja", "Foco", "Repasse (R$)", "Promotor", "Status", "Check-in", "Check-out", "Trabalhado (min)", "Divergências", "Criada em"], listaMissoes().map((m) => [m.id, m.data, m.entrada, m.saida, m.loja, m.foco, reais(m.valorPromotorCentavos), m.promotorNome, m.status, hm(m.checkinEm), hm(m.checkoutEm), m.trabalhadoMin ?? "", (m.divergencias || []).join(", "), dt(m.criadoEm)])));
 
 // ---------- financeiro ----------
 async function finAba(f) {
@@ -278,7 +280,12 @@ $("t-salvar").addEventListener("click", seguro(async () => {
 /** Alertas derivados das missões em tempo real + divergências da última conciliação. (O app ainda não registra check-in/check-out.) */
 function alertas() {
     const h = hojeLocal(), a = [], d = (m) => `${m.loja || "Loja"} · ${fmtData(m.data)} ${m.horario || ""} · ${m.promotorNome || "sem promotor"}`;
+    const agora = new Date(), min = agora.getHours() * 60 + agora.getMinutes(), mi = (x) => { const [p, q] = String(x || "0:0").split(":").map(Number); return p * 60 + q; }, d7 = new Date(Date.now() - 7 * 864e5).toLocaleDateString("sv-SE");
     for (const m of S.missoes) {
+        const andamento = m.status === "aceita" || m.status === "paga";
+        if (andamento && m.data === h && !m.checkinEm && min > mi(m.entrada) + 15 && min <= mi(m.saida)) a.push({ n: "w", t: "Sem check-in (mais de 15 min de atraso)", d: d(m) });
+        if (andamento && m.checkinEm && !m.checkoutEm && (m.data < h || (m.data === h && min > mi(m.saida) + 30))) a.push({ n: "w", t: "Sem check-out após o fim do turno", d: d(m) });
+        if ((m.divergencias || []).length && m.data >= d7) a.push({ n: "w", t: `Divergência de presença: ${m.divergencias.join(", ")}`, d: d(m) });
         if (m.status === "aceita" && m.data < h) a.push({ n: "w", t: "Turno vencido sem pagamento/conclusão", d: d(m) });
         else if (m.status === "aberta" && m.data < h) a.push({ n: "", t: "Oferta expirada sem promotor", d: d(m) });
     }
