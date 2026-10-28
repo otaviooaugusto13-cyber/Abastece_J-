@@ -345,6 +345,50 @@ t("regras do Firestore: deny-by-default, sem escrita aberta, campos sensíveis p
   assert.match(rules, /match \/solicitacoes\/\{id\} \{[\s\S]*?allow write: if false;/);
 });
 
+// =================== 5. MULTI-PERFIL / TROCA DE PORTAL (/sessao) ===================
+t("sessão: conta com dois perfis NÃO trava; o portal aberto decide o perfil ativo e nenhum perfil se perde", async () => {
+  await set("contratantes", "dual", { uid: "dual", razaoSocial: "Loja Dual" }); await set("profissionais", "dual", { uid: "dual", nome: "Dual", status: "ativo", treinamentoOk: true });
+  E.tokens.dual = { uid: "dual", email: "d@x.com", email_verified: true };                       // sem claim algum (conta antiga)
+  let r = await chamar("POST", "/sessao", { token: "dual", body: {} }); ok(r);                    // cliente antigo, sem portal → escolher (antes: 409 "Conta com dois perfis")
+  assert.equal(r.json.estado, "escolher"); assert.deepEqual(r.json.perfis, ["loja", "promotor"]); assert.equal(E.claimsStore.dual, undefined);
+  r = await chamar("POST", "/sessao", { token: "dual", body: { portal: "promotor" } }); ok(r);
+  assert.deepEqual([r.json.estado, r.json.role, r.json.atualizarToken], ["ok", "promotor", true]);
+  assert.deepEqual([E.claimsStore.dual.role, E.claimsStore.dual.treinado, E.claimsStore.dual.perfis], ["promotor", true, ["loja", "promotor"]]);
+  ok(await chamar("GET", "/habilitacao", { token: "dual" }));                                      // rota de promotor liberada
+  r = await chamar("POST", "/sessao", { token: "dual", body: { portal: "loja" } }); ok(r);
+  assert.deepEqual([r.json.estado, r.json.role, E.claimsStore.dual.role], ["ok", "loja", "loja"]); assert.deepEqual(E.claimsStore.dual.perfis, ["loja", "promotor"]);
+  falha(await chamar("GET", "/habilitacao", { token: "dual" }), 403, "sem-permissao");           // com a loja ativa, rota de promotor continua protegida
+  r = await chamar("POST", "/sessao", { token: "dual", body: { portal: "loja" } }); assert.equal(r.json.atualizarToken, false);   // idempotente: sem novo token à toa
+  r = await chamar("POST", "/sessao", { token: "dual", body: {} }); assert.deepEqual([r.json.estado, r.json.role], ["ok", "loja"]);  // cliente antigo com papel ativo válido
+});
+t("sessão: perfil errado vira aviso amigável (200 + estado), nunca erro, e não altera o papel", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA" });
+  let r = await chamar("POST", "/sessao", { token: "lojaA", body: { portal: "promotor" } }); ok(r);
+  assert.deepEqual([r.json.estado, r.json.sugerido, r.json.role, r.json.atualizarToken], ["outro-perfil", "loja", null, false]); assert.equal(E.claimsStore.lojaA.role, "loja");
+  await semear({ uid: "prom1" });
+  r = await chamar("POST", "/sessao", { token: "prom1", body: { portal: "loja" } }); ok(r); assert.deepEqual([r.json.estado, r.json.sugerido], ["outro-perfil", "promotor"]);
+  r = await chamar("POST", "/sessao", { token: "novo", body: { portal: "promotor" } }); ok(r); assert.deepEqual([r.json.estado, r.json.perfis], ["cadastro", []]);
+  falha(await chamar("POST", "/sessao", { token: "lojaA", body: { portal: "dono" } }), 400, "dados-invalidos");
+  falha(await chamar("POST", "/sessao", { body: { portal: "loja" } }), 401, "nao-autenticado");
+});
+t("sessão: ninguém se promove a admin pelo portal; admin entra nos portais sem perder o admin", async () => {
+  let r = await chamar("POST", "/sessao", { token: "lojaA", body: { portal: "admin" } }); ok(r); assert.equal(r.json.estado, "outro-perfil"); assert.equal(E.claimsStore.lojaA.role, "loja"); assert.ok(!E.claimsStore.lojaA.perfis?.includes("admin"));
+  falha(await chamar("GET", "/admin/promotores", { token: "lojaA" }), 403, "sem-permissao");
+  E.claimsStore.adm1 = { role: "admin", admin: true };
+  r = await chamar("POST", "/sessao", { token: "adm", body: { portal: "promotor" } }); ok(r); assert.deepEqual([r.json.estado, r.json.perfis], ["cadastro", ["admin"]]);   // admin pode criar o próprio perfil
+  ok(await chamar("POST", "/cadastro/promotor", { token: "adm", body: { termos: true, nascimento: "1990-03-04", cpf: cpf(0) } }));                                       // antes: 409 "outro perfil"
+  assert.deepEqual([E.claimsStore.adm1.role, E.claimsStore.adm1.perfis], ["promotor", ["promotor", "admin"].sort((a, b) => ["loja", "promotor", "admin"].indexOf(a) - ["loja", "promotor", "admin"].indexOf(b))]);
+  falha(await chamar("GET", "/admin/promotores", { token: "adm" }), 403, "sem-permissao");         // enquanto o portal do promotor está ativo
+  r = await chamar("POST", "/sessao", { token: "adm", body: { portal: "admin" } }); ok(r); assert.deepEqual([r.json.estado, r.json.role], ["ok", "admin"]);
+  ok(await chamar("GET", "/admin/promotores", { token: "adm" }));                                  // painel admin de volta
+});
+t("cadastro: conflito de perfil devolve 409 amigável com a sugestão de painel", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA" });
+  const r = await chamar("POST", "/cadastro/promotor", { token: "lojaA", body: { termos: true, nascimento: "1990-03-04", cpf: cpf(2) } });
+  falha(r, 409, "papel-conflito"); assert.deepEqual([r.json.detalhe.tem, r.json.detalhe.sugerido], ["loja", "loja"]); assert.match(r.json.erro, /outra conta Google/);
+  assert.equal((await get("profissionais", "lojaA")), undefined);
+});
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {

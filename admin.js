@@ -3,6 +3,7 @@
 import { signInWithPopup, signOut, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, query, where, orderBy, limit, onSnapshot, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
+import { resolverAcesso } from "./acesso.js";
 import { brl, esc, fmtDataHora, fmtData, hojeLocal } from "./core.js";
 import { VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA } from "./config.js";
 
@@ -66,7 +67,9 @@ onAuthStateChanged(auth, async (u) => {
     unsubs.splice(0).forEach((f) => f());
     $("ax-app").hidden = true; $("ax-login").hidden = false;
     if (!u) return;
-    if ((await papelAtual()) !== "admin") { $("ax-login-erro").textContent = "Esta conta não tem permissão de administrador."; await signOut(auth); return; }
+    // O servidor reativa o perfil admin (a conta pode ter ficado com o perfil de loja/promotor ativo depois de usar outro portal).
+    let r; try { r = await resolverAcesso("admin"); } catch (e) { $("ax-login-erro").textContent = "Não foi possível verificar suas permissões. Tente novamente."; return; }
+    if (r.estado !== "ok" || (await papelAtual()) !== "admin") { $("ax-login-erro").textContent = "Esta conta não tem permissão de administrador." + (r.sugerido ? ` Ela é de ${r.sugerido === "loja" ? "loja" : "promotor"}: use o portal correspondente ou entre com outra conta.` : ""); return; }   // sem signOut: a sessão é compartilhada com os outros portais
     $("ax-login").hidden = true; $("ax-app").hidden = false; $("ax-quem").textContent = $("ax-quem2").textContent = u.email;
     ouvir(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "visao");
     seguro(kpiContagens)(); seguro(kpiVolume)(); seguro(carregarAviso)();

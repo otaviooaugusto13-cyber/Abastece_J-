@@ -3,12 +3,16 @@
 const crypto = require("crypto");
 
 module.exports = (app, x) => {
-  const { db, FieldValue, auth, V, C, Cripto, Falha, envelope, limitar, habilitacao } = x;
+  const { db, FieldValue, auth, V, C, Cripto, Falha, envelope, limitar, habilitacao, perfisDasClaims, PERFIS } = x;
   const TERMOS_VERSAO = "2026-10";
   const lim = limitar({ janelaMs: 60_000, max: 12, nome: "conta" });
   const ctxCampo = (campo, uid) => `profissionais_privado/${campo}/${uid}`;
   const nomeSeguro = (n) => { try { return V.texto(n || "", "nome", { max: 100, obrigatorio: false }); } catch { return ""; } };
   const novoCodigo = () => Array.from(crypto.randomBytes(6), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+
+  const NOME_PERFIL = { loja: "loja", promotor: "promotor", admin: "administrador" };
+  /** 409 amigável: a conta já tem o outro perfil. `detalhe.sugerido` diz ao front para onde levar o usuário. */
+  const conflito = (tem, quer) => new Falha(409, `Esta conta Google já é de ${NOME_PERFIL[tem]}. Você pode abrir o painel de ${NOME_PERFIL[tem]} ou entrar com outra conta Google para ser ${NOME_PERFIL[quer]}.`, "papel-conflito", { tem, quer, sugerido: tem });
 
   async function conflitoDeCpf(cpfDigitos, uid) {
     const s = await db.collection("profissionais_privado").where("cpfIdx", "==", Cripto.indiceCego(cpfDigitos)).limit(2).get();
@@ -62,9 +66,9 @@ module.exports = (app, x) => {
   // ---------- Loja ----------
   app.post("/cadastro/loja", lim, envelope(async (req, res) => {
     const u = await auth.autenticar(req);
-    if (u.role && u.role !== "loja") throw new Falha(409, "Esta conta Google já está registrada com outro perfil. Use outra conta.", "papel-conflito");
+    // Conflito = a conta já TEM o perfil oposto (claims ou documento). Ser admin não é conflito.
+    if (perfisDasClaims(u).includes("promotor") || (await db.collection("profissionais").doc(u.uid).get()).exists) throw conflito("promotor", "loja");
     if (req.body?.termos !== true) throw new Falha(400, "É preciso aceitar os Termos de Uso.", "termos-obrigatorios");
-    if ((await db.collection("profissionais").doc(u.uid).get()).exists) throw new Falha(409, "Esta conta já é de promotor. Use outra conta Google para a loja.", "papel-conflito");
     const ref = db.collection("contratantes").doc(u.uid);
     if (!(await ref.get()).exists) await ref.set({ uid: u.uid, email: u.email || "", nome: nomeSeguro(u.name), termosEm: FieldValue.serverTimestamp(), termosVersao: TERMOS_VERSAO, criadoEm: FieldValue.serverTimestamp() });
     await db.collection("usuarios").doc(u.uid).set({ uid: u.uid, role: "loja", criadoEm: FieldValue.serverTimestamp() }, { merge: true });
@@ -75,10 +79,9 @@ module.exports = (app, x) => {
   // ---------- Promotor / freelancer (16+) ----------
   app.post("/cadastro/promotor", lim, envelope(async (req, res) => {
     const u = await auth.autenticar(req), b = req.body || {};
-    if (u.role && u.role !== "promotor") throw new Falha(409, "Esta conta Google já está registrada com outro perfil. Use outra conta.", "papel-conflito");
+    if (perfisDasClaims(u).includes("loja") || (await db.collection("contratantes").doc(u.uid).get()).exists) throw conflito("loja", "promotor");
     if (b.termos !== true) throw new Falha(400, "É preciso aceitar os Termos de Uso.", "termos-obrigatorios");
     if (b.nascimento === undefined || b.cpf === undefined) throw new Falha(400, "Informe CPF e data de nascimento.", "dados-invalidos");
-    if ((await db.collection("contratantes").doc(u.uid).get()).exists) throw new Falha(409, "Esta conta já é de loja. Use outra conta Google para o perfil de promotor.", "papel-conflito");
     const ref = db.collection("profissionais").doc(u.uid), existente = await ref.get();
     if (existente.exists) { await auth.definirPapel(u.uid, "promotor", { treinado: !!existente.data().treinamentoOk }); return res.json({ ok: true, role: "promotor", jaCadastrado: true }); }
     const privAtual = (await db.collection("profissionais_privado").doc(u.uid).get()).data() || {};
@@ -131,16 +134,32 @@ module.exports = (app, x) => {
 
   app.get("/habilitacao", auth.exigir("promotor"), envelope(async (req, res) => res.json(await habilitacao.situacao(req.usuario.uid))));
 
-  /** Contas anteriores ao RBAC não têm papel no token: resolve uma vez (e só se não houver ambiguidade). */
+  /**
+   * Resolve o perfil ATIVO da sessão para o portal que o usuário abriu (`portal`: loja | promotor | admin).
+   * Nunca devolve erro por "conta ambígua" nem por "perfil errado": responde sempre 200 com um `estado` que o front sabe tratar.
+   *   estado "ok"           → perfil ativado (claim `role` = portal; se mudou, `atualizarToken: true`)
+   *   estado "cadastro"     → conta sem nenhum perfil: o front abre o cadastro do portal
+   *   estado "outro-perfil" → a conta tem perfis, mas não o deste portal: o front oferece ir ao painel certo / trocar de conta
+   *   estado "escolher"     → (cliente antigo, sem `portal`) a conta tem vários perfis e nenhum ativo: o front deixa escolher
+   * A lista de perfis vem do SERVIDOR (claims + documentos), nunca do cliente: `portal` só escolhe entre perfis que a conta já possui.
+   */
   app.post("/sessao", lim, envelope(async (req, res) => {
-    const u = await auth.autenticar(req);
-    if (u.role) return res.json({ role: u.role, atualizarToken: false });
-    const [l, p] = await Promise.all([db.collection("contratantes").doc(u.uid).get(), db.collection("profissionais").doc(u.uid).get()]);
-    if (l.exists && p.exists) throw new Falha(409, "Conta com dois perfis. Fale com o suporte.", "conta-ambigua");
-    if (!l.exists && !p.exists) return res.json({ role: null, atualizarToken: false });
-    const role = l.exists ? "loja" : "promotor";
-    await auth.definirPapel(u.uid, role, role === "promotor" ? { treinado: false } : {});
-    await db.collection("usuarios").doc(u.uid).set({ uid: u.uid, role, migradoEm: FieldValue.serverTimestamp() }, { merge: true });
-    res.json({ role, atualizarToken: true });
+    const u = await auth.autenticar(req), portal = req.body?.portal;
+    if (portal !== undefined && !PERFIS.includes(portal)) throw new Falha(400, "Portal inválido.", "dados-invalidos");
+    const [claims, l, p] = await Promise.all([auth.claimsDe(u.uid), db.collection("contratantes").doc(u.uid).get(), db.collection("profissionais").doc(u.uid).get()]);
+    const tem = new Set(perfisDasClaims(claims)); if (l.exists) tem.add("loja"); if (p.exists) tem.add("promotor");
+    const perfis = PERFIS.filter((x) => tem.has(x));
+    const alvo = portal ?? (perfis.includes(claims.role) ? claims.role : perfis.length === 1 ? perfis[0] : null);
+    const comerciais = perfis.filter((x) => x !== "admin");          // admin é privilégio, não "tipo de conta": não impede criar loja/promotor
+    if (alvo !== "admin" && !comerciais.length) return res.json({ estado: "cadastro", role: null, perfis, atualizarToken: false });
+    if (!alvo) return res.json({ estado: "escolher", role: null, perfis, atualizarToken: false });
+    if (!perfis.includes(alvo)) return res.json({ estado: "outro-perfil", role: null, perfis, sugerido: comerciais[0] || null, atualizarToken: false });
+    const igual = claims.role === alvo && PERFIS.every((x) => perfis.includes(x) === perfisDasClaims(claims).includes(x)) && (alvo !== "promotor" || claims.treinado === !!p.data()?.treinamentoOk);
+    if (!igual) {
+      await auth.definirPapel(u.uid, alvo, { perfis, ...(alvo === "promotor" ? { treinado: !!p.data()?.treinamentoOk } : {}) });
+      await db.collection("usuarios").doc(u.uid).set({ uid: u.uid, role: alvo, perfis, migradoEm: FieldValue.serverTimestamp() }, { merge: true });
+      if (claims.role !== alvo) { req.usuario = u; await auth.auditar(req, "sessao.trocar-perfil", u.uid, { de: claims.role || null, para: alvo }); }
+    }
+    res.json({ estado: "ok", role: alvo, perfis, atualizarToken: !igual });
   }));
 };

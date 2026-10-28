@@ -4,7 +4,8 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, papelAtual, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
 import { WHATSAPP_SUPORTE, REPASSE_PROFISSIONAL_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS } from "./config.js";
 import { brl, reaisParaCentavos, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
@@ -58,12 +59,18 @@ onAuthStateChanged(auth, async (u) => {
     try { await entrar(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Tente novamente."); }
 });
 
-/** O papel vem do token assinado pelo servidor. Sem papel = primeiro acesso → cadastro (com idade mínima de 16 anos). */
+/**
+ * O perfil ativo é decidido pelo SERVIDOR (/sessao) para o portal aberto — nunca pelo navegador.
+ * Perfil errado ou conta com vários perfis NÃO derruba a sessão: mostra a tela de escolha (painel certo / outra conta).
+ */
+const trocarConta = async () => { await sair(); };
+const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "promotor", perfis: r?.perfis, email: usuario?.email, trocarConta });
 async function entrar(u) {
-    let papel = await papelAtual();
-    if (!papel) { try { const r = await chamarFuncao("sessao", {}); if (r.atualizarToken) await renovarToken(); papel = r.role; } catch (e) { if (e.code === "conta-ambigua") { erro(e.message); return sair(); } console.warn(e); } }
-    if (papel && papel !== "promotor") { erro(papel === "loja" ? "Esta conta é de loja. Use outra conta Google para o perfil de promotor." : "Esta conta não tem acesso ao portal do promotor."); return sair(); }
-    if (!papel) return abrirCadastro(false);
+    let r;
+    try { r = await resolverAcesso("promotor"); }
+    catch (e) { console.warn(e); return telaFalhaTemporaria({ tentarDeNovo: () => entrar(u), trocarConta }); }
+    if (r.estado === "outro-perfil" || r.estado === "escolher") return mostrarOutroPerfil(r);
+    if (r.estado === "cadastro") return abrirCadastro(false);
     const s = await getDoc(doc(db, "profissionais", u.uid));
     if (!s.exists()) return abrirCadastro(false);
     pub = s.data();
@@ -118,7 +125,8 @@ $("btn-cadastrar").addEventListener("click", async () => {
         await renovarToken(); await entrar(usuario);
     } catch (err) {
         console.error(err);
-        const m = { "idade-minima": `É preciso ter pelo menos ${IDADE_MINIMA} anos para se cadastrar.`, "cpf-duplicado": err.message, "papel-conflito": err.message, "dado-travado": err.message, "limite-requisicoes": err.message }[err.code];
+        if (err.code === "papel-conflito") return mostrarOutroPerfil({ perfis: [err.detalhe?.tem || err.detalhe?.sugerido].filter(Boolean) });   // corrida: a conta já tem o outro perfil
+        const m = { "idade-minima": `É preciso ter pelo menos ${IDADE_MINIMA} anos para se cadastrar.`, "cpf-duplicado": err.message, "dado-travado": err.message, "limite-requisicoes": err.message }[err.code];
         erro(m || err.message || "Não foi possível concluir o cadastro.");
     } finally { b.disabled = false; b.innerHTML = html; }
 });

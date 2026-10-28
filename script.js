@@ -4,7 +4,8 @@
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, baixarCSVProtegido, renovarToken, papelAtual, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { auth, db, googleProvider, chamarFuncao, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
+import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
 import { WHATSAPP_SUPORTE, VALOR_DIARIA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MP_PUBLIC_KEY } from "./config.js";
 import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
 import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
@@ -64,19 +65,32 @@ function parar() { pedidosUn?.(); promUn?.(); cartaoUn?.(); finUn?.(); chatUn?.(
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
     if (!u) { parar(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
-    try { await carregarPerfil(u); } catch (e) { if (e.message === "papel-incorreto") return; console.error(e); erro(e.code === "papel-conflito" ? e.message : "Não foi possível carregar seu cadastro. Tente novamente."); return; }
+    let seguiu = false;
+    try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Tente novamente."); return; }
+    if (!seguiu) return;                                    // tela de aviso/falha já está na tela; a sessão continua de pé
     ehTeste = await contaDeTeste(); $("btn-teste-reset").hidden = !ehTeste; $("cartao-teste-dica").hidden = !ehTeste;
     pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar();
 });
 
+const trocarConta = async () => { parar(); await signOut(auth); };
+const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "loja", perfis: r?.perfis, email: usuario?.email, trocarConta });
+
+/**
+ * O perfil ativo vem do SERVIDOR (/sessao) para o portal aberto — nunca do navegador.
+ * Devolve true se a loja pode abrir o painel; false se uma tela de aviso/falha foi mostrada (sem derrubar a sessão).
+ */
 async function carregarPerfil(u) {
-    // O papel (loja/promotor/admin) vem do token assinado pelo servidor — nunca do navegador.
-    let papel = await papelAtual();
-    if (!papel) { try { const r = await chamarFuncao("sessao", {}); if (r.atualizarToken) await renovarToken(); papel = r.role; } catch (e) { console.warn(e); } }
-    if (!papel) { await chamarFuncao("cadastro/loja", { termos: true }); await renovarToken(); papel = "loja"; }
-    if (papel !== "loja") { erro(papel === "promotor" ? "Esta conta é de promotor. Use outra conta Google para a loja." : "Esta conta não tem acesso ao painel da loja."); await signOut(auth); throw new Error("papel-incorreto"); }
+    let r;
+    try { r = await resolverAcesso("loja"); }
+    catch (e) { console.warn(e); telaFalhaTemporaria({ tentarDeNovo: () => location.reload(), trocarConta }); return false; }
+    if (r.estado === "outro-perfil" || r.estado === "escolher") { mostrarOutroPerfil(r); return false; }
+    if (r.estado === "cadastro") {                                  // primeiro acesso: o aceite dos Termos já foi marcado na tela de login
+        try { await chamarFuncao("cadastro/loja", { termos: true }); await renovarToken(); }
+        catch (e) { if (e.code === "papel-conflito") { mostrarOutroPerfil({ perfis: [e.detalhe?.tem].filter(Boolean) }); return false; } throw e; }
+    }
     const ref = doc(db, "contratantes", u.uid), s = await getDoc(ref);
     perfil = s.exists() ? s.data() : { uid: u.uid, email: u.email || "", nome: u.displayName || "" };
+    return true;
 }
 
 function pintarPerfil() {

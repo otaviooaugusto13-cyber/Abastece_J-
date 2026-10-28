@@ -88,6 +88,20 @@ function criarLimitador() {
   return { limitar, _baldes: baldes, parar: () => clearInterval(faxina) };
 }
 
+// ---------- Perfis (uma conta Google pode ter mais de um) ----------
+const PERFIS = ["loja", "promotor", "admin"];
+/**
+ * Perfis a que a conta TEM DIREITO segundo as custom claims (só o servidor as escreve).
+ * `role` é o perfil ATIVO (é ele que as regras do Firestore e o RBAC leem); `perfis` guarda todos os que a conta possui,
+ * para que trocar de portal não faça a conta "perder" os outros (ex.: admin que também testa o portal da loja).
+ */
+function perfisDasClaims(c = {}) {
+  const s = new Set(Array.isArray(c.perfis) ? c.perfis : []);
+  if (PERFIS.includes(c.role)) s.add(c.role);
+  if (c.admin === true) s.add("admin");
+  return PERFIS.filter((p) => s.has(p));
+}
+
 // ---------- Autenticação / RBAC / auditoria ----------
 function criarAuth({ admin, db, FieldValue, modoTeste = false }) {
   /** Verifica o ID token (assinatura, expiração E revogação). O token só é aceito no cabeçalho Authorization. */
@@ -122,12 +136,17 @@ function criarAuth({ admin, db, FieldValue, modoTeste = false }) {
       });
     } catch (e) { console.error("falha ao gravar auditoria", acao, e.message); }
   }
-  /** Define o papel (claim) e revoga sessões antigas. Único ponto que concede papéis. */
-  async function definirPapel(uid, role, extra = {}) {
-    const atual = (await admin.auth().getUser(uid)).customClaims || {};
-    await admin.auth().setCustomUserClaims(uid, { ...atual, role, ...extra });
+  /** Claims atuais lidas direto do Auth (não do token, que pode estar velho). */
+  async function claimsDe(uid) { return (await admin.auth().getUser(uid)).customClaims || {}; }
+  /**
+   * Define o perfil ATIVO (claim `role`) e acrescenta-o a `perfis`, sem apagar os outros que a conta já tem.
+   * Único ponto que concede/troca papéis. O cliente precisa renovar o token depois (getIdToken(true)).
+   */
+  async function definirPapel(uid, role, { perfis: conhecidos = [], ...extra } = {}) {
+    const atual = await claimsDe(uid), tem = new Set([...perfisDasClaims(atual), ...conhecidos.filter((p) => PERFIS.includes(p)), role]);
+    await admin.auth().setCustomUserClaims(uid, { ...atual, role, perfis: PERFIS.filter((p) => tem.has(p)), ...extra });
   }
-  return { autenticar, exigir, exigirRecente, auditar, definirPapel };
+  return { autenticar, exigir, exigirRecente, auditar, definirPapel, claimsDe };
 }
 
 /** Converte qualquer erro em JSON seguro (sem stack/detalhes internos). */
@@ -142,4 +161,4 @@ function tratadorErros(err, req, res, _next) {
   res.status(500).json({ erro: "erro interno", codigo: "interno" });
 }
 
-module.exports = { cabecalhos, semCache, origensPermitidas, protecaoCsrf, opcoesCors, criarLimitador, criarAuth, envelope, tratadorErros };
+module.exports = { PERFIS, perfisDasClaims, cabecalhos, semCache, origensPermitidas, protecaoCsrf, opcoesCors, criarLimitador, criarAuth, envelope, tratadorErros };

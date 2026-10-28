@@ -84,7 +84,7 @@ const carteira = criarCarteira({ db, FieldValue, Timestamp });
 const treinamento = criarTreinamento({ db, FieldValue, Timestamp, admin });
 const habilitacao = criarHabilitacao({ db, treinamento });
 const ctx = {
-  db, admin, FieldValue, Timestamp, S, C, V, Cripto, Falha, auth, limitar, carteira, treinamento, habilitacao, mp,
+  db, admin, FieldValue, Timestamp, S, C, V, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, habilitacao, mp,
   envelope: Seg.envelope, MODO_TESTE, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, CRON_SECRET, APP_URL, getBaseUrl, urlPublicaHttps,
   __reset: () => limitador._baldes.clear(),   // uso exclusivo dos testes
   hojeSP: V.hojeSP, reais: (c) => Number((c / 100).toFixed(2)),
