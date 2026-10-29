@@ -1,25 +1,39 @@
-# Relatório de unificação — Abastece Já
+# Relatório de unificação — Abastece Já (rodadas 2 e 3)
 
-**Base comum:** repositório original · **Versão A (v2):** zip "Abastece_J--main (2)" (acesso/sessão, admin novo, check-in/out, recados, definir-admin) · **Versão B:** Cursos + perfil Eneagrama + ofertas por GPS/20 km.
-**Resultado:** `npm test` → paridade ✓ · 12/12 front · **45/45 backend** (31 originais + 8 da versão B + 6 da v2).
+**Base comum:** repositório original. **Versões unificadas:**
+- **v2** — acesso/sessão, admin novo (`ax-*`), check-in/out, recados, `definir-admin`.
+- **"corrigido" (n3)** — v2 + `entrada.js` (tela Entrar × Criar conta), CPF duplicado com opções, edição/exclusão e rótulos no admin, ajustes de sessão/regras.
+- **pacote do admin (n2)** — treinamento com trilhas por categoria e **provas com nota mínima**, financeiro com KPIs/filtros/paginação, **auditoria ao vivo** e auditoria de exportações. *(O zip "Abastece_J--main (2) (1)" era idêntico à v2 — nada a mesclar.)*
+- **B (minha rodada anterior)** — Cursos, perfil Eneagrama, ofertas por GPS/20 km.
 
-## Arquivos e decisão
-| Arquivo | Origem | Decisão |
-|---|---|---|
-| `acesso.js`, `recado.js`, `admin.css`, `server/rotas/turnos.js`, `server/definir-admin.js`, `scripts/definir-admin.js`, `server/rotas/admin.js`, `server/server.js` | v2 | Mantidos integralmente (só a v2 mexeu). |
-| `geo.js`, `perfil-inteligente.js`, `cursos.js`, `INTEGRACAO.md`, `test/perfil.test.js`, `server/lib/treinamento.js`, `server/lib/config.js`, `server/rotas/pedidos.js`, `firestore.rules`, `style.css`, `promotor.html`, `index.html`, `config.js` | B | Mantidos integralmente (só a B mexeu). |
-| `admin.html`, `admin.js` | **conflito** | v2 vence (reescrita completa, abas e KPIs). Reaplicado sobre ela o que a B precisava: categoria do curso, "obrigatório", coluna "Tipo" (ids `t-cat`, `t-obrig`). |
-| `script-personal.js` | **conflito (2)** | Imports somados (v2: `acesso.js`, `recado.js`, sem `papelAtual`; B: geo/perfil/cursos/config). Bloco de Cursos/Eneagrama + bloco de check-in/out convivem. Fluxo `entrar()` da v2 preservado; chamadas da B (`carregarPerfilIA`, `iniciarGeo`) acrescentadas ao final dele. |
-| `script.js` (loja) | automático | v2 (acesso/recado) + B (cidade/GPS da loja). |
-| `server/rotas/conta.js` | **conflito** | As duas rotas novas coexistem: `PUT/GET /perfil/promotor/inteligente` (B) e `POST /perfil/recado/lido` (v2). |
-| `server/lib/seguranca.js` | automático | v2 + `geolocation=(self)` (B). Corrige de quebra o check-in da v2, que usa GPS e estava bloqueado por `geolocation=()`. |
-| `sw.js` | **conflito** | Lista de pré-cache unida (`geo.js`, `perfil-inteligente.js`, `cursos.js`, `acesso.js`, `recado.js`); versão `abastece-v7` (invalida o cache antigo). |
-| `test/backend.test.cjs` | **conflito** | Testes das duas versões somados. |
+**Resultado:** paridade ✓ · **12/12** front · **53/53** backend (31 originais + 8 da B + 6 da v2 + 7 do n3 + 1 novo de prova; 2 testes meus de cursos reescritos para o motor do n2).
 
-## Itens críticos que você pediu — conferência
-- **Login, sessão e redirecionamento loja/promotor:** `resolverAcesso("promotor"|"loja")`, tela de escolha de perfil e falha temporária (v2) intactos em `script.js` e `script-personal.js`; testes de `/sessao` da v2 passando.
-- **CPF duplicado, edição/exclusão no admin:** vêm da v2 sem alteração (`server/rotas/admin.js`, `server/rotas/conta.js`, `admin.js`); testes da v2 passando.
-- **Sem variáveis/imports duplicados:** todos os `.js` passam em `node --check`; nenhum marcador de conflito restou.
+## Decisões
+| Área | Decisão |
+|---|---|
+| Treinamento (servidor) | **Motor do n2 vence** (superset: categoria, obrigatório, provas). Reaplicado: lista única de categorias em `config.js`, resumo `opcionais`, `obrigatorio` na resposta do ping. Meu esquema "habilitacao/forçar categoria" foi descartado. |
+| Categorias | Taxonomia única (`CURSO_CATEGORIAS`): **geral, mercearia, hortifruti, padaria, frios, deposito** (n2) + **perdas, atendimento, seguranca, carreira** (B, aditivas). `cursos.js`, admin e servidor usam a mesma lista (teste de paridade). |
+| Admin | Base = v2+n3 (recados, edição/exclusão, sessão). Portados do n2: editor de treinamento com provas, financeiro (KPIs, filtros, "saque parado"), auditoria ao vivo (auto-atualiza a cada 15 s) e registro de exportações; rotas `POST /admin/auditar-exportacao` e `GET /admin/financeiro/resumo` adicionadas ao servidor. Rótulos de auditoria completados (recado, editar/excluir, perfil inteligente). |
+| Promotor | Aba Treinamento = módulos obrigatórios por categoria; **Menu → Cursos** = tudo por categoria. Os dois usam o mesmo cartão (`cartaoCurso`) com status da prova; modal `sheet-prova` do n2. |
+| Check-in/out | v2 e n2 tinham o mesmo código; mantido **uma** cópia (sem duplicar). |
+| Entrar/Criar conta, CPF duplicado | n3 integral; botão "Falar com suporte" abre WhatsApp por ação explícita (teste de links externos ajustado para aceitar `wa.me`). |
+| `sw.js` | Lista unida (inclui `entrada.js`, `geo.js`, `perfil-inteligente.js`, `cursos.js`); versão `abastece-v9`. |
+| Segurança | `geolocation=(self)` mantido (necessário para ofertas e check-in). |
 
-## Pendências suas (inalteradas)
-Publicar regras (`firebase deploy --only firestore:rules`); lojas preencherem a cidade; revisar tabela de cidades e a afinidade do Eneagrama; decisões jurídicas/comissão listadas no `MUDANCAS.md` da v2. Não testado em navegador/Firestore reais.
+## Correção feita durante o merge
+Um `=======` solto no `style.css` (resto de conflito) invalidaria a regra seguinte — removido; chaves balanceadas (348/348).
+
+## Conferência dos pontos críticos
+Login/sessão/redirecionamento, CPF duplicado, edição/exclusão no admin: código do v2+n3 intacto e testado. Todos os `.js` passam em `node --check`; IDs do JS existem nos HTMLs (promotor, loja, admin); zero marcadores de conflito.
+
+## Pendências suas
+Publicar regras (`firebase deploy --only firestore:rules`); lojas preencherem a cidade; revisar tabela de cidades e afinidade do Eneagrama; conferir no admin os cursos que já existem (módulos antigos viram categoria `geral`, obrigatórios — comportamento anterior); decisões jurídicas do `MUDANCAS.md`. **Não testado em navegador/Firestore reais.**
+
+---
+## Rodada 3 — dois zips novos (`Abastece_J--main (4)` e `(4) (1)`)
+Os dois descendem da **minha primeira unificação** (72 arquivos idênticos a ela); só o admin mudou:
+- **`(4)`** trazia `admin.html`/`admin.js` **idênticos ao admin original** (o mais simples: `prompt()`, sem recados, edição, exclusão, KPIs ou provas). Aplicar isso seria **regressão** → descartado, mantido o admin unificado.
+- **`(4) (1)`** trazia o admin unificado da v2 com **duas melhorias novas**, ambas portadas:
+  1. **Encerrar sessões** (botão na ficha de promotor e de loja → `POST /admin/usuarios/:uid/revogar-sessoes`, que já existia no servidor e grava na auditoria).
+  2. **Tocar na chave Pix copia** (aba Saques) + estilo em `admin.css`.
+- Portadas sobre o admin atual (com edição/exclusão, recados, provas, financeiro, auditoria ao vivo), sem sobrescrevê-lo. Novo teste de ligação front↔servidor. **13/13 front · 53/53 backend.**
