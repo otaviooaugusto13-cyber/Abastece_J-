@@ -69,6 +69,14 @@ service cloud.firestore {
     // ---------- treinamento (tudo via API: a ordem dos módulos e o progresso são validados no servidor) ----------
     match /treinamento_modulos/{id}    { allow read, write: if false; }
     match /treinamento_progresso/{id}  { allow read, write: if false; }
+    // habilitação por categoria: conteúdo (com GABARITO) e sessões só no servidor; o selo vive em profissionais/{uid}.habilitacoes (cliente NÃO escreve)
+    match /habilitacao_categorias/{id} { allow read, write: if false; }
+    match /habilitacao_sessoes/{id}    { allow read, write: if false; }
+
+    // ---------- suporte (chat equipe ↔ usuário): o navegador só LÊ; escrever é só pela API ----------
+    match /suporte_conversas/{uid} { allow read: if dono(uid) || ehAdmin(); allow write: if false; }
+    match /suporte_mensagens/{id}  { allow read: if logado() && (resource.data.uid == request.auth.uid || ehAdmin()); allow write: if false; }
+    // push_tokens: nenhuma regra → negado por padrão (só o servidor lê/escreve)
 
     // ---------- pedidos ----------
     match /solicitacoes/{id} {

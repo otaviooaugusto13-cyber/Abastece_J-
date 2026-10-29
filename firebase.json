@@ -24,6 +24,20 @@
           }
         ]
       }
+    ],
+    "rewrites": [
+      {
+        "source": "/painel-loja",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/painel-promotor",
+        "destination": "/promotor.html"
+      },
+      {
+        "source": "/painel-admin",
+        "destination": "/admin.html"
+      }
     ]
   },
   "emulators": {

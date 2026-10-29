@@ -12,6 +12,9 @@ for (const k of ["VALOR_DIARIA_CENTAVOS", "COMISSAO_PLATAFORMA_CENTAVOS", "REPAS
 assert.deepEqual([cfg.MENOR_JANELA_INICIO, cfg.MENOR_JANELA_FIM, cfg.MENOR_SETORES_VEDADOS], [SC.MENOR.JANELA_INICIO, SC.MENOR.JANELA_FIM, SC.MENOR.SETORES_VEDADOS]);
 assert.equal(cfg.IDADE_MINIMA, SC.IDADE_MINIMA); assert.equal(cfg.IDADE_MAIORIDADE, SC.IDADE_MAIORIDADE);
 assert.deepEqual(core.SETORES.map((s) => s.v), SC.SETORES, "SETORES diverge entre core.js e server/lib/config.js");
+assert.deepEqual(core.CATEGORIAS, SC.CATEGORIAS, "CATEGORIAS diverge entre core.js e server/lib/config.js");
+assert.deepEqual(core.SETOR_CATEGORIA, SC.SETOR_CATEGORIA, "SETOR_CATEGORIA diverge entre core.js e server/lib/config.js");
+for (const s of SC.SETORES) assert.ok(SC.CATEGORIAS[SC.SETOR_CATEGORIA[s]], `setor sem categoria de habilitação: ${s}`);
 for (const s of SC.MENOR.SETORES_VEDADOS) assert.ok(SC.SETORES.includes(s), `setor vedado inexistente: ${s}`);
 
 // 2) requisito: diária R$ 200 → R$ 50 plataforma + R$ 150 profissional
@@ -51,4 +54,24 @@ assert.equal(core.valorPromotor({}), 15000); assert.equal(core.valorPromotor({ v
 for (const perfil of ["loja", "promotor"]) { const t = core.textoTermos(perfil); assert.ok(t.includes("R$") && /200,00/.test(t) && /50,00/.test(t) && /150,00/.test(t), perfil); }
 assert.match(core.textoTermos("promotor"), /PRATICAMENTE/); assert.match(core.textoTermos("promotor"), /16 anos/);
 assert.equal(core.esc("<img onerror=alert(1)>"), "&lt;img onerror=alert(1)&gt;");
+
+// 9) taxas DINÂMICAS: com os mesmos valores, navegador (core.js) e servidor (split.js) calculam exatamente igual
+{
+  const nova = { diariaCentavos: 31000, comissaoCentavos: 6200, repasseCentavos: 24800, taxaFixaCentavos: 350, horasMin: 3, horasMax: 8.5, maxSemana: 5, versao: 4 };
+  const { erro, cfg: ok } = srv.validarTaxas(nova); assert.equal(erro, "");
+  assert.equal(core.aplicarTaxas({ ...ok, versao: 4 }), true);
+  assert.deepEqual(core.calcularDiaria(), srv.calcularDiaria({ ...ok, versao: 4 }));
+  for (const m of [60, 180, 240, 510, 511]) assert.deepEqual(core.calcularTurno(m), srv.calcularTurno(m, { ...ok, versao: 4 }));
+  for (const [e, sd] of [["08:00", "10:59"], ["08:00", "11:00"], ["08:00", "16:30"], ["08:00", "16:31"]]) assert.equal(core.validarTurno(e, sd), srv.validarTurno(e, sd, ok), `${e}-${sd}`);
+  assert.equal(core.valorPromotor({}), 24800); assert.match(core.textoTermos("loja"), /310,00/); assert.match(core.textoTermos("loja"), /62,00/); assert.match(core.textoTermos("loja"), /248,00/);
+  assert.equal(core.calcularDiaria().total, 31350); assert.equal(core.calcularDiaria().promotor + core.calcularDiaria().app, 31350);
+  // lixo vindo da rede nunca contamina a tela: mantém o último valor bom
+  assert.equal(core.aplicarTaxas({ ...nova, repasseCentavos: 1 }), false); assert.equal(core.aplicarTaxas(null), false); assert.equal(core.aplicarTaxas({ ...nova, diariaCentavos: NaN }), false);
+  assert.equal(core.TAXAS.repasseCentavos, 24800);
+  // volta ao padrão para não afetar nada depois
+  core.aplicarTaxas({ diariaCentavos: 20000, comissaoCentavos: 5000, repasseCentavos: 15000, taxaFixaCentavos: 0, horasMin: 4, horasMax: 6, maxSemana: 3, versao: 0 });
+  assert.deepEqual(core.calcularDiaria(), srv.calcularDiaria());
+  // o servidor jamais aceita split inconsistente
+  assert.throws(() => srv.calcularDiaria({ ...ok, repasseCentavos: 1 }), /inconsistente/);
+}
 console.log("✓ paridade navegador×servidor, diária 200/50/150, idade 16+ e termos");

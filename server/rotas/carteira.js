@@ -2,7 +2,7 @@
 const { paraCSV, dinheiro, dataBR } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { db, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira } = x;
+  const { db, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas } = x;
   const iso = (ts) => { const d = ts?.toDate ? ts.toDate() : null; return d ? d.toISOString() : null; };
   const PIX_CARENCIA_MS = 24 * 3600_000;     // após trocar a chave Pix, saques ficam travados por 24 h (proteção contra sequestro de conta)
   const enviarCSV = (res, nome, csv) => { res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${nome}"`); res.setHeader("X-Content-Type-Options", "nosniff"); res.send(csv); };
@@ -43,11 +43,11 @@ module.exports = (app, x) => {
   }));
 
   app.get("/loja/exportar.csv", limitar({ janelaMs: 60_000, max: 6, nome: "csv", porUsuario: true }), auth.exigir("loja"), envelope(async (req, res) => {
-    const uid = req.usuario.uid;
+    const uid = req.usuario.uid, taxasVigentes = await taxas.obter();
     const [ped, fin] = await Promise.all([db.collection("solicitacoes").where("uid", "==", uid).get(), db.collection("solicitacoes_financeiro").where("uid", "==", uid).get()]);
     const valores = new Map(fin.docs.map((d) => [d.id, d.data()]));
     const linhas = ped.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => ["paga", "concluida", "estornada"].includes(p.status)).sort((a, b) => String(b.data).localeCompare(String(a.data)));
     enviarCSV(res, "abastece-ja-pagamentos.csv", paraCSV(["Nota", "Data do serviço", "Loja", "Setor", "Horário", "Profissional", "Total pago (R$)", "Situação", "Pago em"],
-      linhas.map((p) => [p.notaNumero ? String(p.notaNumero).padStart(6, "0") : "", p.data, p.loja, p.foco, p.horario || "", p.promotorNome || "", dinheiro(valores.get(p.id)?.total ?? S.VALOR_DIARIA_CENTAVOS), p.status === "estornada" ? "Estornado" : "Pago", dataBR(p.pagaEm)])));
+      linhas.map((p) => [p.notaNumero ? String(p.notaNumero).padStart(6, "0") : "", p.data, p.loja, p.foco, p.horario || "", p.promotorNome || "", dinheiro(valores.get(p.id)?.total ?? S.calcularDiaria(taxasVigentes).total), p.status === "estornada" ? "Estornado" : "Pago", dataBR(p.pagaEm)])));
   }));
 };

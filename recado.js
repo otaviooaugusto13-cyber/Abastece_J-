@@ -6,6 +6,7 @@
 import { esc } from "./core.js";
 import { chamarFuncao } from "./firebase.js";
 import { WHATSAPP_SUPORTE } from "./config.js";
+import { abrirSuporte } from "./suporte.js";
 
 const TITULO = { pendente: "Seu cadastro precisa de ajustes", bloqueado: "Acesso suspenso", info: "Mensagem do suporte" };
 
@@ -17,7 +18,8 @@ export function pintarRecado(ancora, recado) {
     const el = document.createElement("div");
     el.id = "banner-recado"; el.className = "banner mb"; el.setAttribute("role", "status");
     el.innerHTML = `<span class="ico">💬</span><div class="grow"><strong>${esc(TITULO[recado.tipo] || TITULO.info)}</strong><br><span>${esc(recado.texto)}</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn btn-primary btn-sm" target="_blank" rel="noopener" href="${esc(zap)}">Responder no WhatsApp</a><button type="button" class="btn btn-ghost btn-sm" data-lido>Entendi</button></div></div>`;
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn btn-primary btn-sm" data-responder>Responder</button><button type="button" class="btn btn-ghost btn-sm" data-lido>Entendi</button></div></div>`;
+    el.querySelector("[data-responder]").addEventListener("click", () => { if (!abrirSuporte()) window.open(zap, "_blank", "noopener"); });   // sem chat iniciado, cai no WhatsApp
     el.querySelector("[data-lido]").addEventListener("click", async (e) => {
         const b = e.currentTarget; b.disabled = true;
         try { await chamarFuncao("perfil/recado/lido", {}); el.remove(); } catch (err) { console.warn(err); b.disabled = false; }

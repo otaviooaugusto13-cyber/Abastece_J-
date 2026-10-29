@@ -19,15 +19,22 @@
     <div class="auth-card">
         <div class="auth-brand"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
         <div class="auth-switch"><a href="index.html">Sou loja</a><a href="promotor.html" class="on">Sou promotor</a></div>
-        <h2 class="auth-title">Comece a pegar turnos</h2>
-        <p class="auth-sub" id="login-sub">Cadastro rápido com Google. Depois de aprovado, você vê as ofertas da região.</p>
-        <div class="beneficios">
-            <div>Você escolhe os turnos e o valor mínimo</div>
-            <div>Recebe na carteira digital e saca por Pix</div>
-            <div id="benef-split"></div>
+        <div class="auth-modo" role="tablist" aria-label="Como você quer continuar?">
+            <button type="button" role="tab" id="modo-entrar" aria-selected="true">Entrar na minha conta</button>
+            <button type="button" role="tab" id="modo-criar" aria-selected="false">Criar nova conta</button>
         </div>
-        <label class="check-line"><input type="checkbox" id="check-termos"><span>Li e concordo com os <a href="#" id="link-termos">Termos de Uso e Taxas</a></span></label>
-        <button id="btn-login" class="btn btn-google-login" disabled><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Continuar com Google</button>
+        <h2 class="auth-title" id="login-titulo">Entrar na minha conta</h2>
+        <p class="auth-sub" id="login-sub">Use a conta Google do seu cadastro de promotor.</p>
+        <div id="bloco-criar" hidden>
+            <div class="beneficios">
+                <div>Você escolhe os turnos e o valor mínimo</div>
+                <div>Recebe na carteira digital e saca por Pix</div>
+                <div id="benef-split"></div>
+            </div>
+            <label class="check-line"><input type="checkbox" id="check-termos"><span>Li e concordo com os <a href="#" id="link-termos">Termos de Uso e Taxas</a></span></label>
+        </div>
+        <button id="btn-login" class="btn btn-google-login"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> <span id="btn-login-txt">Entrar com Google</span></button>
+        <p class="auth-dica" id="dica-modo"></p>
         <div id="bloco-teste" class="banner mt" hidden>
             <span class="ico">🧪</span>
             <div class="grow"><strong>Modo de teste (sandbox)</strong><br><span class="muted small">Entre sem Google e sem Mercado Pago para validar o fluxo.</span>
@@ -134,7 +141,17 @@
 
     <!-- TREINAMENTO -->
     <section id="tab-treino" class="tab-content">
-        <div class="page-head"><div><h2>Treinamento PRATICAMENTE</h2><p>Conclua todos os vídeos para liberar os turnos.</p></div></div>
+        <div class="page-head"><div><h2>Treinamento e habilitação</h2><p>Habilite-se por categoria para poder aceitar turnos dela.</p></div></div>
+
+        <!-- Habilitação por categoria: vídeo + cronômetro + avaliação (100%) -->
+        <div class="card gold mb" id="hab-resumo">
+            <div class="row between"><h3>Suas habilitações</h3><span class="badge" id="hab-qtd">0/6</span></div>
+            <div class="progress"><i id="hab-bar" style="width:0%"></i></div>
+            <p class="muted small">Cada categoria tem um vídeo (sem avançar nem acelerar) e uma avaliação em que é preciso acertar <strong>100%</strong>. ⭐ Selo de Elite = aprovado de primeira.</p>
+        </div>
+        <div class="hab-grid mb" id="hab-grid"></div>
+
+        <div class="page-head"><div><h3>Treinamento PRATICAMENTE</h3><p>Base obrigatória para todos os turnos: conclua todos os vídeos.</p></div></div>
         <div class="card mb"><div class="row between"><h3>Seu progresso</h3><span class="badge" id="tr-pct">0/0</span></div><div class="progress"><i id="tr-bar" style="width:0%"></i></div>
             <p class="muted small mt" id="tr-aviso">Assista cada vídeo do começo ao fim, na ordem. O avanço só conta quando o vídeo está tocando.</p></div>
         <div id="lista-treino" class="stack"></div>
@@ -150,11 +167,11 @@
     <section id="tab-menu" class="tab-content">
         <div class="row mb" style="gap:14px">
             <div class="avatar" style="width:64px;height:64px;font-size:26px" id="avatar-menu">P</div>
-            <div><h3 id="nome-menu">Promotor</h3><span class="badge" id="badge-status" style="margin-top:6px">Em análise</span></div>
+            <div><h3 id="nome-menu">Promotor</h3><span class="badge" id="badge-status" style="margin-top:6px">Em análise</span><div class="selos mt" id="selos-menu"></div></div>
         </div>
         <div class="menu-list mb">
             <button class="menu-item" data-abrir="sheet-cursos"><span class="ico">📚</span><span>Cursos</span><span class="badge gray" id="menu-cursos-badge" hidden></span><span class="seta">›</span></button>
-            <button class="menu-item" data-ir="tab-treino"><span class="ico">🎓</span><span>Treinamento PRATICAMENTE</span><span class="seta">›</span></button>
+            <button class="menu-item" data-ir="tab-treino"><span class="ico">🎓</span><span>Treinamento e habilitação</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-perfil"><span class="ico">👤</span><span>Meus dados</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-pix"><span class="ico">💠</span><span>Chave Pix</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">⚙️</span><span>Preferências de turno</span><span class="seta">›</span></button>
@@ -222,6 +239,7 @@
     <div class="field"><label for="d-bio">Sobre você <span class="muted small" id="bio-cont"></span></label><textarea id="d-bio" rows="5" maxlength="300" placeholder="Preencha a experiência acima e a bio é gerada para você."></textarea></div>
     <div id="kw-chips" class="kw" aria-label="Palavras-chave"></div>
     <button type="button" class="btn btn-ghost btn-sm mb" id="btn-regerar">✨ Gerar de novo</button>
+    <div class="field"><label>Sua bio como as lojas veem</label><div class="bio-preview" id="bio-preview" aria-live="polite"></div><span class="muted small">Os selos de habilitação entram aqui automaticamente quando você é aprovado. Não dá para editá-los.</span></div>
     <button class="btn btn-primary" id="btn-salvar-perfil">Salvar</button>
 </div></div>
 
@@ -296,6 +314,42 @@
     <div id="vd-player" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden"></div>
     <div class="progress mt"><i id="vd-bar" style="width:0%"></i></div>
     <p class="muted small mt" id="vd-info">Assista até o fim. Se avançar o vídeo, ele volta ao ponto já validado.</p>
+</div></div>
+
+<!-- ============ HABILITAÇÃO POR CATEGORIA ============ -->
+<div id="sheet-hab" class="app-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="hb-titulo"><div class="sheet full hab-sheet">
+    <div class="sub-head"><div class="grow"><span class="hab-kicker" id="hb-kicker">Habilitação</span><h2 id="hb-titulo">Treinamento obrigatório</h2></div><button class="icon-btn" id="hb-fechar" aria-label="Sair do treinamento">✕</button></div>
+    <ol class="steps" id="hb-steps" aria-label="Etapas"><li class="on"><i>1</i><span>Assistir</span></li><li><i>2</i><span>Avaliação</span></li><li><i>3</i><span>Habilitado</span></li></ol>
+    <div class="hab-player" id="hb-player">
+        <div id="hb-video"></div>
+        <div class="hab-shield" id="hb-shield"><button type="button" class="hab-play" id="hb-play" aria-label="Reproduzir vídeo">▶</button></div>
+        <div class="hab-pausa" id="hb-pausa" hidden>⏸ Treinamento pausado. Volte para esta tela e toque em ▶.</div>
+    </div>
+    <div class="hab-hud">
+        <div class="ring" role="timer" aria-label="Cronômetro do treinamento"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="trilho" cx="60" cy="60" r="52"/><circle class="valor" id="hb-anel" cx="60" cy="60" r="52"/></svg><div class="ring-t"><strong id="hb-tempo">--:--</strong><small>cronômetro</small></div></div>
+        <div class="grow"><div class="lbl">Vídeo assistido</div><div class="progress"><i id="hb-bar" style="width:0%"></i></div><p class="muted small" id="hb-aviso" aria-live="polite"></p></div>
+    </div>
+    <button class="btn btn-primary btn-grande" id="hb-avaliar" hidden disabled>📝 Iniciar Avaliação</button>
+</div></div>
+
+<div id="sheet-quiz" class="app-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="qz-texto"><div class="sheet full quiz-sheet">
+    <div class="sub-head"><div class="grow"><span class="hab-kicker" id="qz-kicker">Avaliação</span><h2 id="qz-count">Pergunta 1</h2></div><button class="icon-btn" id="qz-fechar" aria-label="Pausar avaliação">✕</button></div>
+    <div class="progress"><i id="qz-prog" style="width:0%"></i></div>
+    <p class="muted small" id="qz-regra">Para se habilitar é preciso acertar 100% das perguntas.</p>
+    <div class="quiz-card" id="qz-card"><h3 id="qz-texto"></h3><div class="opts" id="qz-opcoes" role="radiogroup" aria-labelledby="qz-texto"></div></div>
+    <div class="grid-2 mt"><button class="btn btn-ghost" id="qz-voltar" type="button">← Voltar</button><button class="btn btn-primary" id="qz-prox" type="button" disabled>Próxima</button></div>
+    <p class="muted small center mt" id="qz-validade"></p>
+</div></div>
+
+<div id="modal-hab" class="app-overlay centro" aria-hidden="true" role="dialog" aria-modal="true"><div class="modal-box hab-res" id="hab-res"></div></div>
+
+<div id="sheet-prova" class="app-overlay" aria-hidden="true"><div class="sheet">
+    <div class="grab"></div>
+    <div class="sub-head"><h2 id="pv-titulo">Prova</h2><button class="icon-btn" data-fechar="sheet-prova" aria-label="Fechar">✕</button></div>
+    <p class="muted small" id="pv-info"></p>
+    <div id="pv-lista" class="mt"></div>
+    <p class="msg-erro mt" id="pv-resultado" role="alert"></p>
+    <button class="btn btn-primary mt" id="pv-enviar">Enviar respostas</button>
 </div></div>
 
 <div id="sheet-termos" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>

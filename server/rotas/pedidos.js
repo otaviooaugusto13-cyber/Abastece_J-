@@ -1,6 +1,6 @@
 // Pedidos de turno. Toda mudança de estado acontece AQUI (transações); o navegador só lê.
 module.exports = (app, x) => {
-  const { db, FieldValue, Timestamp, auth, V, C, S, Falha, envelope, limitar, habilitacao, hojeSP, visaoLoja, MODO_TESTE } = x;
+  const { db, FieldValue, Timestamp, auth, V, C, S, Falha, envelope, limitar, habilitacao, taxas, hojeSP, visaoLoja, MODO_TESTE } = x;
   const porUsuario = (nome, max, janelaMs = 60_000) => limitar({ janelaMs, max, nome, porUsuario: true });
   const ehTeste = (u) => MODO_TESTE && u.teste === true && ["teste-loja", "teste-promotor"].includes(u.uid);
 
@@ -59,9 +59,10 @@ module.exports = (app, x) => {
     const data = b.data, entrada = String(b.entrada || ""), saida = String(b.saida || "");
     if (!V.dataIsoValida(data) || data < hojeSP() || data > somaDias(hojeSP(), 90)) throw new Falha(400, "Escolha hoje ou uma data nos próximos 90 dias.", "dados-invalidos");
     const foco = V.opcao(b.foco, C.SETORES, "setor");
-    const erroTurno = S.validarTurno(entrada, saida);
+    const cfg = await taxas.obter();                                    // taxas vigentes AGORA (editáveis pelo admin)
+    const erroTurno = S.validarTurno(entrada, saida, cfg);
     if (erroTurno) throw new Falha(400, erroTurno, "turno-invalido");
-    const sp = S.calcularTurno(S.minutosEntre(entrada, saida));        // diária fixa: o cliente NUNCA define o preço
+    const sp = S.calcularTurno(S.minutosEntre(entrada, saida), cfg);   // diária fixa: o cliente NUNCA define o preço. Fica congelada neste pedido (pagamentos_internos.split)
     const ref = db.collection("solicitacoes").doc();
     const pedido = {
       uid: u.uid, loja, data, entrada, saida, horario: `${entrada} – ${saida}`, minutos: sp.minutos, foco,
@@ -92,6 +93,7 @@ module.exports = (app, x) => {
     if (!previa) throw new Falha(404, "Pedido não encontrado.", "nao-encontrado");
     // TRAVAS DE HABILITAÇÃO (aprovação, idade, responsável, treinamento PRATICAMENTE, regras de menor)
     await habilitacao.exigirPodeAceitar(u.uid, previa);
+    const cfg = await taxas.obter();
 
     await db.runTransaction(async (tx) => {
       const [prof, snap, meus] = await Promise.all([tx.get(profRef), tx.get(sRef), tx.get(db.collection("solicitacoes").where("promotorUid", "==", u.uid))]);
@@ -102,7 +104,7 @@ module.exports = (app, x) => {
       if (s.data < hojeSP()) throw new Falha(409, "Este turno já passou.", "turno-indisponivel");
       if (s.exclusivoAte && s.exclusivoAte.toMillis() > Date.now() && s.promotorPreferido && s.promotorPreferido !== u.uid) throw new Falha(403, "Este turno está sob janela de exclusividade para outro profissional.", "exclusivo");
       const historico = meus.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (S.vezesNaSemana(historico, s.uid, s.data, snap.id || sid) >= S.MAX_VEZES_SEMANA_LOJA) throw new Falha(409, `Limite atingido: máximo de ${S.MAX_VEZES_SEMANA_LOJA} turnos por semana nesta loja.`, "limite-semanal");
+      if (S.vezesNaSemana(historico, s.uid, s.data, snap.id || sid) >= cfg.maxSemana) throw new Falha(409, `Limite atingido: máximo de ${cfg.maxSemana} turnos por semana nesta loja.`, "limite-semanal");
       const conflito = historico.some((t) => t.id !== sid && S.STATUS_QUE_CONTAM.includes(t.status) && t.data === s.data && !(t.saida <= s.entrada || t.entrada >= s.saida));
       if (conflito) throw new Falha(409, "Você já tem um turno neste horário.", "conflito-horario");
       tx.update(sRef, { status: "aceita", promotorUid: u.uid, promotorNome: String(p.nome || "Promotor").slice(0, 100), aceitoEm: FieldValue.serverTimestamp() });

@@ -3,7 +3,10 @@
 const { paraCSV, dinheiro, dataBR } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { db, admin, FieldValue, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, treinamento, habilitacao, mp, CRON_SECRET } = x;
+  const { db, admin, FieldValue, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, treinamento, categorias, habilitacao, suporte, mp, CRON_SECRET } = x;
+  const PAGINA = { loja: "index.html", promotor: "promotor.html" };
+  /** Registra a mensagem no chat do usuário e avisa o aparelho dele (push é melhor esforço). */
+  const avisarNoChat = async (req, uid, tipo, texto) => { await suporte.postar({ uid, de: "suporte", texto, autorUid: req.usuario.uid, dica: tipo }); await suporte.enviarPush({ uid, titulo: "Suporte Abastece Já", corpo: texto, url: `${PAGINA[tipo]}?suporte=1` }); };
   const ADM = [limitar({ janelaMs: 60_000, max: 120, nome: "admin", porUsuario: true }), auth.exigir("admin")];
   const iso = (ts) => { const d = ts?.toDate ? ts.toDate() : null; return d ? d.toISOString() : null; };
   const cx = (campo, uid) => `profissionais_privado/${campo}/${uid}`;
@@ -24,7 +27,8 @@ module.exports = (app, x) => {
     const idade = nascimento ? V.calcularIdade(nascimento) : null;
     await auth.auditar(req, "admin.promotor.ver_ficha", uid);
     res.json({
-      uid, nome: pub.nome, email: (await db.collection("usuarios").doc(uid).get()).data()?.email || "", status: pub.status, cidade: pub.cidade || "", idade, menor: idade !== null && idade < C.IDADE_MAIORIDADE,
+      uid, nome: pub.nome, email: (await db.collection("usuarios").doc(uid).get()).data()?.email || "", status: pub.status, cidade: pub.cidade || "", bio: pub.bio || "", especialidade: pub.especialidade || "",
+      valorMin: Number.isInteger(pub.valorMin) ? pub.valorMin : null, disponibilidade: pub.disponibilidade || null, idade, menor: idade !== null && idade < C.IDADE_MAIORIDADE,
       nascimento: nascimento || null, cpfMascarado: cpf ? V.mascararCPF(cpf) : "", telefone: tentar(() => Cripto.decifrar(priv.telefoneEnc, cx("telefone", uid))) || "",
       responsavel: resp ? { nome: resp.nome, parentesco: resp.parentesco, cpfMascarado: V.mascararCPF(resp.cpf), telefone: resp.telefone } : null, autorizacaoEm: iso(priv.autorizacaoResponsavelEm),
       treinamento: await treinamento.estado(uid), habilitacao: await habilitacao.situacao(uid)
@@ -38,6 +42,7 @@ module.exports = (app, x) => {
     const ref = db.collection(tipo === "loja" ? "contratantes" : "profissionais").doc(uid);
     if (!(await ref.get()).exists) throw new Falha(404, "Cadastro não encontrado.", "nao-encontrado");
     await ref.set({ recado: { texto, tipo: "info", por: "suporte", em: FieldValue.serverTimestamp() } }, { merge: true });
+    await avisarNoChat(req, uid, tipo, texto);
     await auth.auditar(req, "admin.recado.enviar", uid, { tipo, texto });
     res.json({ ok: true });
   }));
@@ -47,19 +52,136 @@ module.exports = (app, x) => {
     const motivo = V.texto(req.body?.motivo || "", "motivo", { max: 300, obrigatorio: false });
     const { pub, priv, nascimento } = await habilitacao.perfil(uid);
     if (!pub) throw new Falha(404, "Profissional não encontrado.", "nao-encontrado");
-    if (status === "ativo") {                                                    // aprovar exige cadastro legalmente completo
-      if (!nascimento) throw new Falha(409, "Não é possível aprovar: data de nascimento ausente.", "cadastro-incompleto");
+    // DESBLOQUEIO (bloqueado → ativo/pendente) nunca depende de dados cadastrais faltando (contas antigas sem nascimento ficavam presas).
+    // Mesmo liberada, a pessoa só ACEITA turnos depois de completar tudo: habilitacao.exigirPodeAceitar() confere nascimento, idade,
+    // responsável e treinamento a cada aceite — a trava legal continua, só deixou de impedir a reativação.
+    const desbloqueando = pub.status === "bloqueado" && status !== "bloqueado";
+    if (status === "ativo" && !desbloqueando) {                                  // 1ª aprovação exige cadastro legalmente completo (use "Editar" para corrigir os dados)
+      if (!nascimento) throw new Falha(409, "Não é possível aprovar: data de nascimento ausente. Abra Editar perfil e informe a data (ou peça ao promotor para completar o cadastro).", "cadastro-incompleto");
       const idade = V.calcularIdade(nascimento);
       if (idade < C.IDADE_MINIMA) throw new Falha(409, `Não é possível aprovar: menor de ${C.IDADE_MINIMA} anos.`, "idade-minima");
       if (idade < C.IDADE_MAIORIDADE && !(priv.responsavelEnc && priv.autorizacaoResponsavelEm)) throw new Falha(409, "Não é possível aprovar: falta autorização do responsável legal.", "responsavel-pendente");
+    } else if (desbloqueando && nascimento && V.calcularIdade(nascimento) < C.IDADE_MINIMA) {
+      throw new Falha(409, `Não é possível liberar: a data de nascimento cadastrada indica menor de ${C.IDADE_MINIMA} anos. Corrija o dado em Editar perfil, se estiver errado.`, "idade-minima");   // data AUSENTE passa; data conhecida < 16 não
     }
     // O motivo vira um recado visível para o próprio promotor (ao aprovar, o recado antigo some).
     const recado = motivo && status !== "ativo" ? { texto: motivo, tipo: status, por: "suporte", em: FieldValue.serverTimestamp() } : FieldValue.delete();
     await db.collection("profissionais").doc(uid).set({ status, statusMotivo: motivo, statusPor: req.usuario.uid, statusEm: FieldValue.serverTimestamp(), recado }, { merge: true });
+    if (motivo && status !== "ativo") await avisarNoChat(req, uid, "promotor", motivo);   // o motivo também entra no histórico do chat
     if (status === "bloqueado") await admin.auth().revokeRefreshTokens(uid);   // derruba as sessões do bloqueado
-    await auth.auditar(req, "admin.promotor.status", uid, { status, motivo });
+    await auth.auditar(req, "admin.promotor.status", uid, { status, motivo, desbloqueio: desbloqueando, semNascimento: !nascimento });
     res.json({ ok: true, status });
   }));
+
+  // ---------- Edição de perfis (promotor e loja) ----------
+  // Admin altera qualquer dado cadastral. NÃO edita aqui: chave Pix e saldos (destino/valor de dinheiro = vetor clássico de fraude interna;
+  // use "Recado" para pedir que a pessoa regrave a chave com login recente) e o e-mail de login (é a identidade Google da conta).
+  const vazioParaNada = (v) => (v === "" || v === null ? "" : v);
+  app.put("/admin/promotores/:uid", ...ADM, envelope(async (req, res) => {
+    const uid = V.idDoc(req.params.uid, "uid"), b = V.somente(req.body, ["nome", "cidade", "bio", "especialidade", "valorMin", "disponibilidade", "cpf", "nascimento", "telefone"]);
+    const pubRef = db.collection("profissionais").doc(uid), privRef = db.collection("profissionais_privado").doc(uid);
+    const [pubSnap, privSnap] = await Promise.all([pubRef.get(), privRef.get()]);
+    if (!pubSnap.exists) throw new Falha(404, "Profissional não encontrado.", "nao-encontrado");
+    const atual = privSnap.data() || {}, pub = {}, priv = {}, campos = [];
+    if (b.nome !== undefined) { pub.nome = V.texto(b.nome, "nome", { min: 2, max: 100 }); campos.push("nome"); }
+    if (b.cidade !== undefined) { pub.cidade = V.texto(vazioParaNada(b.cidade), "cidade", { max: 80, obrigatorio: false }); campos.push("cidade"); }
+    if (b.bio !== undefined) { pub.bio = V.texto(vazioParaNada(b.bio), "bio", { max: 300, obrigatorio: false }); campos.push("bio"); }
+    if (b.especialidade !== undefined) { pub.especialidade = V.texto(vazioParaNada(b.especialidade), "especialidade", { max: 60, obrigatorio: false }); campos.push("especialidade"); }   // o app grava o RÓTULO do setor (ex.: "Hortifruti"), não o valor da lista
+    if (b.valorMin !== undefined) { pub.valorMin = b.valorMin === null || b.valorMin === "" ? FieldValue.delete() : V.inteiro(b.valorMin, "valorMin", { min: 0, max: 100000 }); campos.push("valorMin"); }
+    if (b.disponibilidade !== undefined) {
+      const d = b.disponibilidade;
+      if (d === null) pub.disponibilidade = FieldValue.delete();
+      else { if (typeof d !== "object" || Array.isArray(d)) throw new Falha(400, "Campo inválido: disponibilidade", "dados-invalidos"); pub.disponibilidade = { inicio: V.hhmm(d.inicio, "disponibilidade.inicio"), fim: V.hhmm(d.fim, "disponibilidade.fim") }; }
+      campos.push("disponibilidade");
+    }
+    if (b.telefone !== undefined) { priv.telefoneEnc = Cripto.cifrar(V.telefone(b.telefone), cx("telefone", uid)); campos.push("telefone"); }
+    if (b.nascimento !== undefined) { const n = V.validarNascimento(b.nascimento); priv.nascimentoEnc = Cripto.cifrar(n.nascimento, cx("nascimento", uid)); priv.nascimentoTravadoEm = FieldValue.serverTimestamp(); campos.push("nascimento"); }
+    if (b.cpf !== undefined) {
+      const cpf = V.cpf(b.cpf);
+      if (await habilitacao.cpfEmUso(cpf, uid)) throw new Falha(409, "Este CPF já pertence a outro cadastro.", "cpf-duplicado");
+      priv.cpfEnc = Cripto.cifrar(cpf, cx("cpf", uid)); priv.cpfIdx = Cripto.indiceCego(cpf); campos.push("cpf");
+    }
+    if (!campos.length) throw new Falha(400, "Nenhum campo para alterar.", "dados-invalidos");
+    const meta = { atualizadoEm: FieldValue.serverTimestamp(), editadoPor: req.usuario.uid };
+    const lote = db.batch();
+    if (Object.keys(pub).length) lote.set(pubRef, { ...pub, ...meta }, { merge: true });
+    if (Object.keys(priv).length) lote.set(privRef, { uid, ...priv, ...meta }, { merge: true });
+    await lote.commit();
+    await auth.auditar(req, "admin.promotor.editar", uid, { campos });   // só os NOMES dos campos: dados pessoais não vão para o log
+    res.json({ ok: true, campos });
+  }));
+
+  app.put("/admin/lojas/:uid", ...ADM, envelope(async (req, res) => {
+    const uid = V.idDoc(req.params.uid, "uid"), b = V.somente(req.body, ["nome", "razaoSocial", "documento", "endereco", "email", "telefone", "ramo"]);
+    const ref = db.collection("contratantes").doc(uid);
+    if (!(await ref.get()).exists) throw new Falha(404, "Loja não encontrada.", "nao-encontrado");
+    const novo = {};
+    if (b.nome !== undefined) novo.nome = V.texto(vazioParaNada(b.nome), "nome", { max: 100, obrigatorio: false });
+    if (b.razaoSocial !== undefined) novo.razaoSocial = V.texto(b.razaoSocial, "razão social", { min: 3, max: 160 });
+    if (b.documento !== undefined) novo.documento = b.documento === "" || b.documento === null ? "" : V.documento(b.documento);
+    if (b.endereco !== undefined) novo.endereco = V.texto(vazioParaNada(b.endereco), "endereço", { max: 200, obrigatorio: false });
+    if (b.email !== undefined) {
+      const e = V.texto(vazioParaNada(b.email), "e-mail", { max: 120, obrigatorio: false });
+      if (e && !/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(e)) throw new Falha(400, "Campo inválido: e-mail", "dados-invalidos", { campo: "email" });
+      novo.email = e;
+    }
+    if (b.telefone !== undefined) novo.telefone = b.telefone === "" || b.telefone === null ? "" : V.telefone(b.telefone);
+    if (b.ramo !== undefined) novo.ramo = V.texto(vazioParaNada(b.ramo), "ramo", { max: 60, obrigatorio: false });
+    const campos = Object.keys(novo);
+    if (!campos.length) throw new Falha(400, "Nenhum campo para alterar.", "dados-invalidos");
+    await ref.set({ ...novo, atualizadoEm: FieldValue.serverTimestamp(), editadoPor: req.usuario.uid }, { merge: true });
+    await auth.auditar(req, "admin.loja.editar", uid, { campos });
+    res.json({ ok: true, campos });
+  }));
+
+  // ---------- Exclusão permanente de perfil ----------
+  // Remove os dados pessoais e as credenciais (Firebase Auth). MANTÉM o que a lei/contabilidade exige e a conciliação precisa:
+  // pedidos, notas, pagamentos, lançamentos, saques, estornos e auditoria (guardam só o uid, sem dados pessoais).
+  const brlTxt = (c) => ((Number(c) || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  async function usuarioAuth(uid) { try { return await admin.auth().getUser(uid); } catch (e) { if (e.code === "auth/user-not-found") return null; throw e; } }
+
+  async function excluirPerfil(req, res, tipo) {
+    auth.exigirRecente(req.usuario);                                              // ação destrutiva: login recente (o painel reautentica sozinho)
+    const uid = V.idDoc(req.params.uid, "uid"), motivo = V.texto(req.body?.motivo, "motivo", { min: 5, max: 200 });
+    if (req.body?.confirmar !== "EXCLUIR") throw new Falha(400, "Confirmação ausente: digite EXCLUIR.", "confirmacao-obrigatoria");
+    if (uid === req.usuario.uid) throw new Falha(409, "Você não pode excluir a própria conta.", "exclusao-proibida");
+    const colecao = tipo === "loja" ? "contratantes" : "profissionais", outra = tipo === "loja" ? "profissionais" : "contratantes";
+    const [perfilSnap, outraSnap, conta] = await Promise.all([db.collection(colecao).doc(uid).get(), db.collection(outra).doc(uid).get(), usuarioAuth(uid)]);
+    if (!perfilSnap.exists && !conta) throw new Falha(404, "Cadastro não encontrado.", "nao-encontrado");
+    if (!perfilSnap.exists && outraSnap.exists) throw new Falha(404, `Esta conta é de ${tipo === "loja" ? "promotor" : "loja"}, não de ${tipo}.`, "nao-encontrado");
+    const claims = conta?.customClaims || {};
+    if (claims.role === "admin" || claims.admin === true || (claims.perfis || []).includes("admin")) throw new Falha(409, "Esta conta tem permissão de administrador. Remova o acesso de admin (scripts/definir-admin.js) antes de excluir.", "exclusao-proibida");
+
+    // Trava de dinheiro e de trabalho em andamento
+    const motivos = []; let canceladas = [];
+    if (tipo === "promotor") {
+      const [ped, saq, cart] = await Promise.all([db.collection("solicitacoes").where("promotorUid", "==", uid).get(), db.collection("saques").where("uid", "==", uid).where("status", "==", "solicitado").get(), db.collection("carteiras").doc(uid).get()]);
+      const aceitos = ped.docs.filter((d) => d.data().status === "aceita").length;
+      if (aceitos) motivos.push(`${aceitos} turno(s) aceito(s) ainda sem pagamento`);
+      if (saq.docs.length) motivos.push(`${saq.docs.length} saque(s) aguardando pagamento`);
+      const w = cart.data() || {}, saldo = (w.pendenteCentavos || 0) + (w.disponivelCentavos || 0);
+      if (saldo !== 0) motivos.push(`saldo na carteira de ${brlTxt(saldo)} (pague/rejeite os saques, aguarde a carência ou estorne antes)`);
+    } else {
+      const ped = await db.collection("solicitacoes").where("uid", "==", uid).where("status", "in", ["aberta", "aceita"]).get();
+      canceladas = ped.docs.map((d) => d.ref);                                    // pedidos não pagos da loja são cancelados junto (não há quem os cancele depois)
+    }
+    if (motivos.length) throw new Falha(409, `Não é possível excluir agora: ${motivos.join("; ")}.`, "exclusao-bloqueada", { motivos });
+
+    try { await admin.auth().revokeRefreshTokens(uid); } catch (e) { if (e.code !== "auth/user-not-found") throw e; }
+    const lote = db.batch();
+    for (const r of canceladas) lote.update(r, { status: "cancelada", canceladoEm: FieldValue.serverTimestamp(), canceladoPor: "admin" });
+    const apagar = tipo === "loja"
+      ? [["contratantes", uid], ["cartoes", uid], ["cartoes_privado", uid], ["usuarios", uid]]
+      : [["profissionais", uid], ["profissionais_privado", uid], ["usuarios", uid]];
+    if (tipo === "promotor") for (const m of await db.collection("treinamento_progresso").where("uid", "==", uid).get().then((q) => q.docs)) lote.delete(m.ref);
+    for (const [c, id] of apagar) lote.delete(db.collection(c).doc(id));
+    await lote.commit();
+    if (conta) { try { await admin.auth().deleteUser(uid); } catch (e) { if (e.code !== "auth/user-not-found") throw new Falha(500, "Dados removidos, mas a credencial do Auth não pôde ser apagada. Repita a exclusão para concluir.", "auth-pendente"); } }
+    await auth.auditar(req, `admin.${tipo}.excluir`, uid, { motivo, pedidosCancelados: canceladas.length, authRemovido: !!conta });
+    res.json({ ok: true, pedidosCancelados: canceladas.length });
+  }
+  app.post("/admin/promotores/:uid/excluir", limitar({ janelaMs: 3600_000, max: 30, nome: "excluir", porUsuario: true }), auth.exigir("admin"), envelope((req, res) => excluirPerfil(req, res, "promotor")));
+  app.post("/admin/lojas/:uid/excluir", limitar({ janelaMs: 3600_000, max: 30, nome: "excluir", porUsuario: true }), auth.exigir("admin"), envelope((req, res) => excluirPerfil(req, res, "loja")));
 
   app.post("/admin/usuarios/:uid/revogar-sessoes", ...ADM, envelope(async (req, res) => {
     const uid = V.idDoc(req.params.uid, "uid"); await admin.auth().revokeRefreshTokens(uid);
@@ -72,6 +194,10 @@ module.exports = (app, x) => {
   app.put("/admin/treinamento/modulos/:id", ...ADM, envelope(async (req, res) => { const r = await treinamento.salvarModulo(V.idDoc(req.params.id), req.body || {}); await auth.auditar(req, "admin.treinamento.editar", r.id); res.json(r); }));
 
   // ---------- Pagamentos / estornos ----------
+  // ---------- Conteúdo da habilitação por categoria (vídeo + 3 a 4 perguntas com gabarito) ----------
+  app.get("/admin/habilitacoes/categorias", ...ADM, envelope(async (req, res) => res.json(await categorias.listarAdmin())));
+  app.put("/admin/habilitacoes/categorias/:id", ...ADM, envelope(async (req, res) => { const r = await categorias.salvarCategoria(req.params.id, req.body || {}); await auth.auditar(req, "admin.habilitacao.salvar", r.id); res.json(r); }));
+
   app.get("/admin/pagamentos", ...ADM, envelope(async (req, res) => {
     const s = await db.collection("pagamentos_internos").where("status", "in", ["aprovado", "estornado"]).limit(300).get();
     res.json(s.docs.map((d) => ({ id: d.id, ...resumoPag(d.data()) })).sort((a, b) => String(b.pagoEm).localeCompare(String(a.pagoEm))));
@@ -136,6 +262,19 @@ module.exports = (app, x) => {
     await auth.auditar(req, "admin.aviso.salvar", "", { ativo, nivel }); res.json({ ok: true, ativo });
   }));
   app.get("/aviso", limitar({ janelaMs: 60_000, max: 60, nome: "aviso" }), envelope(async (req, res) => { const d = (await AVISO().get()).data() || {}; res.json(d.ativo ? { ativo: true, nivel: d.nivel || "info", texto: d.texto } : { ativo: false }); }));
+
+  // Registra na auditoria as exportações feitas na própria tela (as de CSV do servidor já se auditam sozinhas).
+  app.post("/admin/auditar-exportacao", ...ADM, envelope(async (req, res) => {
+    const tipo = V.opcao(req.body?.tipo, ["merchandisers", "lojas", "missoes", "pagamentos", "auditoria"], "tipo");
+    await auth.auditar(req, "admin.exportar", tipo, { linhas: Math.min(Number(req.body?.linhas) || 0, 1_000_000), origem: "tela" }); res.json({ ok: true });
+  }));
+  // Resumo financeiro leve (sem dados de Pix): saques parados aparecem no painel sem consultar chaves.
+  app.get("/admin/financeiro/resumo", ...ADM, envelope(async (req, res) => {
+    const s = await db.collection("saques").where("status", "==", "solicitado").limit(500).get();
+    let valorCentavos = 0, antigo = null;
+    for (const d of s.docs) { const q = d.data(), t = q.criadoEm?.toDate ? q.criadoEm.toDate() : null; valorCentavos += q.valorCentavos || 0; if (t && (!antigo || t < antigo)) antigo = t; }
+    res.json({ saquesAbertos: { qtd: s.size, valorCentavos, maisAntigoEm: antigo ? antigo.toISOString() : null } });
+  }));
 
   // ---------- Exportações CSV ----------
   app.get("/admin/exportar/:tipo", limitar({ janelaMs: 60_000, max: 6, nome: "csv", porUsuario: true }), auth.exigir("admin"), envelope(async (req, res) => {

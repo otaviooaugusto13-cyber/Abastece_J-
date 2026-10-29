@@ -3,11 +3,19 @@
 const crypto = require("crypto");
 
 module.exports = (app, x) => {
-  const { db, FieldValue, Timestamp, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, mp, reais, visaoLoja, getBaseUrl, urlPublicaHttps, APP_URL, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET } = x;
+  const { db, FieldValue, Timestamp, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas, mp, reais, visaoLoja, getBaseUrl, urlPublicaHttps, APP_URL, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET } = x;
   const porUsuario = (nome, max) => limitar({ janelaMs: 60_000, max, nome, porUsuario: true });
 
-  /** O preço NUNCA vem do pedido gravado pelo cliente: é sempre a diária do servidor. */
-  const splitDoPedido = () => S.calcularDiaria();
+  /**
+   * O preço NUNCA vem do cliente. Vale o split CONGELADO no momento em que o pedido foi criado (pagamentos_internos, só servidor):
+   * é o valor que a loja viu e o líquido que o profissional viu ao aceitar. Mudar as taxas no painel afeta os PRÓXIMOS pedidos.
+   * Pedido antigo sem split válido cai nas taxas vigentes.
+   */
+  const splitValido = (p) => p && [p.valor, p.promotor, p.comissao, p.taxaFixa, p.app, p.total].every(Number.isInteger) && p.promotor + p.app === p.total && p.total === p.valor + p.taxaFixa && p.promotor > 0;
+  async function splitDoPedido(sid) {
+    const congelado = (await db.collection("pagamentos_internos").doc(sid).get()).data()?.split;
+    return splitValido(congelado) ? congelado : S.calcularDiaria(await taxas.obter());
+  }
 
   async function exigirCartao(uid) {
     const c = await db.collection("cartoes").doc(uid).get();
@@ -23,7 +31,7 @@ module.exports = (app, x) => {
     if (s.status !== "aceita" || !s.promotorUid) throw new Falha(400, "pedido ainda não aceito", "nao-aceito");
     await exigirCartao(u.uid);
     if (!urlPublicaHttps(APP_URL)) throw new Falha(500, "APP_URL inválida no servidor.", "mp-nao-configurado");
-    const sp = splitDoPedido(), base = getBaseUrl(req);
+    const sp = await splitDoPedido(sid), base = getBaseUrl(req);
     const corpo = {
       items: [{ id: sid, title: `Reposição — ${s.loja}`.slice(0, 120), description: `${s.foco} · ${s.data} ${s.horario}`.slice(0, 200), quantity: 1, currency_id: "BRL", unit_price: reais(sp.total) }],
       external_reference: sid,
@@ -39,7 +47,7 @@ module.exports = (app, x) => {
   // ---------- Confirmação (transação única: pedido pago + nota + crédito no ledger) ----------
   async function finalizarPagamento(sid, { paymentId, metodo, taxaMpCentavos = 0, simulado = false, liberaEmMs = 0 }) {
     const ref = db.collection("solicitacoes").doc(sid);
-    const sp = splitDoPedido();
+    const sp = await splitDoPedido(sid);
     const notaId = await db.runTransaction(async (tx) => {
       const atual = (await tx.get(ref)).data();
       if (!atual) throw new Falha(404, "pedido não encontrado", "nao-encontrado");
@@ -80,7 +88,7 @@ module.exports = (app, x) => {
     const s = (await db.collection("solicitacoes").doc(sid).get()).data();
     if (!s) throw new Falha(404, "pedido não encontrado", "nao-encontrado");
     if (s.status === "paga" || s.status === "concluida") return { jaPago: true, notaId: s.notaId || null };
-    const sp = splitDoPedido();
+    const sp = await splitDoPedido(sid);
     const pg = await mp(`/v1/payments/${encodeURIComponent(paymentId)}`);
     if (pg.external_reference !== sid) throw new Falha(400, "pagamento não pertence a este pedido", "pagamento-invalido");
     if (pg.status !== "approved") return { aprovado: false, status: pg.status };

@@ -20,4 +20,6 @@ export function agruparCursos(modulos = []) {
         return { ...c, itens, concluidos: itens.filter((m) => m.concluido).length, total: itens.length };
     }).filter((c) => c.total);
 }
-export const statusCurso = (m) => (m.concluido ? { t: "Concluído ✓", cor: "green" } : m.bloqueado ? { t: "Bloqueado 🔒", cor: "" } : m.validoSeg ? { t: "Em andamento", cor: "blue" } : { t: "Não iniciado", cor: "" });
+export const statusCurso = (m) => (m.concluido ? { t: m.temProva && m.nota != null ? `Concluído ✓ ${m.nota}%` : "Concluído ✓", cor: "green" }
+    : m.videoOk && m.temProva && !m.provaOk ? { t: "Falta a prova", cor: "blue" }
+    : m.bloqueado ? { t: "Bloqueado 🔒", cor: "" } : m.validoSeg ? { t: "Em andamento", cor: "blue" } : { t: "Não iniciado", cor: "" });

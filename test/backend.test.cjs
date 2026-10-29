@@ -24,7 +24,7 @@ function reset() {
   E.limpar(); Object.assign(E.tokens, U);
   E.claimsStore.lojaA = { role: "loja" }; E.claimsStore.lojaB = { role: "loja" }; E.claimsStore.prom1 = { role: "promotor", treinado: false };
   E.claimsStore.prom2 = { role: "promotor", treinado: false }; E.claimsStore.adm1 = { role: "admin" }; E.claimsStore.nv = { role: "loja" };
-  E.clock.now = Date.now(); ctx.__reset?.();
+  E.clock.now = Date.now(); ctx.__reset?.(); ctx.taxas.invalidar();
 }
 const set = (col, id, d) => ctx.db.collection(col).doc(id).set(d);
 const get = async (col, id) => (await ctx.db.collection(col).doc(id).get()).data();
@@ -33,8 +33,8 @@ const falha = (r, status, codigo) => { assert.equal(r.status, status, `esperado 
 const Cripto = ctx.Cripto;
 const enc = (uid, campo, v) => Cripto.cifrar(v, `profissionais_privado/${campo}/${uid}`);
 
-async function semear({ uid = "prom1", nascimento = "1995-05-20", status = "ativo", responsavel = false, cpfn = 0, treinado = false } = {}) {
-  await set("profissionais", uid, { uid, nome: "Profissional " + uid, status, treinamentoOk: false });
+async function semear({ uid = "prom1", nascimento = "1995-05-20", status = "ativo", responsavel = false, cpfn = 0, treinado = false, habilitado = true } = {}) {
+  await set("profissionais", uid, { uid, nome: "Profissional " + uid, status, treinamentoOk: false, ...(habilitado ? { habilitacoes: { mercearia: { em: new E.Timestamp(Date.now()), tentativas: 1, elite: true } } } : {}) });
   await set("profissionais_privado", uid, { uid, cpfEnc: enc(uid, "cpf", cpf(cpfn)), cpfIdx: Cripto.indiceCego(cpf(cpfn)), nascimentoEnc: enc(uid, "nascimento", nascimento), pixEnc: enc(uid, "pix", { tipo: "CPF", chave: cpf(cpfn) }), pixTipo: "CPF",
     ...(responsavel ? { responsavelEnc: enc(uid, "responsavel", { nome: "Maria Responsável", cpf: cpf(1), telefone: "19999990000", parentesco: "Mãe" }), autorizacaoResponsavelEm: new E.Timestamp(Date.now()) } : {}) });
   if (treinado) await concluirTreino(uid);
@@ -338,9 +338,9 @@ t("sandbox: contas de teste não existem fora de MODO_TESTE e não acessam rotas
 t("regras do Firestore: deny-by-default, sem escrita aberta, campos sensíveis protegidos", async () => {
   const fs = require("node:fs"), rules = fs.readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8");
   assert.match(rules, /match \/\{documento=\*\*\} \{ allow read, write: if false; \}/); assert.ok(!/allow [^;]*if true/.test(rules));
-  for (const col of ["profissionais_privado", "pagamentos_internos", "carteiras", "lancamentos", "saques", "treinamento_progresso", "auditoria"]) assert.ok(new RegExp("match \\/" + col + "\\/\\{\\w+\\}\\s*\\{ allow read, write: if false;").test(rules), col);
+  for (const col of ["profissionais_privado", "pagamentos_internos", "carteiras", "lancamentos", "saques", "treinamento_progresso", "habilitacao_categorias", "habilitacao_sessoes", "auditoria"]) assert.ok(new RegExp("match \\/" + col + "\\/\\{\\w+\\}\\s*\\{ allow read, write: if false;").test(rules), col);
   const upd = /match \/profissionais\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
-  for (const proibido of ["status", "treinamentoOk", "role", "ratingMedia", "refCode"]) assert.ok(!upd.includes(`'${proibido}'`), `cliente não pode alterar ${proibido}`);
+  for (const proibido of ["status", "treinamentoOk", "habilitacoes", "role", "ratingMedia", "refCode"]) assert.ok(!upd.includes(`'${proibido}'`), `cliente não pode alterar ${proibido}`);
   assert.match(rules, /treinado\(\) && resource\.data\.status == 'aberta'/);
   assert.match(rules, /match \/solicitacoes\/\{id\} \{[\s\S]*?allow write: if false;/);
 });
@@ -477,6 +477,474 @@ t("recado: só admin envia; validação de tipo/tamanho; cadastro inexistente �
   falha(await chamar("POST", "/admin/recado/promotor/fantasma", { token: "adm", body: { texto: "oi, tudo bem?" } }), 404, "nao-encontrado");
   falha(await chamar("POST", "/perfil/recado/lido", {}), 401, "nao-autenticado");
   const regras = require("node:fs").readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8"); assert.ok(!/'recado'/.test(regras), "recado não pode estar na lista de campos graváveis pelo cliente");
+});
+
+// =================== 6. ONBOARDING / ADMIN: CPF duplicado, desbloqueio, edição, exclusão, rotas dos painéis ===================
+t("desbloqueio: bloqueado SEM data de nascimento é liberado, mas continua sem aceitar turno; data < 16 conhecida não libera", async () => {
+  await set("profissionais", "prom1", { uid: "prom1", nome: "A", status: "bloqueado" }); await set("profissionais_privado", "prom1", { uid: "prom1" });
+  ok(await chamar("POST", "/admin/promotores/prom1/status", { token: "adm", body: { status: "ativo" } }));
+  assert.equal((await get("profissionais", "prom1")).status, "ativo");
+  const h = await chamar("GET", "/habilitacao", { token: "prom1" }); ok(h); assert.equal(h.json.habilitado, false); assert.ok(h.json.pendencias.includes("nascimento"));
+  falha(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: "qualquer" } }), 404);          // nem chega a aceitar: pedido inexistente (a trava legal roda no aceite real, ver teste de idade)
+  await set("profissionais", "prom1", { uid: "prom1", nome: "A", status: "bloqueado" });
+  await set("profissionais_privado", "prom1", { uid: "prom1", nascimentoEnc: enc("prom1", "nascimento", nasc(15)) });
+  falha(await chamar("POST", "/admin/promotores/prom1/status", { token: "adm", body: { status: "ativo" } }), 409, "idade-minima");
+  await set("profissionais", "prom2", { uid: "prom2", nome: "B", status: "pendente" }); await set("profissionais_privado", "prom2", { uid: "prom2" });
+  falha(await chamar("POST", "/admin/promotores/prom2/status", { token: "adm", body: { status: "ativo" } }), 409, "cadastro-incompleto");   // 1ª aprovação continua exigindo o cadastro completo
+});
+t("CPF duplicado: 409 com dica do e-mail (mascarado); registro órfão (sem perfil) não trava o cadastro", async () => {
+  await semear({ status: "ativo" }); await set("usuarios", "prom1", { uid: "prom1", role: "promotor", email: "joao.silva@gmail.com" });
+  const r = await chamar("POST", "/cadastro/promotor", { token: "novo", body: { termos: true, nascimento: "1990-03-04", cpf: cpf(0) } });
+  falha(r, 409, "cpf-duplicado"); assert.match(r.json.detalhe.emailMascarado, /^j\*+@gmail\.com$/); assert.ok(!JSON.stringify(r.json).includes("joao"));
+  await ctx.db.collection("profissionais").doc("prom1").delete();                                                  // perfil removido, privado esquecido = órfão
+  ok(await chamar("POST", "/cadastro/promotor", { token: "novo", body: { termos: true, nascimento: "1990-03-04", cpf: cpf(0) } }));
+});
+t("/sessao devolve o destino do painel certo (loja → /painel-loja, promotor → /painel-promotor, conta de promotor abrindo a loja → painel do promotor)", async () => {
+  let r = await chamar("POST", "/sessao", { token: "lojaA", body: { portal: "loja" } }); ok(r); assert.deepEqual([r.json.estado, r.json.destino], ["ok", "/painel-loja"]);
+  r = await chamar("POST", "/sessao", { token: "prom1", body: { portal: "promotor" } }); ok(r); assert.deepEqual([r.json.estado, r.json.destino], ["ok", "/painel-promotor"]);
+  r = await chamar("POST", "/sessao", { token: "prom1", body: { portal: "loja" } }); ok(r); assert.deepEqual([r.json.estado, r.json.destino], ["outro-perfil", "/painel-promotor"]);
+  r = await chamar("POST", "/sessao", { token: "lojaA", body: { portal: "promotor" } }); ok(r); assert.deepEqual([r.json.estado, r.json.destino], ["outro-perfil", "/painel-loja"]);
+  r = await chamar("POST", "/sessao", { token: "novo", body: { portal: "loja" } }); ok(r); assert.deepEqual([r.json.estado, r.json.destino], ["cadastro", null]);
+});
+t("rotas limpas: /painel-loja e /painel-promotor entregam a página certa; barra final redireciona preservando a query", async () => {
+  let r = await chamar("GET", "/painel-loja"); ok(r); assert.ok(r.texto.endsWith("index.html"));
+  r = await chamar("GET", "/painel-promotor"); ok(r); assert.ok(r.texto.endsWith("promotor.html"));
+  r = await chamar("GET", "/painel-loja/?x=1"); assert.equal(r.status, 302); assert.equal(r.h.location, "/painel-loja?x=1");
+});
+t("admin edita promotor (dados cifrados, CPF único, ≥ 16 anos) e loja (CNPJ válido); só admin; log sem dados pessoais", async () => {
+  await semear({ status: "ativo" }); await semear({ uid: "prom2", cpfn: 1 }); await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Loja A" });
+  falha(await chamar("PUT", "/admin/promotores/prom1", { token: "lojaA", body: { nome: "X Y" } }), 403, "sem-permissao");
+  ok(await chamar("PUT", "/admin/promotores/prom1", { token: "adm", body: { nome: "Novo Nome", cidade: "Itapira", telefone: "(19) 99999-1234", nascimento: "1990-01-02", valorMin: 5000, disponibilidade: { inicio: "07:00", fim: "19:00" } } }));
+  const pub = await get("profissionais", "prom1"); assert.deepEqual([pub.nome, pub.cidade, pub.valorMin, pub.editadoPor], ["Novo Nome", "Itapira", 5000, "adm1"]);
+  const raw = JSON.stringify(await get("profissionais_privado", "prom1")); for (const seg of ["99999-1234", "19999991234", "1990-01-02"]) assert.ok(!raw.includes(seg), `dado em texto puro: ${seg}`);
+  const f = await chamar("GET", "/admin/promotores/prom1", { token: "adm" }); ok(f); assert.deepEqual([f.json.telefone, f.json.nascimento, f.json.nome], ["19999991234", "1990-01-02", "Novo Nome"]);
+  falha(await chamar("PUT", "/admin/promotores/prom1", { token: "adm", body: { cpf: cpf(1) } }), 409, "cpf-duplicado");
+  ok(await chamar("PUT", "/admin/promotores/prom1", { token: "adm", body: { cpf: cpf(2) } })); assert.equal((await get("profissionais_privado", "prom1")).cpfIdx, Cripto.indiceCego(cpf(2)));
+  falha(await chamar("PUT", "/admin/promotores/prom1", { token: "adm", body: { nascimento: nasc(15) } }), 403, "idade-minima");
+  falha(await chamar("PUT", "/admin/promotores/prom1", { token: "adm", body: { status: "ativo", treinamentoOk: true } }), 400, "dados-invalidos");   // mass assignment: campos fora da lista são ignorados
+  falha(await chamar("PUT", "/admin/promotores/fantasma", { token: "adm", body: { nome: "Zé Ninguém" } }), 404, "nao-encontrado");
+  ok(await chamar("PUT", "/admin/lojas/lojaA", { token: "adm", body: { razaoSocial: "Mercado X", documento: "11.222.333/0001-81", telefone: "(19) 3333-4444", email: "x@mercado.com" } }));
+  const l = await get("contratantes", "lojaA"); assert.deepEqual([l.razaoSocial, l.documento, l.telefone], ["Mercado X", "11222333000181", "1933334444"]);
+  falha(await chamar("PUT", "/admin/lojas/lojaA", { token: "adm", body: { documento: "11.222.333/0001-82" } }), 400, "documento-invalido");
+  const logs = [...E.store.entries()].filter(([k]) => k.startsWith("auditoria/")).map(([, v]) => v), ed = logs.find((a) => a.acao === "admin.promotor.editar");
+  assert.ok(ed && ed.detalhes.campos.includes("telefone")); assert.ok(!JSON.stringify(logs).includes("99999-1234") && !JSON.stringify(logs).includes("19999991234"));
+});
+t("admin exclui promotor: apaga dados e credenciais, mantém o ledger, libera o CPF; trava por saldo/turno/saque; protege admin e a si mesmo", async () => {
+  await semear({ status: "ativo" }); await set("usuarios", "prom1", { uid: "prom1", role: "promotor", email: "p@x.com" });
+  await set("treinamento_progresso", "prom1_m1", { uid: "prom1", moduloId: "m1", concluido: true }); await set("lancamentos", "pg_s1_prof", { carteiraUid: "prom1", tipo: "credito_diaria", dPendente: 15000, dDisponivel: 0 });
+  const corpo = { motivo: "Pedido do titular (LGPD)", confirmar: "EXCLUIR" };
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "prom1", body: corpo }), 403, "sem-permissao");
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: { motivo: "Pedido do titular" } }), 400, "confirmacao-obrigatoria");
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: { confirmar: "EXCLUIR" } }), 400, "dados-invalidos");
+  E.tokens.velho = { ...U.adm, auth_time: Math.floor(Date.now() / 1000) - 3600 }; falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "velho", body: corpo }), 401, "reautenticar");
+  await set("carteiras", "prom1", { uid: "prom1", pendenteCentavos: 15000, disponivelCentavos: 0 });
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: corpo }), 409, "exclusao-bloqueada");
+  await set("carteiras", "prom1", { uid: "prom1", pendenteCentavos: 0, disponivelCentavos: 0 });
+  await set("solicitacoes", "s1", { uid: "lojaA", promotorUid: "prom1", status: "aceita" });
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: corpo }), 409, "exclusao-bloqueada");
+  await set("solicitacoes", "s1", { uid: "lojaA", promotorUid: "prom1", status: "paga" });
+  await set("saques", "q1", { uid: "prom1", status: "solicitado", valorCentavos: 5000 });
+  falha(await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: corpo }), 409, "exclusao-bloqueada");
+  await set("saques", "q1", { uid: "prom1", status: "pago", valorCentavos: 5000 });
+  falha(await chamar("POST", "/admin/lojas/prom1/excluir", { token: "adm", body: corpo }), 404, "nao-encontrado");          // tipo errado
+  const r = await chamar("POST", "/admin/promotores/prom1/excluir", { token: "adm", body: corpo }); ok(r);
+  for (const [c, id] of [["profissionais", "prom1"], ["profissionais_privado", "prom1"], ["usuarios", "prom1"], ["treinamento_progresso", "prom1_m1"]]) assert.equal(await get(c, id), undefined, `${c} deveria ter sido apagado`);
+  assert.ok(E.excluidos.has("prom1") && E.revogados.has("prom1"));
+  for (const [c, id] of [["solicitacoes", "s1"], ["lancamentos", "pg_s1_prof"], ["carteiras", "prom1"], ["saques", "q1"]]) assert.ok(await get(c, id), `${c} (histórico financeiro) deve ser mantido`);
+  assert.ok([...E.store.values()].some((v) => v?.acao === "admin.promotor.excluir"));
+  ok(await chamar("POST", "/cadastro/promotor", { token: "novo", body: { termos: true, nascimento: "1990-03-04", cpf: cpf(0) } }));    // o CPF ficou livre
+  falha(await chamar("POST", "/admin/promotores/adm1/excluir", { token: "adm", body: corpo }), 409, "exclusao-proibida");
+  E.claimsStore.adm2 = { role: "admin" }; E.tokens.adm2 = undefined; await set("profissionais", "adm2", { uid: "adm2", nome: "Outro Admin", status: "ativo" });
+  falha(await chamar("POST", "/admin/promotores/adm2/excluir", { token: "adm", body: corpo }), 409, "exclusao-proibida");
+});
+t("admin exclui loja: cancela pedidos não pagos, remove cartão e credenciais, mantém notas e pagamentos", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Loja A" }); await set("usuarios", "lojaA", { uid: "lojaA", role: "loja" });
+  await set("cartoes", "lojaA", { status: "ativo", ultimos4: "4242" }); await set("cartoes_privado", "lojaA", { uid: "lojaA", mpCardId: "1" });
+  await set("solicitacoes", "sA", { uid: "lojaA", status: "aberta" }); await set("solicitacoes", "sB", { uid: "lojaA", status: "paga" }); await set("notas", "n1", { contratanteUid: "lojaA" }); await set("pagamentos_internos", "sB", { uid: "lojaA", status: "aprovado" });
+  const corpo = { motivo: "Loja encerrou as atividades", confirmar: "EXCLUIR" };
+  const r = await chamar("POST", "/admin/lojas/lojaA/excluir", { token: "adm", body: corpo }); ok(r); assert.equal(r.json.pedidosCancelados, 1);
+  assert.equal((await get("solicitacoes", "sA")).status, "cancelada"); assert.equal((await get("solicitacoes", "sB")).status, "paga");
+  for (const [c, id] of [["contratantes", "lojaA"], ["cartoes", "lojaA"], ["cartoes_privado", "lojaA"], ["usuarios", "lojaA"]]) assert.equal(await get(c, id), undefined, `${c} deveria ter sido apagado`);
+  for (const [c, id] of [["notas", "n1"], ["pagamentos_internos", "sB"]]) assert.ok(await get(c, id), `${c} deve ser mantido`);
+  assert.ok(E.excluidos.has("lojaA"));
+});
+
+// =================== TAXAS DINÂMICAS (configuracoes/taxas) ===================
+const NOVAS = { diariaCentavos: 25000, comissaoCentavos: 5000, repasseCentavos: 20000, taxaFixaCentavos: 500, horasMin: 2, horasMax: 8, maxSemana: 3 };
+const salvarTaxas = (corpo = NOVAS, token = "adm") => chamar("PUT", "/admin/taxas", { token, body: corpo });
+
+t("taxas: sem nada configurado o app recebe o padrão 200/50/150 sem precisar de login", async () => {
+  const r = await chamar("GET", "/config/taxas"); ok(r);
+  assert.deepEqual(r.json, { diariaCentavos: 20000, comissaoCentavos: 5000, repasseCentavos: 15000, taxaFixaCentavos: 0, horasMin: 4, horasMax: 6, maxSemana: 3, versao: 0 });
+});
+t("taxas: só o admin lê os metadados e só o admin altera (sem login 401, loja/promotor 403)", async () => {
+  falha(await chamar("GET", "/admin/taxas"), 401, "nao-autenticado");
+  for (const token of ["lojaA", "prom1"]) { falha(await salvarTaxas(NOVAS, token), 403, "sem-permissao"); falha(await chamar("GET", "/admin/taxas", { token }), 403, "sem-permissao"); }
+  falha(await salvarTaxas(NOVAS, null), 401, "nao-autenticado");
+  assert.equal((await get("configuracoes", "taxas")), undefined, "nada foi gravado");
+  const r = await chamar("GET", "/admin/taxas", { token: "adm" }); ok(r); assert.equal(r.json.origem, "padrao"); assert.ok(r.json.limites && r.json.padrao);
+});
+t("taxas: admin salva → grava no banco, versão sobe, rota pública reflete na hora e a auditoria guarda antes/depois", async () => {
+  const r = await salvarTaxas(); ok(r, "salvar"); assert.equal(r.json.versao, 1); assert.equal(r.json.origem, "banco"); assert.equal(r.json.atualizadoPor, "adm1");
+  const doc = await get("configuracoes", "taxas"); assert.equal(doc.diariaCentavos, 25000); assert.equal(doc.versao, 1); assert.equal(doc.atualizadoPor, "adm1");
+  const pub = await chamar("GET", "/config/taxas"); ok(pub); assert.deepEqual(pub.json, { ...NOVAS, versao: 1 });
+  assert.ok(!("atualizadoPor" in pub.json), "a rota pública não expõe quem alterou");
+  const aud = (await ctx.db.collection("auditoria").get()).docs.map((d) => d.data()).find((a) => a.acao === "admin.taxas.salvar");
+  assert.ok(aud); assert.equal(aud.detalhes.antes.diariaCentavos, 20000); assert.equal(aud.detalhes.depois.diariaCentavos, 25000);
+  assert.equal((await salvarTaxas({ ...NOVAS, maxSemana: 2 })).json.versao, 2);
+});
+t("taxas: validação rígida (soma, tipos, limites, horas, semana) e campos extras nunca chegam ao banco", async () => {
+  const ruins = [
+    { ...NOVAS, repasseCentavos: 19000 },                       // comissão + repasse ≠ diária
+    { ...NOVAS, diariaCentavos: "25000" },                      // string
+    { ...NOVAS, diariaCentavos: 25000.5 }, { ...NOVAS, taxaFixaCentavos: -1 }, { ...NOVAS, comissaoCentavos: -5000, repasseCentavos: 30000 },
+    { ...NOVAS, diariaCentavos: 500, comissaoCentavos: 100, repasseCentavos: 400 },                 // diária abaixo do piso
+    { ...NOVAS, diariaCentavos: 600000, comissaoCentavos: 100000, repasseCentavos: 500000 },       // acima do teto
+    { ...NOVAS, comissaoCentavos: 25000, repasseCentavos: 0 },                                      // repasse zero
+    { ...NOVAS, taxaFixaCentavos: 60000 },
+    { ...NOVAS, horasMin: 7, horasMax: 6 }, { ...NOVAS, horasMin: 4.3 }, { ...NOVAS, horasMax: 13 }, { ...NOVAS, horasMin: 0 },
+    { ...NOVAS, maxSemana: 0 }, { ...NOVAS, maxSemana: 8 }, { ...NOVAS, maxSemana: 2.5 }, { ...NOVAS, maxSemana: undefined },
+    { ...NOVAS, horasMax: null }, [], null
+  ];
+  for (const corpo of ruins) { const r = await salvarTaxas(corpo); assert.equal(r.status, 400, JSON.stringify(corpo)); }
+  assert.equal(await get("configuracoes", "taxas"), undefined, "nenhuma proposta inválida foi gravada");
+  ok(await salvarTaxas({ ...NOVAS, horasMin: 4.5, horasMax: 5.5, evil: "<script>", atualizadoPor: "hacker" }), "meia hora é aceita");
+  const doc = await get("configuracoes", "taxas"); assert.ok(!("evil" in doc)); assert.equal(doc.versao, 1); assert.equal(doc.atualizadoPor, "adm1", "autoria vem do token, não do corpo");
+});
+t("taxas: mexe em dinheiro, então exige login recente (como estorno e saque)", async () => {
+  E.tokens.adm.auth_time = Math.floor(E.clock.now / 1000) - 3600;
+  falha(await salvarTaxas(), 401, "reautenticar"); E.tokens.adm.auth_time = undefined;
+  assert.equal(await get("configuracoes", "taxas"), undefined);
+});
+t("taxas: dois admins editando — quem salva com versão velha leva 409 e nada é sobrescrito", async () => {
+  ok(await salvarTaxas({ ...NOVAS, versao: 0 }));                                   // admin A salva sobre a v0 → v1
+  const r = await salvarTaxas({ ...NOVAS, maxSemana: 5, versao: 0 });               // admin B ainda via a v0
+  falha(r, 409, "taxas-desatualizadas"); assert.equal(r.json.detalhe.versaoAtual, 1);
+  assert.equal((await get("configuracoes", "taxas")).maxSemana, 3);
+  ok(await salvarTaxas({ ...NOVAS, maxSemana: 5, versao: 1 }));
+});
+t("taxas: criarPedido usa a diária, a taxa fixa e a duração NOVAS (o pedido não depende de nenhuma constante)", async () => {
+  await lojaComCartao();
+  const body = { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "10:00", foco: "Mercearia" };
+  falha(await chamar("POST", "/criarPedido", { token: "lojaA", body }), 400, "turno-invalido");     // padrão: mínimo 4 h
+  ok(await salvarTaxas());
+  const r = await chamar("POST", "/criarPedido", { token: "lojaA", body }); ok(r, "2 h agora é válido");
+  assert.deepEqual(r.json, { id: r.json.id, valor: 25000, taxaFixa: 500, total: 25500 });
+  const sp = (await get("pagamentos_internos", r.json.id)).split;
+  assert.deepEqual([sp.total, sp.promotor, sp.app, sp.versaoTaxas], [25500, 20000, 5500, 1]); assert.equal(sp.promotor + sp.app, sp.total);
+  assert.equal((await get("solicitacoes", r.json.id)).valorPromotorCentavos, 20000, "o promotor vê o repasse novo");
+  const longo = await chamar("POST", "/criarPedido", { token: "lojaA", body: { ...body, saida: "17:00" } }); falha(longo, 400, "turno-invalido"); assert.match(longo.json.erro, /máximo 8 horas/);
+});
+t("taxas: preço congelado no pedido — o que já foi criado paga/repassa o valor antigo; o novo, o novo", async () => {
+  await semear({ treinado: true });
+  const antigo = await pedido(); ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: antigo } }));
+  ok(await salvarTaxas({ ...NOVAS, taxaFixaCentavos: 0, horasMin: 4, horasMax: 6 }));                     // 250/50/200 depois do aceite
+  ok(await pagar(antigo)); const a = (await get("pagamentos_internos", antigo)).split;                    // MP cobra R$ 200 (valor visto pela loja)
+  assert.deepEqual([a.total, a.promotor, a.app], [20000, 15000, 5000]);
+  const novo = await pedido({ data: dia(3) }); ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: novo } }));
+  falha(await pagar(novo), 400, "valor-divergente");                                                      // R$ 200 não paga um pedido de R$ 250
+  ok(await pagar(novo, { transaction_amount: 250, id: 777 })); const n = (await get("pagamentos_internos", novo)).split;
+  assert.deepEqual([n.total, n.promotor, n.app], [25000, 20000, 5000]);
+  assert.equal((await get("carteiras", "prom1")).pendenteCentavos, 15000 + 20000, "cada crédito segue o split congelado do seu pedido");
+});
+t("taxas: o limite semanal por loja vem do banco (3 → 1 muda o aceite na hora)", async () => {
+  await semear({ treinado: true });
+  const p1 = await pedido({ entrada: "08:00", saida: "12:00", data: dia(2) }), p2 = await pedido({ entrada: "13:00", saida: "17:00", data: dia(2) });
+  ok(await salvarTaxas({ ...NOVAS, maxSemana: 1 }));
+  ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: p1 } }));
+  falha(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: p2 } }), 409, "limite-semanal");
+  ok(await salvarTaxas({ ...NOVAS, maxSemana: 2 }));
+  ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: p2 } }));
+});
+t("taxas: se o banco cair, usa a última versão boa; sem cache ou com documento corrompido, 503 (nunca chuta valores)", async () => {
+  ok(await salvarTaxas()); await lojaComCartao();
+  const orig = ctx.db.collection;
+  const quebrar = () => { ctx.db.collection = (c) => (c === "configuracoes" ? { doc: () => ({ get: async () => { throw new Error("firestore fora"); } }) } : orig(c)); };
+  try {
+    E.avancar(31_000); quebrar();
+    const r = await chamar("GET", "/config/taxas"); ok(r); assert.equal(r.json.diariaCentavos, 25000, "serviu a última versão boa");
+    ctx.db.collection = orig; ctx.taxas.invalidar(); quebrar();
+    falha(await chamar("GET", "/config/taxas"), 503, "taxas-indisponiveis");
+    falha(await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia" } }), 503, "taxas-indisponiveis");   // sem preço confiável, não nasce pedido
+  } finally { ctx.db.collection = orig; }
+  await set("configuracoes", "taxas", { diariaCentavos: 1, comissaoCentavos: 1, repasseCentavos: 1, versao: 7 }); ctx.taxas.invalidar();
+  falha(await chamar("GET", "/config/taxas"), 503, "taxas-indisponiveis");
+});
+t("taxas: o cliente não lê nem escreve configuracoes direto (regras negam por padrão); só a API expõe", async () => {
+  const rules = require("node:fs").readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8");
+  assert.ok(!/match \/configuracoes/.test(rules), "nenhuma regra libera configuracoes: cai no deny-by-default");
+});
+// =================== 7. CHAT DE SUPORTE + PUSH ===================
+const TK = (n) => `token-${n}-`.padEnd(40, "x");
+const msgsDe = async (uid) => [...E.store.entries()].filter(([k, v]) => k.startsWith("suporte_mensagens/") && v.uid === uid).sort(([a], [b]) => (a > b ? 1 : -1)).map(([, v]) => v);
+t("suporte: conversa completa usuário ↔ equipe, não lidas dos dois lados e histórico em ordem", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A" });
+  ok(await chamar("POST", "/suporte/mensagem", { token: "lojaA", body: { texto: "Oi, preciso de ajuda com o cadastro." } }));
+  let c = await get("suporte_conversas", "lojaA"); assert.deepEqual([c.tipo, c.nome, c.naoLidasSuporte, c.naoLidasUsuario, c.ultimaDe], ["loja", "Mercado A", 1, 0, "usuario"]);
+  ok(await chamar("POST", "/admin/suporte/lojaA/mensagem", { token: "adm", body: { texto: "Bom dia! Já vamos ver." } }));
+  ok(await chamar("POST", "/admin/suporte/lojaA/mensagem", { token: "adm", body: { texto: "Pode enviar o CNPJ?" } }));
+  c = await get("suporte_conversas", "lojaA"); assert.deepEqual([c.naoLidasUsuario, c.naoLidasSuporte, c.ultimaDe, c.ultimaMsg], [2, 1, "suporte", "Pode enviar o CNPJ?"]);
+  assert.deepEqual((await msgsDe("lojaA")).map((m) => [m.de, m.texto]), [["usuario", "Oi, preciso de ajuda com o cadastro."], ["suporte", "Bom dia! Já vamos ver."], ["suporte", "Pode enviar o CNPJ?"]]);
+  ok(await chamar("POST", "/suporte/lido", { token: "lojaA" })); assert.equal((await get("suporte_conversas", "lojaA")).naoLidasUsuario, 0);
+  ok(await chamar("POST", "/admin/suporte/lojaA/lido", { token: "adm" })); assert.equal((await get("suporte_conversas", "lojaA")).naoLidasSuporte, 0);
+});
+t("suporte: permissões, validação e limites (sem IDOR: o usuário só fala na própria conversa)", async () => {
+  await semear({ status: "ativo" }); await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "A" });
+  falha(await chamar("POST", "/suporte/mensagem", { body: { texto: "oi" } }), 401, "nao-autenticado");
+  falha(await chamar("POST", "/suporte/mensagem", { token: "adm", body: { texto: "oi" } }), 403, "sem-permissao");                      // admin responde por /admin/suporte
+  for (const tk of ["lojaA", "prom1"]) { falha(await chamar("POST", "/admin/suporte/prom1/mensagem", { token: tk, body: { texto: "oi" } }), 403, "sem-permissao"); falha(await chamar("POST", "/admin/suporte/prom1/lido", { token: tk }), 403, "sem-permissao"); }
+  for (const texto of ["", "   ", "a".repeat(1001), { $gt: "" }, 5]) falha(await chamar("POST", "/suporte/mensagem", { token: "lojaA", body: { texto } }), 400);
+  falha(await chamar("POST", "/admin/suporte/fantasma/mensagem", { token: "adm", body: { texto: "oi" } }), 404, "nao-encontrado");
+  falha(await chamar("POST", "/admin/suporte/a.b/mensagem", { token: "adm", body: { texto: "oi" } }), 400, "dados-invalidos");          // id inválido
+  ok(await chamar("POST", "/suporte/mensagem", { token: "lojaA", body: { texto: "<img src=x onerror=alert(1)>" } }));                   // guardado como texto (o front escapa)
+  assert.equal((await msgsDe("lojaA")).length, 1); assert.equal((await msgsDe("prom1")).length, 0);
+  let ultimo; for (let i = 0; i < 22; i++) ultimo = await chamar("POST", "/suporte/mensagem", { token: "lojaA", body: { texto: "spam " + i } }); falha(ultimo, 429, "limite-requisicoes");
+});
+t("push: aparelho do usuário recebe resposta da equipe; admins recebem mensagem do usuário; tokens mortos são limpos; sem vazamento entre contas", async () => {
+  await semear({ status: "ativo" }); await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "A" });
+  ok(await chamar("POST", "/push/registrar", { token: "lojaA", body: { token: TK("loja") } })); ok(await chamar("POST", "/push/registrar", { token: "prom1", body: { token: TK("prom") } })); ok(await chamar("POST", "/push/registrar", { token: "adm", body: { token: TK("adm") } }));
+  falha(await chamar("POST", "/push/registrar", { token: "lojaA", body: { token: "curto" } }), 400, "dados-invalidos"); falha(await chamar("POST", "/push/registrar", { body: { token: TK("x") } }), 401, "nao-autenticado");
+  ok(await chamar("POST", "/admin/suporte/lojaA/mensagem", { token: "adm", body: { texto: "Olá, tudo bem?" } }));
+  assert.equal(E.pushes.length, 1); assert.deepEqual(E.pushes[0].tokens, [TK("loja")]); assert.deepEqual([E.pushes[0].data.titulo, E.pushes[0].data.corpo, E.pushes[0].data.url], ["Suporte Abastece Já", "Olá, tudo bem?", "index.html?suporte=1"]);
+  ok(await chamar("POST", "/suporte/mensagem", { token: "prom1", body: { texto: "Meu CPF está errado" } }));
+  assert.deepEqual(E.pushes[1].tokens, [TK("adm")]); assert.equal(E.pushes[1].data.url, "admin.html#suporte");
+  E.mortos.add(TK("loja")); ok(await chamar("POST", "/admin/suporte/lojaA/mensagem", { token: "adm", body: { texto: "de novo" } }));
+  assert.equal([...E.store.keys()].filter((k) => k.startsWith("push_tokens/")).length, 2);                                               // o token morto foi apagado
+  ok(await chamar("POST", "/push/registrar", { token: "lojaA", body: { token: TK("troca") } })); ok(await chamar("POST", "/push/registrar", { token: "prom1", body: { token: TK("troca") } }));   // mesmo aparelho, outra conta
+  E.pushes.length = 0; ok(await chamar("POST", "/admin/suporte/lojaA/mensagem", { token: "adm", body: { texto: "só para a loja" } })); assert.ok(!E.pushes.some((p) => p.tokens.includes(TK("troca"))), "token migrou para a outra conta");
+  ok(await chamar("POST", "/push/remover", { token: "lojaA", body: { token: TK("troca") } }));                                          // não é dela mais: não remove
+  assert.equal([...E.store.values()].filter((v) => v.token === TK("troca")).length, 1);
+  ok(await chamar("POST", "/push/remover", { token: "prom1", body: { token: TK("troca") } })); assert.equal([...E.store.values()].filter((v) => v.token === TK("troca")).length, 0);
+});
+t("suporte: recado e motivo de status do admin entram no histórico do chat e disparam push", async () => {
+  await semear({ status: "ativo" }); ok(await chamar("POST", "/push/registrar", { token: "prom1", body: { token: TK("prom") } }));
+  ok(await chamar("POST", "/admin/recado/promotor/prom1", { token: "adm", body: { texto: "Confira seu CPF, por favor." } }));
+  ok(await chamar("POST", "/admin/promotores/prom1/status", { token: "adm", body: { status: "pendente", motivo: "CPF não confere" } }));
+  assert.deepEqual((await msgsDe("prom1")).map((m) => [m.de, m.texto]), [["suporte", "Confira seu CPF, por favor."], ["suporte", "CPF não confere"]]);
+  assert.equal((await get("suporte_conversas", "prom1")).naoLidasUsuario, 2); assert.equal(E.pushes.length, 2); assert.equal(E.pushes[0].data.url, "promotor.html?suporte=1");
+});
+t("suporte: regras do Firestore — leitura só do dono/admin, nenhuma escrita pelo cliente", async () => {
+  const r = require("node:fs").readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8");
+  assert.match(r, /match \/suporte_conversas\/\{uid\} \{ allow read: if dono\(uid\) \|\| ehAdmin\(\); allow write: if false; \}/);
+  assert.match(r, /match \/suporte_mensagens\/\{id\}\s+\{ allow read: if logado\(\) && \(resource\.data\.uid == request\.auth\.uid \|\| ehAdmin\(\)\); allow write: if false; \}/);
+  assert.ok(!/push_tokens/.test(r.replace(/\/\/.*$/gm, "")), "push_tokens fica negado por padrão");
+});
+
+// ============================================================
+// HABILITAÇÃO POR CATEGORIA (vídeo + timer + questionário 100%)
+// ============================================================
+const PERGUNTAS = [
+  { texto: "Qual é a regra de reposição por validade?", opcoes: ["Novos na frente", "PEPS: vencimento mais próximo na frente", "Tanto faz"], correta: 1 },
+  { texto: "Produto com embalagem violada: o que fazer?", opcoes: ["Vender", "Retirar e avisar o responsável", "Esconder", "Devolver à prateleira"], correta: 1 },
+  { texto: "Antes de repor, o que conferir?", opcoes: ["Etiqueta de preço correta", "A cor da caixa"], correta: 0 },
+  { texto: "Como empilhar delicados?", opcoes: ["Em camadas baixas", "O mais alto possível", "Sob caixas pesadas"], correta: 0 }
+];
+const conteudo = (over = {}) => ({ descricao: "Treinamento de FLV", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 60, ativo: true, perguntas: PERGUNTAS.slice(0, 3), ...over });
+const publicar = async (cat = "flv", over = {}) => ok(await chamar("PUT", `/admin/habilitacoes/categorias/${cat}`, { token: "adm", body: conteudo(over) }), "admin salva categoria");
+const HAB = (caminho, body, token = "prom1") => chamar("POST", `/habilitacoes/${caminho}`, { token, body });
+/** assiste ao vídeo de verdade: pings de 10 em 10 s com posição contígua, tocando */
+async function assistir(cat = "flv", dur = 60) {
+  let r; for (let pos = 0; pos <= dur; pos += 10) { r = await HAB("ping", { categoria: cat, posicaoSeg: pos, tocando: true }); ok(r, "ping"); E.avancar(10_000); }
+  r = await HAB("ping", { categoria: cat, posicaoSeg: dur, tocando: true }); ok(r); return r.json;
+}
+/** descobre as respostas certas lendo o gabarito DIRETO do banco (o promotor nunca o vê) e mapeando para a ordem embaralhada */
+async function respostasCertas(perguntas, cat = "flv") {
+  const c = await get("habilitacao_categorias", cat);
+  return perguntas.map((q) => { const orig = c.perguntas.find((p) => p.id === q.id); return q.opcoes.indexOf(orig.opcoes[orig.correta]); });
+}
+const iniciarEAssistir = async (cat = "flv", dur = 60) => { ok(await HAB("iniciar", { categoria: cat })); return assistir(cat, dur); };
+
+t("admin cadastra conteúdo da categoria com validação; promotor não", async () => {
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/flv", { token: "prom1", body: conteudo() }), 403, "sem-permissao");
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/inexistente", { token: "adm", body: conteudo() }), 400, "dados-invalidos");
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/flv", { token: "adm", body: conteudo({ perguntas: PERGUNTAS.slice(0, 2) }) }), 400, "dados-invalidos");          // mínimo 3
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/flv", { token: "adm", body: conteudo({ perguntas: [...PERGUNTAS, PERGUNTAS[0]] }) }), 400, "dados-invalidos");   // máximo 4
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/flv", { token: "adm", body: conteudo({ perguntas: [{ ...PERGUNTAS[0], correta: 9 }, PERGUNTAS[1], PERGUNTAS[2]] }) }), 400, "dados-invalidos");
+  falha(await chamar("PUT", "/admin/habilitacoes/categorias/flv", { token: "adm", body: conteudo({ videoRef: "http://inseguro/v.mp4", provedor: "mp4" }) }), 400, "dados-invalidos");
+  await publicar("flv"); const c = await get("habilitacao_categorias", "flv"); assert.equal(c.perguntas.length, 3); assert.equal(c.perguntas[0].id, "q1");
+  const lista = await chamar("GET", "/admin/habilitacoes/categorias", { token: "adm" }); ok(lista); assert.equal(lista.json.length, 6); assert.equal(lista.json.find((x) => x.id === "flv").pronta, true);
+});
+
+t("categoria sem vídeo/perguntas publicados: ninguém inicia (falha fechada) e o gabarito nunca aparece para o promotor", async () => {
+  await semear();
+  falha(await HAB("iniciar", { categoria: "frios" }), 409, "categoria-indisponivel");
+  await publicar("flv"); await publicar("frios", { ativo: false }); falha(await HAB("iniciar", { categoria: "frios" }), 409, "categoria-indisponivel");
+  const l = await chamar("GET", "/habilitacoes", { token: "prom1" }); ok(l); assert.equal(l.json.categorias.length, 6);
+  assert.equal(l.json.categorias.find((c) => c.id === "flv").disponivel, true); assert.equal(l.json.categorias.find((c) => c.id === "frios").disponivel, false);
+  assert.ok(!JSON.stringify(l.json).includes("\"correta\"") && !JSON.stringify(l.json).includes("videoRef") && !JSON.stringify(l.json).includes("perguntas"), "lista não pode vazar gabarito, perguntas nem vídeo");
+  falha(await HAB("iniciar", { categoria: "padaria; drop" }), 400, "dados-invalidos");
+});
+
+t("fluxo completo: timer = duração + 3 s, vídeo até o fim, questionário sem gabarito, 100% habilita e libera o aceite do setor", async () => {
+  await semear({ treinado: true }); await publicar("flv");
+  const sid = await pedido({ foco: "Hortifruti / FLV" });
+  falha(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: sid } }), 403, "categoria-pendente");
+  const ini = await HAB("iniciar", { categoria: "flv" }); ok(ini);
+  assert.equal(ini.json.restanteMs, 63_000, "timer = 60 s de vídeo + 3 s de margem"); assert.equal(ini.json.margemSeg, 3);
+  falha(await HAB("questionario", { categoria: "flv" }), 409, "timer-pendente");               // portão fechado: nada de questionário no começo
+  let r = await assistir("flv", 60);                                                           // ~70 s de relógio correm durante a reprodução real
+  assert.equal(r.videoOk, true); assert.equal(r.restanteMs, 0); assert.equal(r.liberado, true);
+  const q = await HAB("questionario", { categoria: "flv" }); ok(q); assert.equal(q.json.perguntas.length, 3);
+  assert.ok(q.json.perguntas.every((p) => Object.keys(p).sort().join() === "id,opcoes,texto"), "gabarito não sai do servidor (só id, texto e alternativas)");
+  const resp = await HAB("responder", { categoria: "flv", respostas: await respostasCertas(q.json.perguntas) }); ok(resp);
+  assert.equal(resp.json.aprovado, true); assert.equal(resp.json.acertos, 3); assert.equal(resp.json.selo.elite, true); assert.equal(resp.json.selo.titulo, "FLV");
+  const p = await get("profissionais", "prom1"); assert.ok(p.habilitacoes.flv, "habilitação gravada no perfil"); assert.equal(p.habilitacoes.flv.elite, true); assert.equal(p.habilitacoes.flv.tentativas, 1);
+  ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: sid } }));  // agora aceita o turno de FLV
+  const lista = await chamar("GET", "/habilitacoes", { token: "prom1" }); assert.equal(lista.json.selos.some((s) => s.categoria === "flv" && s.elite), true);
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0, 0] }), 409, "sem-avaliacao");   // tentativa única: não reenvia depois de aprovado
+  falha(await HAB("iniciar", { categoria: "flv" }), 409, "ja-habilitado");
+});
+
+t("anti-bypass: pular, pausar, adiantar relógio e declarar 'fim' não liberam o questionário", async () => {
+  await semear(); await publicar("flv"); ok(await HAB("iniciar", { categoria: "flv" }));
+  let r = await HAB("ping", { categoria: "flv", posicaoSeg: 0, tocando: true }); ok(r);
+  E.avancar(10_000); r = await HAB("ping", { categoria: "flv", posicaoSeg: 58, tocando: true }); assert.equal(r.json.validoSeg, 0, "pular para o fim não credita");
+  E.avancar(10_000); r = await HAB("ping", { categoria: "flv", posicaoSeg: 10, tocando: false }); assert.equal(r.json.validoSeg, 0, "pausado não credita");
+  E.avancar(10_000); r = await HAB("ping", { categoria: "flv", posicaoSeg: 20, tocando: false }); assert.equal(r.json.validoSeg, 0, "pausado → pausado não credita");
+  E.avancar(120_000);                                                                           // o timer do SERVIDOR já venceu (relógio, não o do navegador)...
+  falha(await HAB("questionario", { categoria: "flv" }), 409, "video-incompleto");              // ...mas o vídeo não foi assistido
+  r = await HAB("ping", { categoria: "flv", posicaoSeg: 60, tocando: true }); assert.ok(r.json.validoSeg < 5, "ping tardio só credita o tempo real decorrido (máx. 30 s por ping), nunca o vídeo todo");
+  falha(await HAB("questionario", { categoria: "flv" }), 409, "video-incompleto");
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0, 0] }), 409, "sem-avaliacao");   // não dá para responder sem o questionário liberado
+  E.avancar(5000); falha(await HAB("ping", { categoria: "frios", posicaoSeg: 0, tocando: true }), 409, "sessao-inexistente");
+});
+
+t("pausa e retomada: ping de play ancora a posição e o crédito segue o tempo real (sem perder nem ganhar)", async () => {
+  await semear(); await publicar("flv"); ok(await HAB("iniciar", { categoria: "flv" }));
+  const ping = (pos, tocando, evento = false) => HAB("ping", { categoria: "flv", posicaoSeg: pos, tocando, evento });
+  E.avancar(7000); ok(await ping(0, true, true));                                                       // apertou play (âncora em 0)
+  E.avancar(5000); let r = await ping(5, true); assert.equal(r.json.validoSeg, 5);
+  E.avancar(2000); r = await ping(7, false, true); assert.equal(r.json.validoSeg, 7, "pausa credita o trecho já tocado");
+  E.avancar(30_000); r = await ping(7, true, true); assert.equal(r.json.validoSeg, 7, "retomar só ancora; os 30 s de pausa não contam");
+  E.avancar(5000); r = await ping(12, true); assert.equal(r.json.validoSeg, 12);
+  E.avancar(5000); r = await ping(30, true); assert.equal(r.json.validoSeg, 12, "salto de 18 s em 5 s: sem crédito");
+  E.avancar(500); r = await ping(30, true, true); assert.equal(r.json.validoSeg, 12, "ping de evento colado (<1 s) é ignorado");
+});
+
+t("reprovou (<100%): feedback, sessão encerrada, e é obrigatório assistir de novo com o timer do zero; depois de refazer, não é 'elite'", async () => {
+  await semear(); await publicar("flv"); await iniciarEAssistir("flv");
+  let q = await HAB("questionario", { categoria: "flv" }); ok(q);
+  const certas = await respostasCertas(q.json.perguntas), erradas = certas.map((c, i) => (i === 0 ? (c + 1) % q.json.perguntas[0].opcoes.length : c));   // erra só UMA
+  const r1 = await HAB("responder", { categoria: "flv", respostas: erradas }); ok(r1);
+  assert.equal(r1.json.aprovado, false); assert.equal(r1.json.acertos, 2); assert.equal(r1.json.total, 3); assert.equal(r1.json.refazer, true);
+  assert.equal((await get("profissionais", "prom1")).habilitacoes?.flv, undefined, "98% não habilita");
+  falha(await HAB("responder", { categoria: "flv", respostas: certas }), 409, "sem-avaliacao");   // não reaproveita a mesma tentativa
+  falha(await HAB("questionario", { categoria: "flv" }), 409, "sessao-encerrada");                // não revê o teste sem rever o vídeo
+  const nova = await HAB("iniciar", { categoria: "flv" }); ok(nova);
+  assert.equal(nova.json.validoSeg, 0, "vídeo do zero"); assert.equal(nova.json.restanteMs, 63_000, "timer inteiro do zero"); assert.equal(nova.json.reprovacoes, 1);
+  falha(await HAB("questionario", { categoria: "flv" }), 409, "timer-pendente");
+  await assistir("flv"); q = await HAB("questionario", { categoria: "flv" }); ok(q);
+  const r2 = await HAB("responder", { categoria: "flv", respostas: await respostasCertas(q.json.perguntas) }); ok(r2);
+  assert.equal(r2.json.aprovado, true); assert.equal(r2.json.selo.elite, false, "aprovado só na 2ª tentativa: habilitado, sem selo de elite");
+  assert.equal((await get("profissionais", "prom1")).habilitacoes.flv.tentativas, 2);
+});
+
+t("respostas inválidas não gastam a tentativa nem aprovam; questionário vence em 20 min", async () => {
+  await semear(); await publicar("flv"); await iniciarEAssistir("flv");
+  const q = await HAB("questionario", { categoria: "flv" }); ok(q);
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0] }), 400, "dados-invalidos");          // faltou responder
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0, 99] }), 400, "dados-invalidos");
+  falha(await HAB("responder", { categoria: "flv", respostas: "tudo certo" }), 400, "dados-invalidos");
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0, { $ne: 1 }] }), 400, "dados-invalidos");
+  const q2 = await HAB("questionario", { categoria: "flv" }); ok(q2); assert.deepEqual(q2.json.perguntas, q.json.perguntas, "reabrir o app devolve o MESMO questionário");
+  E.avancar(21 * 60_000); falha(await HAB("responder", { categoria: "flv", respostas: await respostasCertas(q.json.perguntas) }), 409, "quiz-expirado");
+  const nova = await HAB("iniciar", { categoria: "flv" }); ok(nova); assert.equal(nova.json.validoSeg, 0);
+});
+
+t("conteúdo editado pelo admin invalida sessões em andamento; promotor não forja habilitação pelo perfil", async () => {
+  await semear(); await publicar("flv"); await iniciarEAssistir("flv");
+  const q = await HAB("questionario", { categoria: "flv" }); ok(q);
+  await publicar("flv", { perguntas: PERGUNTAS.slice(1, 4) });                                         // admin troca as perguntas
+  falha(await HAB("responder", { categoria: "flv", respostas: [0, 0, 0] }), 409, "conteudo-alterado");
+  ok(await chamar("PUT", "/perfil/promotor/privado", { token: "prom1", body: { telefone: "(19) 91234-5678", habilitacoes: { flv: { elite: true } } } }));
+  assert.equal((await get("profissionais", "prom1")).habilitacoes?.flv, undefined, "mass assignment: habilitacoes só o servidor escreve");
+  falha(await chamar("POST", "/habilitacoes/iniciar", { token: "lojaA", body: { categoria: "flv" } }), 403, "sem-permissao");
+  falha(await chamar("GET", "/habilitacoes", {}), 401);
+});
+
+t("aceite filtrado por categoria: só os setores em que está habilitado; Bebidas segue Mercearia; menor ainda tem as travas de idade", async () => {
+  await semear({ treinado: true });                                                                       // habilitado só em Mercearia
+  const merc = await pedido(), frios = await pedido({ foco: "Frios & Laticínios", data: dia(3) }), padaria = await pedido({ foco: "Padaria", data: dia(4) }), beb = await pedido({ foco: "Bebidas", data: dia(5) });
+  for (const [sid, cat] of [[frios, "frios"], [padaria, "padaria"]]) { const r = await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: sid } }); falha(r, 403, "categoria-pendente"); assert.equal(r.json.detalhe.categoria, cat); assert.equal((await get("solicitacoes", sid)).status, "aberta"); }
+  ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: merc } }));
+  ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: beb } }));            // "Bebidas" é tratado como Mercearia
+  const ant = (a) => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() - a); d.setUTCDate(d.getUTCDate() - 30); return d.toISOString().slice(0, 10); };
+  await semear({ uid: "prom2", nascimento: ant(17), treinado: true, responsavel: true, cpfn: 2 });
+  await ctx.db.collection("profissionais").doc("prom2").set({ habilitacoes: { padaria: { em: new E.Timestamp(Date.now()), tentativas: 1, elite: true } } }, { merge: true });
+  const pad = await chamar("POST", "/aceitarTurno", { token: "prom2", body: { solicitacaoId: padaria } });
+  falha(pad, 403, "menor-setor");                                                                          // habilitado em Padaria, mas é vedada a menores de 18
+  const sit = await chamar("GET", "/habilitacao", { token: "prom1" }); assert.deepEqual(sit.json.categorias.sort(), ["mercearia"]);
+});
+
+// ---------- Prova por módulo (perguntas/alternativas; correção só no servidor) ----------
+const PERGS = [{ enunciado: "Qual a regra do PVPS?", alternativas: ["Primeiro a vencer, primeiro a sair", "Último a chegar, primeiro a sair", "Tanto faz"], correta: 0 }, { enunciado: "Ao achar produto vencido você deve?", alternativas: ["Esconder", "Avisar o responsável", "Vender mesmo assim"], correta: 1 }];
+async function moduloComProva(extra = {}) { await modulo(); await ctx.db.collection("treinamento_modulos").doc("m1").set({ perguntas: PERGS, notaMinima: 100, ...extra }, { merge: true }); }
+t("prova: só depois de assistir; gabarito nunca vai ao promotor; reprova sem revelar; aprova e habilita", async () => {
+  await semear({ uid: "prom1" }); await moduloComProva();
+  falha(await chamar("GET", "/treinamento/modulos/m1/prova", { token: "prom1" }), 403, "assista-primeiro");
+  await set("treinamento_progresso", "prom1_m1", { uid: "prom1", moduloId: "m1", validoSeg: 95, videoOk: true });
+  const q = await chamar("GET", "/treinamento/modulos/m1/prova", { token: "prom1" }); ok(q);
+  assert.equal(q.json.perguntas.length, 2); assert.ok(!JSON.stringify(q.json).includes("correta"), "o gabarito não pode vazar");
+  const tr = await chamar("GET", "/treinamento", { token: "prom1" }); ok(tr); assert.ok(!JSON.stringify(tr.json).includes("correta"));
+  assert.equal(tr.json.completo, false, "vídeo visto mas prova pendente: ainda não habilita");
+  const ruim = await chamar("POST", "/treinamento/modulos/m1/prova", { token: "prom1", body: { respostas: [1, 1] } }); ok(ruim);
+  assert.equal(ruim.json.aprovado, false); assert.equal(ruim.json.erradas, undefined, "não revela quais erraram");
+  assert.notEqual(E.claimsStore.prom1.treinado, true);
+  falha(await chamar("POST", "/treinamento/modulos/m1/prova", { token: "prom1", body: { respostas: [0] } }), 400, "dados-invalidos");
+  const bom = await chamar("POST", "/treinamento/modulos/m1/prova", { token: "prom1", body: { respostas: [0, 1] } }); ok(bom);
+  assert.equal(bom.json.aprovado, true); assert.equal(bom.json.treinamentoCompleto, true); assert.equal(E.claimsStore.prom1.treinado, true);
+  assert.equal((await chamar("POST", "/treinamento/modulos/m1/prova", { token: "prom1", body: { respostas: [0, 1] } })).json.jaAprovado, true);
+});
+t("prova: módulo antigo (sem perguntas) segue valendo só com o vídeo; curso opcional não trava a habilitação", async () => {
+  await semear({ uid: "prom1" }); await concluirTreino("prom1");
+  await set("treinamento_modulos", "c1", { ordem: 2, titulo: "Curso", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 100, ativo: true, obrigatorio: false, categoria: "perdas", perguntas: PERGS });
+  const tr = await chamar("GET", "/treinamento", { token: "prom1" }); ok(tr); assert.equal(tr.json.completo, true);
+  assert.equal(tr.json.modulos.find((m) => m.id === "c1").temProva, true); assert.equal(tr.json.modulos.find((m) => m.id === "m1").temProva, false);
+});
+t("prova: o admin cadastra módulo com perguntas e a validação barra dados ruins", async () => {
+  const base = { ordem: 3, titulo: "Módulo com prova", provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: 120, obrigatorio: false, categoria: "atendimento" };
+  ok(await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...base, perguntas: PERGS } }), "admin salva com prova");
+  falha(await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...base, perguntas: [{ enunciado: "Pergunta sem alternativas", alternativas: ["só uma"], correta: 0 }] } }), 400);
+  falha(await chamar("POST", "/admin/treinamento/modulos", { token: "adm", body: { ...base, perguntas: [{ enunciado: "Correta fora do intervalo", alternativas: ["a", "b"], correta: 5 }] } }), 400);
+  falha(await chamar("POST", "/admin/treinamento/modulos", { token: "prom1", body: { ...base } }), 403);
+  const l = await chamar("GET", "/admin/treinamento/modulos", { token: "adm" }); ok(l); assert.ok(l.json.some((m) => m.perguntas?.length === 2 && m.categoria === "atendimento"));
+});
+
+// ---------- Check-in / check-out ----------
+const spMin = () => { const [h, m] = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour12: false, hour: "2-digit", minute: "2-digit" }).split(":").map(Number); return (h % 24) * 60 + m; };
+const hhmm = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+async function turnoHoje(id, extra = {}) { const ini = Math.max(0, spMin() - 5); await set("solicitacoes", id, { uid: "lojaA", loja: "Loja X", promotorUid: "prom1", status: "aceita", data: V.hojeSP(), entrada: hhmm(ini), saida: hhmm(Math.min(1439, ini + 240)), minutos: 240, ...extra }); }
+t("check-in/out: só o promotor do turno, só no dia; horário do servidor; marca divergência", async () => {
+  await semear({ uid: "prom1" }); await semear({ uid: "prom2", cpfn: 1 }); await turnoHoje("s1");
+  falha(await chamar("POST", "/turnos/s1/checkin", { body: {} }), 401);
+  falha(await chamar("POST", "/turnos/s1/checkin", { token: "lojaA", body: {} }), 403);
+  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom2", body: {} }), 404, "nao-encontrado");
+  falha(await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }), 409, "sem-checkin");
+  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: { lat: 999, lng: 0 } }), 400, "geo-invalida");
+  const ci = await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: { lat: -22.43, lng: -46.82, prec: 12 } }); ok(ci);
+  assert.ok(ci.json.atrasoMin >= 0 && ci.json.atrasoMin <= 6, "atraso medido pelo servidor: " + ci.json.atrasoMin);
+  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: {} }), 409, "ja-registrado");
+  const co = await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }); ok(co);
+  assert.ok(co.json.divergencias.includes("saida-antecipada"), "saiu logo após entrar: divergência");
+  const d = await get("solicitacoes", "s1"); assert.ok(d.checkinEm && d.checkoutEm && d.checkinGeo.lat === -22.43 && d.divergencias.includes("saida-antecipada"));
+  falha(await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }), 409, "ja-registrado");
+  await turnoHoje("s2", { data: dia(1) }); falha(await chamar("POST", "/turnos/s2/checkin", { token: "prom1", body: {} }), 409, "fora-do-dia");
+  await turnoHoje("s3", { status: "aberta" }); falha(await chamar("POST", "/turnos/s3/checkin", { token: "prom1", body: {} }), 409, "estado-invalido");
+});
+
+// ---------- Painel admin: resumo financeiro e auditoria de exportações ----------
+t("admin: resumo financeiro (saques parados, sem dados de Pix) e registro de exportação na auditoria", async () => {
+  await set("saques", "q1", { uid: "prom1", status: "solicitado", valorCentavos: 5000, criadoEm: new E.Timestamp(Date.now() - 3 * 3600_000), pixEnc: "x" });
+  await set("saques", "q2", { uid: "prom2", status: "pago", valorCentavos: 9999, criadoEm: new E.Timestamp(Date.now()) });
+  const r = await chamar("GET", "/admin/financeiro/resumo", { token: "adm" }); ok(r);
+  assert.equal(r.json.saquesAbertos.qtd, 1); assert.equal(r.json.saquesAbertos.valorCentavos, 5000); assert.ok(r.json.saquesAbertos.maisAntigoEm);
+  assert.ok(!JSON.stringify(r.json).includes("pix"), "sem dados de Pix");
+  falha(await chamar("GET", "/admin/financeiro/resumo", { token: "prom1" }), 403); falha(await chamar("GET", "/admin/financeiro/resumo", { token: "lojaA" }), 403);
+  ok(await chamar("POST", "/admin/auditar-exportacao", { token: "adm", body: { tipo: "missoes", linhas: 42 } }));
+  falha(await chamar("POST", "/admin/auditar-exportacao", { token: "adm", body: { tipo: "../../etc/passwd" } }), 400);
+  falha(await chamar("POST", "/admin/auditar-exportacao", { token: "prom1", body: { tipo: "missoes" } }), 403);
+  const aud = await chamar("GET", "/admin/auditoria?limite=50", { token: "adm" }); ok(aud);
+  assert.ok(aud.json.some((a) => a.acao === "admin.exportar" && a.alvo === "missoes"), "a exportação ficou no log");
 });
 
 (async () => {

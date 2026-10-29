@@ -10,13 +10,15 @@ module.exports = (app, x) => {
   const nomeSeguro = (n) => { try { return V.texto(n || "", "nome", { max: 100, obrigatorio: false }); } catch { return ""; } };
   const novoCodigo = () => Array.from(crypto.randomBytes(6), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
 
+  const DESTINO = { loja: "/painel-loja", promotor: "/painel-promotor", admin: "/admin.html" };   // rota de cada painel (espelho de ROTAS em config.js)
   const NOME_PERFIL = { loja: "loja", promotor: "promotor", admin: "administrador" };
   /** 409 amigável: a conta já tem o outro perfil. `detalhe.sugerido` diz ao front para onde levar o usuário. */
   const conflito = (tem, quer) => new Falha(409, `Esta conta Google já é de ${NOME_PERFIL[tem]}. Você pode abrir o painel de ${NOME_PERFIL[tem]} ou entrar com outra conta Google para ser ${NOME_PERFIL[quer]}.`, "papel-conflito", { tem, quer, sugerido: tem });
 
+  /** CPF já usado por OUTRA conta ativa → 409 com dica (e-mail mascarado) de qual conta Google usar para entrar. */
   async function conflitoDeCpf(cpfDigitos, uid) {
-    const s = await db.collection("profissionais_privado").where("cpfIdx", "==", Cripto.indiceCego(cpfDigitos)).limit(2).get();
-    if (s.docs.some((d) => d.id !== uid)) throw new Falha(409, "Já existe um cadastro com este CPF. Se for seu, use a conta original ou fale com o suporte.", "cpf-duplicado");
+    const dono = await habilitacao.cpfEmUso(cpfDigitos, uid);
+    if (dono) throw new Falha(409, "Este CPF já possui uma conta. Entre com ela ou fale com o suporte.", "cpf-duplicado", { emailMascarado: V.mascararEmail(dono.email) });
   }
 
   /** Valida o responsável legal (obrigatório para 16–17 anos) e devolve o objeto a cifrar. */
@@ -205,15 +207,16 @@ module.exports = (app, x) => {
     const perfis = PERFIS.filter((x) => tem.has(x));
     const alvo = portal ?? (perfis.includes(claims.role) ? claims.role : perfis.length === 1 ? perfis[0] : null);
     const comerciais = perfis.filter((x) => x !== "admin");          // admin é privilégio, não "tipo de conta": não impede criar loja/promotor
-    if (alvo !== "admin" && !comerciais.length) return res.json({ estado: "cadastro", role: null, perfis, atualizarToken: false });
-    if (!alvo) return res.json({ estado: "escolher", role: null, perfis, atualizarToken: false });
-    if (!perfis.includes(alvo)) return res.json({ estado: "outro-perfil", role: null, perfis, sugerido: comerciais[0] || null, atualizarToken: false });
+    if (alvo !== "admin" && !comerciais.length) return res.json({ estado: "cadastro", role: null, perfis, destino: null, atualizarToken: false });
+    if (!alvo) return res.json({ estado: "escolher", role: null, perfis, destino: null, atualizarToken: false });
+    // `destino`: para onde o front deve levar a pessoa (o servidor decide pelo que a conta TEM, nunca pelo que o navegador pede)
+    if (!perfis.includes(alvo)) return res.json({ estado: "outro-perfil", role: null, perfis, sugerido: comerciais[0] || null, destino: DESTINO[comerciais[0]] || null, atualizarToken: false });
     const igual = claims.role === alvo && PERFIS.every((x) => perfis.includes(x) === perfisDasClaims(claims).includes(x)) && (alvo !== "promotor" || claims.treinado === !!p.data()?.treinamentoOk);
     if (!igual) {
       await auth.definirPapel(u.uid, alvo, { perfis, ...(alvo === "promotor" ? { treinado: !!p.data()?.treinamentoOk } : {}) });
       await db.collection("usuarios").doc(u.uid).set({ uid: u.uid, role: alvo, perfis, migradoEm: FieldValue.serverTimestamp() }, { merge: true });
       if (claims.role !== alvo) { req.usuario = u; await auth.auditar(req, "sessao.trocar-perfil", u.uid, { de: claims.role || null, para: alvo }); }
     }
-    res.json({ estado: "ok", role: alvo, perfis, atualizarToken: !igual });
+    res.json({ estado: "ok", role: alvo, perfis, destino: DESTINO[alvo], atualizarToken: !igual });
   }));
 };

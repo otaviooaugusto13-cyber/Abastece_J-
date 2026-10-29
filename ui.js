@@ -52,6 +52,39 @@ export function abrir(id) { const e = $(id); if (!e) return; e.classList.add("ac
 export function fechar(id) { const e = $(id); if (!e) return; e.classList.remove("active"); e.setAttribute("aria-hidden", "true"); if (!document.querySelector(".app-overlay.active")) document.body.classList.remove("no-scroll"); }
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") document.querySelectorAll(".app-overlay.active").forEach((e) => fechar(e.id)); });
 
+// ---- Modal de decisão (substitui confirm()/alert()): acessível, com foco e Esc ----
+let dlgSeq = 0;
+/**
+ * Mostra uma pergunta com botões e resolve com o `valor` escolhido (null se fechar com Esc ou clicando fora).
+ *   acoes:  [{ rotulo, valor, tipo?: "primary" | "ghost" | "danger" }]  (a 1ª é a ação principal)
+ *   html:   conteúdo CONFIÁVEL opcional (ex.: textoTermos) mostrado numa caixa rolável — nunca passe texto de usuário aqui
+ *   marcar: texto de uma caixa que precisa ser marcada para liberar as ações "primary" (ex.: aceite dos Termos)
+ */
+export function dialogo({ titulo, texto = "", icone = "", acoes, html = "", marcar = "" }) {
+    return new Promise((resolve) => {
+        const id = `dlg-${++dlgSeq}`, voltar = document.activeElement, ov = document.createElement("div");
+        ov.id = id; ov.className = "app-overlay centro active"; ov.setAttribute("role", "alertdialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-labelledby", `${id}-t`); ov.setAttribute("aria-describedby", `${id}-p`);
+        ov.innerHTML = `<div class="modal-box">${icone ? `<div class="modal-ico" aria-hidden="true">${esc(icone)}</div>` : ""}<h3 id="${id}-t">${esc(titulo)}</h3>${texto ? `<p class="muted small" id="${id}-p" style="margin-top:8px">${esc(texto)}</p>` : `<span id="${id}-p"></span>`}
+            ${html ? `<div class="modal-termos small muted">${html}</div>` : ""}
+            ${marcar ? `<label class="check-line" style="text-align:left;margin-top:12px"><input type="checkbox" id="${id}-ck"><span>${esc(marcar)}</span></label>` : ""}
+            <div class="modal-acoes"></div></div>`;
+        const box = ov.querySelector(".modal-acoes"), ck = ov.querySelector(`#${id}-ck`), botoes = [];
+        const fim = (v) => { document.removeEventListener("keydown", tecla, true); ov.remove(); if (!document.querySelector(".app-overlay.active")) document.body.classList.remove("no-scroll"); try { voltar?.focus?.({ preventScroll: true }); } catch (e) {} resolve(v); };
+        const tecla = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); fim(null); } };
+        acoes.forEach((a) => {
+            const b = document.createElement("button"); b.type = "button"; b.textContent = a.rotulo;
+            b.className = `btn ${a.tipo === "ghost" ? "btn-ghost" : a.tipo === "danger" ? "btn-danger" : "btn-primary"}`;
+            if (ck && a.tipo !== "ghost" && a.tipo !== "danger") b.disabled = true;
+            b.addEventListener("click", () => fim(a.valor)); box.appendChild(b); botoes.push([b, a]);
+        });
+        ck?.addEventListener("change", () => botoes.forEach(([b, a]) => { if (a.tipo !== "ghost" && a.tipo !== "danger") b.disabled = !ck.checked; }));
+        ov.addEventListener("click", (e) => { if (e.target === ov) fim(null); });
+        document.addEventListener("keydown", tecla, true);
+        document.body.appendChild(ov); document.body.classList.add("no-scroll");
+        (ck || botoes[0]?.[0])?.focus?.({ preventScroll: true });
+    });
+}
+
 // ---- Skeletons e estados vazios ----
 export const skeleton = (n = 3) => Array.from({ length: n }, () => '<div class="skeleton"></div>').join("");
 export const vazio = (icone, titulo, texto, acao = "") => `<div class="empty-state"><div class="empty-icon">${icone}</div><h4>${esc(titulo)}</h4><p>${esc(texto)}</p>${acao}</div>`;

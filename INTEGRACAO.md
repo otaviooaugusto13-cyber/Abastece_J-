@@ -4,7 +4,7 @@
 | Pedido | Onde | Como funciona |
 |---|---|---|
 | **Cursos** no menu, por categoria | `promotor.html` (Menu → Cursos), `cursos.js`, `script-personal.js` (`renderCursos`) | Modal interno com categorias recolhíveis e progresso por categoria. O vídeo abre no player interno (`sheet-video`). |
-| Categorias, obrigatoriedade e provas | `server/lib/treinamento.js`, `server/rotas/treinamento.js`, `admin.html/js` | Motor do pacote do admin: cada módulo tem `categoria`, `obrigatorio` (padrão: só a categoria `geral` é obrigatória) e, opcionalmente, prova com nota mínima (a resposta certa nunca sai do servidor). Os módulos de uma categoria abrem em ordem; cursos opcionais não entram na habilitação. Categorias: geral, mercearia, hortifruti, padaria, frios, deposito + temáticas (perdas, atendimento, seguranca, carreira). |
+| Categorias e obrigatoriedade | `server/lib/treinamento.js`, `admin.html/js` | Cada módulo tem `categoria` e `obrigatorio`. **Obrigatórios** = habilitação PRATICAMENTE (sequencial, libera turnos, categoria forçada `habilitacao`). **Opcionais** ficam sempre abertos e **não** entram na habilitação. Módulos antigos (sem o campo) continuam obrigatórios. |
 | Experiência + Eneagrama em **Meus dados** | `promotor.html`, `perfil-inteligente.js`, `PUT/GET /perfil/promotor/inteligente` | Lista de experiências (área + tempo), Eneagrama (tipo/asa/instinto ou código `PM-3w2-SO`), bio e palavras-chave geradas em tempo real; se o promotor editar a bio à mão, a atualização automática pausa (botão "Gerar de novo"). |
 | **Ofertas da cidade** com contadores | `geo.js` (`contarPorCidade`), chips no topo de Ofertas | Contadores **reais** (vagas abertas por cidade, em tempo real via snapshot). Os números 43/105/50 do enunciado eram exemplos. |
 | **GPS em tempo real + raio de 20 km** | `geo.js` (`observarPosicao`, `filtrarPorRaio`), `config.js` (`RAIO_KM_OFERTAS`) | Ao abrir Ofertas o app pede a posição e acompanha (`watchPosition`); para ao sair da aba ou ao ir para segundo plano. Só recalcula se andou > 200 m. Sem permissão: usa a cidade do perfil ou uma escolhida na lista. |
@@ -32,7 +32,7 @@ Privacidade: o Eneagrama fica em `profissionais_perfil` (só servidor) e **não*
 - **Tabela de cidades** (`geo.js`): ~40 cidades com centro municipal aproximado (±1–2 km, digitado de referência, **confira antes de produção**). Adicione linhas conforme expandir. Loja com GPS grava coordenada exata.
 - Distância é em **linha reta** (não por rota).
 - Os links de WhatsApp já existentes (suporte, compartilhar convite, enviar cobrança) continuam abrindo fora do app — são ações explícitas de compartilhamento. Nada novo abre aba externa.
-- Cursos: **nenhum vídeo foi inventado**. Cadastre-os em *Admin → Treinamento* (escolha a categoria, marque "obrigatório" se fizer parte da habilitação e, se quiser, monte a prova).
+- Cursos: **nenhum vídeo foi inventado**. Cadastre-os em *Admin → Treinamento* (desmarque "obrigatório" e escolha a categoria).
 
 ## Testes
 `npm test` → paridade financeira, **12 testes novos de front** (`test/perfil.test.js`: distância/raio/contadores, código do Eneagrama, bio ≤ 300, ranking, cursos, cabeçalhos) e **39 de backend** (8 novos: cursos opcionais, perfil inteligente, validação, vaga herdando localização, regras, cabeçalhos). Rodados em ambiente simulado; **não foram testados em navegador real nem em Firestore real**.

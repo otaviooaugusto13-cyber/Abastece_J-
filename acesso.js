@@ -8,12 +8,33 @@
 // ============================================================
 import { chamarFuncao, renovarToken } from "./firebase.js";
 import { esc } from "./core.js";
+import { ROTAS, WHATSAPP_SUPORTE } from "./config.js";
 
 const PAINEL = {
-    loja:     { nome: "loja",          rotulo: "Abrir painel da loja",             href: "index.html" },
-    promotor: { nome: "promotor",      rotulo: "Abrir portal do promotor",         href: "promotor.html" },
-    admin:    { nome: "administrador", rotulo: "Abrir painel administrativo",      href: "admin.html" }
+    loja:     { nome: "loja",          rotulo: "Abrir painel da loja",             href: ROTAS.loja },
+    promotor: { nome: "promotor",      rotulo: "Abrir portal do promotor",         href: ROTAS.promotor },
+    admin:    { nome: "administrador", rotulo: "Abrir painel administrativo",      href: ROTAS.admin }
 };
+
+// ---------- Redirecionamento DIRETO para o painel do perfil (com trava anti-loop) ----------
+const GUARDA = "abastece_redir";
+const lerGuarda = () => { try { return JSON.parse(sessionStorage.getItem(GUARDA) || "null"); } catch (e) { return null; } };
+/** Chamar quando o painel abriu de verdade: zera a trava anti-loop. */
+export const limparGuarda = () => { try { sessionStorage.removeItem(GUARDA); } catch (e) {} };
+/**
+ * Leva a pessoa direto ao painel do perfil que a conta TEM (decidido pelo servidor em /sessao), sem tela intermediária.
+ *   papel — perfil de destino ("loja" | "promotor"); de — portal em que estamos agora.
+ * Devolve true se navegou. Devolve false (e quem chamou mostra a tela de escolha) se isso fecharia um ciclo:
+ * acabamos de chegar aqui vindos do próprio destino (< 15 s) ou já houve 3 saltos seguidos.
+ */
+export function irParaPainel(papel, de) {
+    const destino = PAINEL[papel]?.href; if (!destino || papel === de || papel === "admin") return false;
+    const g = lerGuarda(), agora = Date.now(), recente = g && agora - g.t < 15000;
+    if (recente && ((g.para === de && g.de === papel) || g.n >= 3)) return false;
+    try { sessionStorage.setItem(GUARDA, JSON.stringify({ de, para: papel, t: agora, n: recente ? (g.n || 1) + 1 : 1 })); } catch (e) {}
+    location.replace(destino);
+    return true;
+}
 const ID_TELA = "screen-acesso";
 
 /**
@@ -84,6 +105,18 @@ export function telaOutroPerfil({ portal, perfis, email, trocarConta }) {
         acoes: [
             ...tem.map((p, i) => ({ rotulo: PAINEL[p].rotulo, href: PAINEL[p].href, tipo: i ? "ghost" : "primary" })),
             { rotulo: "Entrar com outra conta Google", aoClicar: trocarConta, tipo: tem.length ? "ghost" : "primary" }
+        ]
+    });
+}
+
+/** Conta bloqueada pela equipe: tela fixa (não derruba a sessão em loop) com o recado do suporte e o caminho para falar com a gente. */
+export function telaBloqueado({ texto, trocarConta }) {
+    mostrar({
+        titulo: "Acesso não liberado para esta conta",
+        texto: texto || "A equipe do Abastece Já suspendeu o acesso desta conta. Fale com o suporte para entender o motivo e liberar.",
+        acoes: [
+            { rotulo: "Falar com o suporte no WhatsApp", href: `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Minha conta no Abastece Já está bloqueada. Pode me ajudar?")}` },
+            { rotulo: "Entrar com outra conta Google", aoClicar: trocarConta, tipo: "ghost" }
         ]
     });
 }

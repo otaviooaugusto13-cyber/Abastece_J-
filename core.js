@@ -2,6 +2,22 @@
 // Testadas em node: `node test/split.test.js`
 import { VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, IDADE_MAIORIDADE } from "./config.js";
 
+// ---------- Taxas vigentes (DINÂMICAS) ----------
+// Começam no padrão de config.js (o app abre mesmo offline) e são substituídas pelo que o servidor devolve em
+// GET /config/taxas (ver taxas.js). Objeto único e mutável: todo módulo que importa TAXAS enxerga a mudança.
+export const TAXAS = {
+    diariaCentavos: VALOR_DIARIA_CENTAVOS, comissaoCentavos: COMISSAO_PLATAFORMA_CENTAVOS, repasseCentavos: REPASSE_PROFISSIONAL_CENTAVOS,
+    taxaFixaCentavos: TAXA_FIXA_CENTAVOS, horasMin: HORAS_MIN_TURNO, horasMax: HORAS_MAX_TURNO, maxSemana: MAX_VEZES_SEMANA_LOJA, versao: 0
+};
+/** Aplica taxas vindas do servidor. Ignora (e devolve false) qualquer coisa incoerente — melhor manter o valor anterior do que exibir lixo. */
+export function aplicarTaxas(t) {
+    const k = ["diariaCentavos", "comissaoCentavos", "repasseCentavos", "taxaFixaCentavos", "horasMin", "horasMax", "maxSemana"];
+    if (!t || !k.every((x) => Number.isFinite(t[x]) && t[x] >= 0)) return false;
+    if (t.comissaoCentavos + t.repasseCentavos !== t.diariaCentavos || t.horasMin > t.horasMax) return false;
+    Object.assign(TAXAS, Object.fromEntries(k.map((x) => [x, t[x]])), { versao: Number(t.versao) || 0 });
+    return true;
+}
+
 // ---------- Dinheiro (sempre em CENTAVOS inteiros) ----------
 export const reaisParaCentavos = (v) => {
     if (typeof v === "string") v = v.replace(/\./g, "").replace(",", ".");
@@ -17,21 +33,22 @@ export const minutosEntre = (entrada, saida) => {
 };
 /** Divisão da diária (inteiros; comissão + repasse === total). O servidor repete este cálculo — o navegador só exibe. */
 export function calcularDiaria() {
-    return { valor: VALOR_DIARIA_CENTAVOS, promotor: REPASSE_PROFISSIONAL_CENTAVOS, comissao: COMISSAO_PLATAFORMA_CENTAVOS, royalty: COMISSAO_PLATAFORMA_CENTAVOS, taxaFixa: TAXA_FIXA_CENTAVOS,
-        app: COMISSAO_PLATAFORMA_CENTAVOS + TAXA_FIXA_CENTAVOS, total: VALOR_DIARIA_CENTAVOS + TAXA_FIXA_CENTAVOS, pct: 100 - (REPASSE_PROFISSIONAL_CENTAVOS * 100) / VALOR_DIARIA_CENTAVOS, modelo: "diaria-v1" };
+    const { diariaCentavos: valor, comissaoCentavos: comissao, repasseCentavos: promotor, taxaFixaCentavos: taxaFixa } = TAXAS;
+    return { valor, promotor, comissao, royalty: comissao, taxaFixa, app: comissao + taxaFixa, total: valor + taxaFixa,
+        pct: 100 - (promotor * 100) / valor, modelo: "diaria-v1", versaoTaxas: TAXAS.versao };
 }
 /** Compatível com o código antigo: o preço é a diária fixa, independente da duração. */
 export function calcularTurno(minutos) {
     const m = Math.round(minutos);
     if (!Number.isInteger(m) || m <= 0) throw new Error("duração inválida");
-    return { ...calcularDiaria(), minutos: m, horas: m / 60, liquidoPromotor: REPASSE_PROFISSIONAL_CENTAVOS };
+    return { ...calcularDiaria(), minutos: m, horas: m / 60, liquidoPromotor: TAXAS.repasseCentavos };
 }
 /** "" se o horário é válido; senão a mensagem de erro. */
 export function validarTurno(entrada, saida) {
     const m = minutosEntre(entrada, saida);
     if (m <= 0) return "A saída precisa ser depois da entrada.";
-    if (m < HORAS_MIN_TURNO * 60) return `O turno precisa ter no mínimo ${HORAS_MIN_TURNO} horas.`;
-    if (m > HORAS_MAX_TURNO * 60) return `O turno pode ter no máximo ${HORAS_MAX_TURNO} horas.`;
+    if (m < TAXAS.horasMin * 60) return `O turno precisa ter no mínimo ${TAXAS.horasMin} horas.`;
+    if (m > TAXAS.horasMax * 60) return `O turno pode ter no máximo ${TAXAS.horasMax} horas.`;
     return "";
 }
 
@@ -57,7 +74,7 @@ export const visaoLoja = (s) => ({ valor: s.valor, taxaFixa: s.taxaFixa, total: 
 export const visaoPromotor = (s) => ({ liquido: s.promotor });
 /** Líquido do promotor de um pedido (pedidos antigos, sem o campo novo, caem no cálculo). */
 export const valorPromotor = (p) => {
-    return Number.isInteger(p.valorPromotorCentavos) ? p.valorPromotorCentavos : REPASSE_PROFISSIONAL_CENTAVOS;
+    return Number.isInteger(p.valorPromotorCentavos) ? p.valorPromotorCentavos : TAXAS.repasseCentavos;
 };
 
 // ---------- Idade (espelho do servidor; o servidor decide) ----------
@@ -151,18 +168,33 @@ export const SETORES = [
     { v: "Mercearia", ico: "🛒", label: "Mercearia" },
     { v: "Hortifruti / FLV", ico: "🍎", label: "Hortifruti" },
     { v: "Frios & Laticínios", ico: "🧀", label: "Frios e laticínios" },
+    { v: "Padaria", ico: "🥖", label: "Padaria" },
+    { v: "Depósito", ico: "📦", label: "Depósito" },
+    { v: "Degustação", ico: "🍽️", label: "Degustação" },
     { v: "Bebidas", ico: "🍾", label: "Bebidas" },
     { v: "Auditoria / Inventário", ico: "🔍", label: "Inventário" },
-    { v: "Montagem de ilhas", ico: "📦", label: "Ilhas e displays" }
+    { v: "Montagem de ilhas", ico: "🧱", label: "Ilhas e displays" }
 ];
+
+// ---------- Habilitação por categoria (espelho de server/lib/config.js; test/split.test.js confere) ----------
+// O servidor é quem decide (aceitarTurno). Aqui só serve para a interface mostrar cadeado/selo sem ir à rede.
+export const CATEGORIAS = {
+    mercearia: { titulo: "Mercearia", ico: "🛒" }, frios: { titulo: "Frios", ico: "🧀" }, padaria: { titulo: "Padaria", ico: "🥖" },
+    flv: { titulo: "FLV", ico: "🍎" }, deposito: { titulo: "Depósito", ico: "📦" }, degustacao: { titulo: "Degustação", ico: "🍽️" }
+};
+export const SETOR_CATEGORIA = {
+    "Mercearia": "mercearia", "Hortifruti / FLV": "flv", "Frios & Laticínios": "frios", "Padaria": "padaria", "Depósito": "deposito", "Degustação": "degustacao",
+    "Bebidas": "mercearia", "Montagem de ilhas": "mercearia", "Auditoria / Inventário": "deposito"
+};
+export const categoriaDoSetor = (foco) => SETOR_CATEGORIA[foco] || null;
 
 // ---------- Textos ----------
 // A discriminação de taxas/comissões aparece SOMENTE nos Termos de Uso ("Li e concordo").
 // Telas, checkout, resumos e nota mostram apenas o que cada lado precisa ver.
 export function textoTermos(perfil) {
-    const diaria = brl(VALOR_DIARIA_CENTAVOS), com = brl(COMISSAO_PLATAFORMA_CENTAVOS), rep = brl(REPASSE_PROFISSIONAL_CENTAVOS);
+    const diaria = brl(TAXAS.diariaCentavos), com = brl(TAXAS.comissaoCentavos), rep = brl(TAXAS.repasseCentavos);
     const comuns = `<strong>Remuneração e comissão.</strong> A diária padrão é de ${diaria} por turno. A plataforma retém automaticamente ${com} de comissão e repassa ${rep} ao profissional, creditados na carteira digital dele. O repasse fica em carência por alguns dias antes de poder ser sacado e pode ser estornado em caso de reembolso ou contestação do pagamento.<br><br>
-  <strong>Limites de turno.</strong> Cada turno tem de ${HORAS_MIN_TURNO} a ${HORAS_MAX_TURNO} horas, e o mesmo promotor pode trabalhar no máximo ${MAX_VEZES_SEMANA_LOJA} vezes por semana (segunda a domingo) na mesma loja.`;
+  <strong>Limites de turno.</strong> Cada turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas, e o mesmo promotor pode trabalhar no máximo ${TAXAS.maxSemana} vezes por semana (segunda a domingo) na mesma loja.`;
     if (perfil === "promotor") return `<strong>1. Autonomia.</strong> Você é prestador independente; escolhe os turnos que aceita. Não há vínculo empregatício com a plataforma ou com as lojas.<br><br>
   <strong>2.</strong> ${comuns}<br><br>
   <strong>3. Idade.</strong> O cadastro é permitido a partir dos ${IDADE_MINIMA} anos. De ${IDADE_MINIMA} a ${IDADE_MAIORIDADE - 1} anos é obrigatória a autorização de um responsável legal, e há restrições de horário (apenas diurno) e de setores.<br><br>

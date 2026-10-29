@@ -4,12 +4,13 @@
 //   3) 16–17 anos: dados do responsável legal + autorização registrada
 //   4) treinamento PRATICAMENTE 100% concluído
 //   5) 16–17 anos: turno dentro da janela diurna e em setor permitido
+//   6) habilitação (vídeo + questionário 100%) na CATEGORIA do setor do turno
 const { Falha } = require("./erros");
 const C = require("./config");
 const V = require("./validacao");
 const Cripto = require("./cripto");
 
-function criarHabilitacao({ db, treinamento }) {
+function criarHabilitacao({ db, treinamento, categorias }) {
   /** Lê o perfil completo do profissional (público + privado decifrado) — uso interno do servidor. */
   async function perfil(uid) {
     const [pub, priv] = await Promise.all([db.collection("profissionais").doc(uid).get(), db.collection("profissionais_privado").doc(uid).get()]);
@@ -34,6 +35,7 @@ function criarHabilitacao({ db, treinamento }) {
       if (s.entrada < C.MENOR.JANELA_INICIO || s.saida > C.MENOR.JANELA_FIM || s.saida <= s.entrada) throw new Falha(403, `Para menores de 18 anos o turno deve ficar entre ${C.MENOR.JANELA_INICIO} e ${C.MENOR.JANELA_FIM}.`, "menor-horario");
       if (C.MENOR.SETORES_VEDADOS.includes(s.foco)) throw new Falha(403, "Este setor não está disponível para menores de 18 anos.", "menor-setor");
     }
+    if (s) categorias.exigirParaSetor(pub, s.foco);     // por último: só aceita turno das categorias em que está habilitado (vídeo + questionário 100%)
     return { menor, idade };
   }
 
@@ -48,8 +50,22 @@ function criarHabilitacao({ db, treinamento }) {
     if (idade === null) pendencias.push("nascimento"); else if (idade < C.IDADE_MINIMA) pendencias.push("idade-minima");
     if (menor && !(priv.responsavelEnc && priv.autorizacaoResponsavelEm)) pendencias.push("responsavel");
     if (!t.completo) pendencias.push("treinamento");
-    return { habilitado: pendencias.length === 0, pendencias, menor, status: pub?.status || "inexistente", treinamento: { concluidos: t.concluidos, total: t.total, completo: t.completo } };
+    return { habilitado: pendencias.length === 0, pendencias, menor, status: pub?.status || "inexistente", categorias: Object.keys(pub?.habilitacoes || {}), treinamento: { concluidos: t.concluidos, total: t.total, completo: t.completo } };
   }
-  return { perfil, exigirPodeAceitar, situacao };
+  /**
+   * Quem já usa este CPF (outro uid)? Registros ÓRFÃOS (existe o privado, mas o perfil `profissionais/{uid}` não) NÃO contam:
+   * eram o que travava o cadastro de quem teve o perfil removido. Devolve { uid, email } ou null.
+   */
+  async function cpfEmUso(cpfDigitos, uidIgnorar = "") {
+    const s = await db.collection("profissionais_privado").where("cpfIdx", "==", Cripto.indiceCego(cpfDigitos)).limit(10).get();
+    for (const d of s.docs) {
+      if (d.id === uidIgnorar) continue;
+      if (!(await db.collection("profissionais").doc(d.id).get()).exists) continue;
+      const email = (await db.collection("usuarios").doc(d.id).get()).data()?.email || "";
+      return { uid: d.id, email };
+    }
+    return null;
+  }
+  return { perfil, exigirPodeAceitar, situacao, cpfEmUso };
 }
 module.exports = { criarHabilitacao };

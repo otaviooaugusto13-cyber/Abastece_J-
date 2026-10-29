@@ -3,12 +3,12 @@
 // Tudo que você pode querer ajustar sem mexer no resto do código.
 // ============================================================
 
-// ---- Regras de negócio -------------------------------------
-// Modelo "diária" (valores em CENTAVOS; o servidor é quem manda — server/split.js; `npm test` falha se divergirem):
-//   Loja paga               = R$ 200,00
-//   Comissão da plataforma  = R$  50,00 (retida automaticamente)
-//   Repasse ao profissional = R$ 150,00 (carteira digital)
-// Atenção: 150/200 = 75% (não 80%). Os valores em reais são a fonte da verdade.
+// ---- Regras de negócio (VALORES PADRÃO) ---------------------
+// Estes números são só o PADRÃO: semente inicial e plano B offline do app. Quem manda de verdade é o painel admin
+// (Configurações → Taxas da plataforma), que grava em configuracoes/taxas no Firestore; o app busca em GET /config/taxas
+// (taxas.js) e o servidor lê do banco (server/lib/taxas.js). Mudar valores NÃO exige editar código nem reiniciar.
+// Padrão atual (centavos): loja paga R$ 200,00 = comissão R$ 50,00 + repasse R$ 150,00 (150/200 = 75%, não 80%).
+// `npm test` ainda confere que este padrão é idêntico ao de server/split.js.
 export const VALOR_DIARIA_CENTAVOS = 20000;
 export const COMISSAO_PLATAFORMA_CENTAVOS = 5000;
 export const REPASSE_PROFISSIONAL_CENTAVOS = 15000;
@@ -22,7 +22,7 @@ export const IDADE_MINIMA = 16;                      // cadastro permitido a par
 export const IDADE_MAIORIDADE = 18;                  // 16–17: exige autorização do responsável legal
 export const MENOR_JANELA_INICIO = "05:00";          // menores de 18: só turnos diurnos (espelho de server/lib/config.js)
 export const MENOR_JANELA_FIM = "22:00";
-export const MENOR_SETORES_VEDADOS = ["Frios & Laticínios", "Bebidas", "Montagem de ilhas"];
+export const MENOR_SETORES_VEDADOS = ["Frios & Laticínios", "Padaria", "Depósito", "Bebidas", "Montagem de ilhas"];
 
 // ---- Ofertas por localização -------------------------------
 export const RAIO_KM_OFERTAS = 20;                   // "Perto de mim": só vagas até 20 km da posição do promotor
@@ -46,6 +46,10 @@ export const EMPRESA = {
 
 // ---- Contato / suporte -------------------------------------
 export const WHATSAPP_SUPORTE = "551995350637"; // só dígitos, com 55 + DDD
+export const NOME_SUPORTE = "Suporte TI";        // nome que o usuário vê nas mensagens da equipe
+// Chave pública (VAPID) das notificações push: Firebase Console → Configurações do projeto → Cloud Messaging →
+// "Certificados push da Web" → Gerar par de chaves. Vazia = sem push com o app fechado (avisos dentro do app continuam).
+export const FCM_VAPID_KEY = "";
 
 // ---- Firebase (chave pública por natureza; segurança vem das regras) ----
 export const FIREBASE_CONFIG = {
@@ -64,7 +68,9 @@ export const FIREBASE_CONFIG = {
 // Em qualquer outro domínio (GitHub Pages etc.), usa a URL fixa abaixo: confira no painel do
 // Render o endereço EXATO do serviço (render.yaml cria "abastece-j", sem o "a" no final).
 const URL_RENDER = "https://abastece-ja.onrender.com";
-const mesmaOrigem = typeof location !== "undefined" && /^(abastece-ja\.onrender\.com|localhost|127\.0\.0\.1)$/.test(location.hostname);
+// Qualquer *.onrender.com serve o site E a API (é o mesmo Web Service): antes só "abastece-ja.onrender.com" era reconhecido, e quem abria
+// o app pelo endereço real do serviço (ex.: "abastece-j", como no render.yaml) caía numa API de outro host (CORS/404 e sessão "perdida").
+const mesmaOrigem = typeof location !== "undefined" && /^(([\w-]+\.)*onrender\.com|localhost|127\.0\.0\.1)$/.test(location.hostname);
 export const FUNCTIONS_BASE = mesmaOrigem ? location.origin : URL_RENDER;
 
 // ---- Cadastro de cartão (produção) ---------------------------
@@ -75,3 +81,11 @@ export const MP_PUBLIC_KEY = "";
 // ---- Emuladores locais do Firebase (só para testes; ver DEPLOY-RENDER.md) ----
 // Abra o app com ?emulador=1 em localhost para usar Auth/Firestore locais.
 export const USAR_EMULADOR = typeof location !== "undefined" && location.hostname === "localhost" && new URLSearchParams(location.search).has("emulador");
+
+// ---- Rotas dos painéis ---------------------------------------
+// URLs públicas: /painel-loja e /painel-promotor (o servidor Render e o Firebase Hosting as mapeiam para index.html / promotor.html).
+// Hospedou o front SEM servidor/rewrites (GitHub Pages etc.)? Troque para false: usa os arquivos .html diretamente.
+export const ROTAS_LIMPAS = true;
+export const ROTAS = ROTAS_LIMPAS
+    ? { loja: "/painel-loja", promotor: "/painel-promotor", admin: "/admin.html" }
+    : { loja: "index.html", promotor: "promotor.html", admin: "admin.html" };

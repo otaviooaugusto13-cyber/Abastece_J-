@@ -14,7 +14,8 @@ t("paridade navegador×servidor: áreas, instintos, categorias de curso e limite
     assert.deepEqual(Object.keys(P.INSTINTOS), C.ENEAGRAMA_INSTINTOS);
     assert.equal(P.MAX_EXPERIENCIAS, C.PERFIL_MAX_EXPERIENCIAS); assert.equal(P.MAX_PALAVRAS, C.PERFIL_MAX_PALAVRAS);
     assert.deepEqual(K.CATEGORIAS.map((c) => c.id), C.CURSO_CATEGORIAS);
-    assert.deepEqual(P.AREAS.slice(0, 6).map((a) => a.v), SETORES.map((s) => s.v), "as 6 primeiras áreas são os setores de reposição");
+    assert.deepEqual(P.AREAS.slice(0, 6).map((a) => a.v), ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"], "as 6 primeiras áreas são os setores de reposição (ordem das matrizes)");
+    for (const s of SETORES) assert.ok(P.AREAS.slice(0, 6).some((a) => a.v === s.v) || P.AREAS.slice(0, 6).some((a) => a.v === P.SETOR_PROXY[s.v]), "setor sem coluna nas matrizes e sem proxy: " + s.v);
     for (const a of P.AREAS) assert.equal(a.rel.length, 6);
     for (const [k, e] of Object.entries(P.ENEAGRAMA)) assert.equal(e.afin.length, 6, "tipo " + k);
 });

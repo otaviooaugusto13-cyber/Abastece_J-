@@ -4,9 +4,11 @@
 //
 //   rotas/conta.js        cadastro (loja/promotor, 16+), dados privados cifrados, habilitação
 //   rotas/treinamento.js  treinamento obrigatório PRATICAMENTE
+//   rotas/categorias.js   habilitação por categoria (vídeo + timer + questionário 100%)
 //   rotas/pedidos.js      pedidos, aceite (com todas as travas), cancelar, desistir, avaliar, cartão
 //   rotas/pagamentos.js   checkout (conta da plataforma), webhook assinado, confirmação
 //   rotas/carteira.js     carteira digital, saque, extrato e CSV (profissional e loja)
+//   rotas/taxas.js        taxas e regras de turno editáveis pelo admin (GET /config/taxas público, PUT /admin/taxas)
 //   rotas/admin.js        aprovação, módulos, estornos, saques, conciliação, auditoria (papel admin)
 //   rotas/teste.js        sandbox (só com MODO_TESTE=1 e fora de produção)
 // ============================================================
@@ -24,6 +26,9 @@ const V = require("./lib/validacao");
 const { criarCarteira } = require("./lib/carteira");
 const { criarTreinamento } = require("./lib/treinamento");
 const { criarHabilitacao } = require("./lib/habilitacao");
+const { criarTaxas } = require("./lib/taxas");
+const { criarSuporte } = require("./lib/suporte");
+const { criarCategorias } = require("./lib/categorias");
 
 // ---------- Ambiente ----------
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
@@ -82,9 +87,12 @@ const auth = Seg.criarAuth({ admin, db, FieldValue, modoTeste: MODO_TESTE });
 const limitador = Seg.criarLimitador(), { limitar } = limitador;
 const carteira = criarCarteira({ db, FieldValue, Timestamp });
 const treinamento = criarTreinamento({ db, FieldValue, Timestamp, admin });
-const habilitacao = criarHabilitacao({ db, treinamento });
+const categorias = criarCategorias({ db, FieldValue });
+const habilitacao = criarHabilitacao({ db, treinamento, categorias });
+const taxas = criarTaxas({ db, FieldValue, S });          // taxas/regras de turno dinâmicas (configuracoes/taxas)
+const suporte = criarSuporte({ db, admin, FieldValue });
 const ctx = {
-  db, admin, FieldValue, Timestamp, S, C, V, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, habilitacao, mp,
+  db, admin, FieldValue, Timestamp, S, C, V, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, categorias, habilitacao, taxas, suporte, mp,
   envelope: Seg.envelope, MODO_TESTE, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, CRON_SECRET, APP_URL, getBaseUrl, urlPublicaHttps,
   __reset: () => limitador._baldes.clear(),   // uso exclusivo dos testes
   hojeSP: V.hojeSP, reais: (c) => Number((c / 100).toFixed(2)),
@@ -101,15 +109,24 @@ app.use(cors(Seg.opcoesCors(permitidas)));
 app.use(express.json({ limit: C.BODY_LIMITE }));
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|turnos|teste)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|turnos|teste|suporte|push|config\/taxas)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "pedidos", "turnos", "pagamentos", "carteira", "admin", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "categorias", "pedidos", "turnos", "pagamentos", "carteira", "taxas", "admin", "suporte", "teste"]) require(`./rotas/${rota}`)(app, ctx);
 
 // ---------- Site estático (somente extensões permitidas; nada de código do servidor, regras ou segredos) ----------
 const RAIZ = path.join(__dirname, "..");
 const BLOQUEADOS = /^\/(server|functions|test|scripts|node_modules|docs)(\/|$)|(^|\/)\./i;
+// Rotas limpas dos painéis: a URL pública é /painel-loja e /painel-promotor (as páginas continuam sendo index.html e promotor.html).
+// Sem barra final (/painel-loja/ redireciona): os scripts e estilos usam caminhos relativos e quebrariam dentro de uma "pasta".
+const PAINEIS = { "painel-loja": "index.html", "painel-promotor": "promotor.html", "painel-admin": "admin.html" };
+app.get(/^\/(painel-loja|painel-promotor|painel-admin)\/?$/, (req, res) => {
+  const nome = req.path.replace(/\//g, "");
+  if (req.path.endsWith("/")) return res.redirect(302, `/${nome}${req.url.slice(req.path.length)}`);
+  res.setHeader("Cache-Control", "no-cache");
+  res.sendFile(path.join(RAIZ, PAINEIS[nome]));
+});
 app.use((req, res, next) => {
   const p = decodeURIComponent(req.path);
   if (BLOQUEADOS.test(p) || !/^\/([\w.-]+\/)*[\w.-]*$/.test(p)) return res.status(404).send("Not Found");
@@ -120,5 +137,8 @@ app.use(express.static(RAIZ, { dotfiles: "ignore", index: ["index.html"], maxAge
 app.use((req, res) => res.status(404).json({ erro: "não encontrado", codigo: "rota-inexistente" }));
 app.use(Seg.tratadorErros);
 
-if (require.main === module) app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
+if (require.main === module) {
+  taxas.iniciar();                                          // listener em tempo real: a mudança do admin vale em milissegundos
+  app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
+}
 module.exports = { app, ctx };

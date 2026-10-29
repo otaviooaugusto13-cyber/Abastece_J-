@@ -51,19 +51,23 @@ const db = {
     get: (x) => x.get(), set: (rf, d, o) => ops.push(() => rf.set(d, o)), update: (rf, d) => ops.push(() => rf.update(d)), delete: (rf) => ops.push(() => rf.delete()) });
     for (const o of ops) await o(); return r; }
 };
-const claimsStore = {}, revogados = new Set(), tokens = {};
+const claimsStore = {}, revogados = new Set(), tokens = {}, excluidos = new Set();
 const authFake = {
   verifyIdToken: async (t, checarRev) => { const n = String(t).split(".")[0], base = tokens[n]; if (!base) throw new Error("bad"); if (checarRev && revogados.has(base.uid)) throw new Error("revoked");
     return { ...base, auth_time: base.auth_time ?? Math.floor(clock.now / 1000), ...(claimsStore[base.uid] || {}) }; },
   getUser: async (uid) => ({ uid, customClaims: claimsStore[uid] || {} }),
   setCustomUserClaims: async (uid, c) => { claimsStore[uid] = c; }, revokeRefreshTokens: async (uid) => { revogados.add(uid); },
-  createCustomToken: async (uid, c) => `custom:${uid}`
+  createCustomToken: async (uid, c) => `custom:${uid}`,
+  deleteUser: async (uid) => { excluidos.add(uid); delete claimsStore[uid]; }
 };
-const adminFake = { apps: [1], credential: { cert: () => ({}) }, initializeApp() {}, auth: () => authFake, firestore: Object.assign(() => db, { FieldValue, Timestamp }) };
+const pushes = [];   // push falso: registra o que o servidor enviaria; `mortos` simula tokens que o FCM rejeita
+const mortos = new Set();
+const messagingFake = { sendEachForMulticast: async (m) => { pushes.push(m); const responses = m.tokens.map((t) => (mortos.has(t) ? { success: false, error: { code: "messaging/registration-token-not-registered" } } : { success: true })); return { responses, successCount: responses.filter((r) => r.success).length }; } };
+const adminFake = { apps: [1], credential: { cert: () => ({}) }, initializeApp() {}, auth: () => authFake, messaging: () => messagingFake, firestore: Object.assign(() => db, { FieldValue, Timestamp }) };
 
 // ---------- Express falso: roteia com :params e executa a cadeia de middlewares de cada rota ----------
 const rotas = [], globais = [];
-const compilar = (p) => { const nomes = []; const re = new RegExp("^" + p.replace(/:([A-Za-z]+)/g, (_, n) => (nomes.push(n), "([^/]+)")) + "$"); return { re, nomes }; };
+const compilar = (p) => { if (p instanceof RegExp) return { re: p, nomes: [] }; const nomes = []; const re = new RegExp("^" + p.replace(/:([A-Za-z]+)/g, (_, n) => (nomes.push(n), "([^/]+)")) + "$"); return { re, nomes }; };
 const reg = (metodo) => (p, ...hs) => rotas.push({ metodo, ...compilar(p), hs: hs.flat() });
 const expressFake = () => ({ set() {}, disable() {}, use: (...a) => globais.push(a), get: reg("GET"), post: reg("POST"), put: reg("PUT"), delete: reg("DELETE"), listen() {} });
 expressFake.json = () => () => {}; expressFake.static = () => () => {};
@@ -80,8 +84,8 @@ function carregarServidor() {
     const vals = r.re.exec(pathOnly).slice(1), params = Object.fromEntries(r.nomes.map((n, i) => [n, vals[i]]));
     const h = { ...(token ? { authorization: `Bearer ${token}.x.y` } : {}), ...Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])) };
     const saida = { status: 200, json: null, texto: null, h: {} };
-    const req = { method: metodo, path: pathOnly, body, query: q, params, ip, get: (n) => h[n.toLowerCase()] };
-    const res = { status(s) { saida.status = s; return this; }, json(j) { saida.json = j; return this; }, send(t) { saida.texto = t; return this; }, setHeader(k, v) { saida.h[k] = v; }, removeHeader() {} };
+    const req = { method: metodo, path: pathOnly, url: caminho, body, query: q, params, ip, get: (n) => h[n.toLowerCase()] };
+    const res = { status(s) { saida.status = s; return this; }, json(j) { saida.json = j; return this; }, send(t) { saida.texto = t; return this; }, redirect(c, loc) { saida.status = c; saida.h.location = loc; return this; }, sendFile(f) { saida.texto = f; return this; }, setHeader(k, v) { saida.h[k] = v; }, removeHeader() {} };
     let i = 0; const pend = [];
     const next = (err) => { const p = (async () => {
       if (err) return Seg.tratadorErros(err, req, res);
@@ -93,5 +97,5 @@ function carregarServidor() {
   return { ...srv, chamar, Seg };
 }
 const avancar = (ms) => { clock.now += ms; };
-const limpar = () => { store.clear(); for (const k of Object.keys(claimsStore)) delete claimsStore[k]; revogados.clear(); };
-module.exports = { carregarServidor, store, clock, avancar, limpar, tokens, claimsStore, revogados, Timestamp, restaurarRelogio: () => { Date.now = realNow; } };
+const limpar = () => { pushes.length = 0; mortos.clear(); store.clear(); for (const k of Object.keys(claimsStore)) delete claimsStore[k]; revogados.clear(); excluidos.clear(); };
+module.exports = { carregarServidor, store, clock, avancar, limpar, tokens, claimsStore, revogados, excluidos, pushes, mortos, Timestamp, restaurarRelogio: () => { Date.now = realNow; } };

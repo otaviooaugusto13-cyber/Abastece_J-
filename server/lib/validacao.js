@@ -69,6 +69,27 @@ function cpf(x, campo = "cpf") {
   if (!cpfValido(d)) throw new Falha(400, "CPF inválido. Confira os 11 dígitos.", "cpf-invalido", { campo });
   return d;
 }
+function cnpjValido(cnpj) {
+  cnpj = soDigitos(cnpj);
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const calc = (base) => {
+    let soma = 0, peso = base.length - 7;
+    for (let i = 0; i < base.length; i++) { soma += parseInt(base[i], 10) * peso--; if (peso < 2) peso = 9; }
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(cnpj.slice(0, 12)) === parseInt(cnpj[12], 10) && calc(cnpj.slice(0, 13)) === parseInt(cnpj[13], 10);
+}
+/** CPF (11 dígitos) ou CNPJ (14) da loja. Devolve só os dígitos. */
+function documento(x, campo = "documento") {
+  const d = soDigitos(texto(x, campo, { min: 11, max: 20 }));
+  if (d.length === 11 ? !cpfValido(d) : !(d.length === 14 && cnpjValido(d))) throw new Falha(400, "CNPJ ou CPF inválido. Confira os dígitos.", "documento-invalido", { campo });
+  return d;
+}
+function hhmm(x, campo) {
+  if (typeof x !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(x)) throw invalido(campo, "use HH:MM");
+  return x;
+}
 function telefone(x, campo = "telefone") {
   const d = soDigitos(texto(x, campo, { min: 10, max: 20 })).replace(/^55(?=\d{10,11}$)/, "");
   if (!/^[1-9][1-9]9?\d{8}$/.test(d)) throw invalido(campo, "use DDD + número");
@@ -87,6 +108,8 @@ function chavePix(tipo, chave) {
 // ---------- máscaras para exibição ----------
 const mascararCPF = (c) => { const d = soDigitos(c); return d.length === 11 ? `***.${d.slice(3, 6)}.${d.slice(6, 9)}-**` : ""; };
 const mascararTelefone = (t) => { const d = soDigitos(t); return d.length >= 10 ? `(${d.slice(0, 2)}) *****-${d.slice(-4)}` : ""; };
+/** "joao.silva@gmail.com" → "j*****@gmail.com" (dica de qual conta usar; nunca o e-mail inteiro). */
+const mascararEmail = (e) => { const [u, d] = String(e || "").split("@"); return u && d ? `${u[0]}${"*".repeat(Math.max(2, Math.min(u.length - 1, 6)))}@${d}` : ""; };
 const mascararChave = (c) => { const s = String(c || ""); return s.length <= 6 ? "••••" : `${s.slice(0, 3)}••••${s.slice(-3)}`; };
 
 /** Remove tudo que não está na lista (mass assignment). */
@@ -94,5 +117,5 @@ const somente = (obj, chaves) => Object.fromEntries(Object.entries(obj || {}).fi
 
 module.exports = {
   Falha, texto, idDoc, opcao, inteiro, booleano, soDigitos, hojeSP, dataIsoValida, calcularIdade, validarNascimento,
-  cpfValido, cpf, telefone, chavePix, mascararCPF, mascararTelefone, mascararChave, somente
+  cpfValido, cpf, cnpjValido, documento, hhmm, telefone, chavePix, mascararCPF, mascararTelefone, mascararEmail, mascararChave, somente
 };

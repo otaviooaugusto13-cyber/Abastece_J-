@@ -7,7 +7,12 @@
 import { SETORES } from "./core.js";
 import { RAIO_KM } from "./geo.js";
 
-const S = SETORES.map((s) => s.v);                      // ordem dos 6 setores de reposição usada nas matrizes abaixo
+// Ordem FIXA dos 6 setores de reposição usada nas matrizes abaixo (não depende de SETORES, que ganhou Padaria/Depósito/Degustação).
+const S = ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"];
+// Setores sem coluna própria nas matrizes herdam a mais parecida (mesmo enquadramento de SETOR_CATEGORIA no servidor).
+// DECISÃO DE PRODUTO: revise com a equipe PRATICAMENTE; é só heurística de sugestão de vagas.
+export const SETOR_PROXY = { "Padaria": "Mercearia", "Depósito": "Auditoria / Inventário", "Degustação": "Mercearia" };
+const colSetor = (setor) => S.indexOf(SETOR_PROXY[setor] || setor);
 const NOME_CURTO = Object.fromEntries(SETORES.map((s) => [s.v, s.label.toLowerCase()]));
 
 // ============================================================
@@ -129,7 +134,7 @@ const fatorAnos = (a) => (a >= 5 ? 1 : a >= 3 ? .95 : a >= 2 ? .85 : a >= 1 ? .7
 
 /** 0–1 (ou null quando o promotor ainda não informou experiências). */
 export function afinidadeExperiencia(experiencias, setor) {
-    const exps = normalizarExperiencias(experiencias), i = S.indexOf(setor);
+    const exps = normalizarExperiencias(experiencias), i = colSetor(setor);
     if (!exps.length || i < 0) return null;
     let melhor = { v: 0, e: null };
     for (const e of exps) { const v = AREA[e.area].rel[i] * fatorAnos(e.anos); if (v > melhor.v) melhor = { v, e }; }
@@ -137,7 +142,7 @@ export function afinidadeExperiencia(experiencias, setor) {
 }
 /** 0–1 (ou null sem Eneagrama): tipo principal pesa 75% e a asa 25%. */
 export function afinidadeEneagrama(eneagrama, setor) {
-    const i = S.indexOf(setor);
+    const i = colSetor(setor);
     if (!eneagramaValido(eneagrama) || i < 0) return null;
     const p = ENEAGRAMA[eneagrama.tipo].afin[i], a = eneagrama.asa ? ENEAGRAMA[eneagrama.asa].afin[i] : p;
     return .75 * p + .25 * a;

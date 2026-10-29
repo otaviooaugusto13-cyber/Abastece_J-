@@ -6,7 +6,29 @@ module.exports = {
   PRODUCAO,
 
   // ---- Setores de reposição (espelho de SETORES em ../../core.js; test/split.test.js confere) ----
-  SETORES: ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"],
+  SETORES: ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Padaria", "Depósito", "Degustação", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"],
+
+  // ---- Habilitação por categoria (vídeo + questionário 100%) ----
+  // Cada SETOR de pedido exige a habilitação da sua categoria. Espelho em ../../core.js (CATEGORIAS / SETOR_CATEGORIA); test/split.test.js confere.
+  CATEGORIAS: {
+    mercearia:  { titulo: "Mercearia",   ico: "🛒" },
+    frios:      { titulo: "Frios",       ico: "🧀" },
+    padaria:    { titulo: "Padaria",     ico: "🥖" },
+    flv:        { titulo: "FLV",         ico: "🍎" },
+    deposito:   { titulo: "Depósito",    ico: "📦" },
+    degustacao: { titulo: "Degustação",  ico: "🍽️" }
+  },
+  SETOR_CATEGORIA: {
+    "Mercearia": "mercearia", "Hortifruti / FLV": "flv", "Frios & Laticínios": "frios", "Padaria": "padaria", "Depósito": "deposito", "Degustação": "degustacao",
+    // setores antigos, sem categoria própria: DECISÃO DE NEGÓCIO (ver resposta). Trocar aqui se preferir outro enquadramento.
+    "Bebidas": "mercearia", "Montagem de ilhas": "mercearia", "Auditoria / Inventário": "deposito"
+  },
+  HAB_MARGEM_SEG: 3,            // timer = duração do vídeo + 3 s
+  HAB_FOLGA_SEG: 10,            // distância máxima entre a posição do vídeo e o trecho já validado para continuar creditando
+  HAB_PING_EVENTO_MIN_MS: 1000, // pings de play/pause (âncora) podem vir mais rápido que os periódicos
+  HAB_TOLERANCIA_FIM_SEG: 4,    // quanto falta para "chegou ao fim" (jitter dos pings)
+  HAB_QUIZ_VALIDADE_MS: 20 * 60_000,   // depois de liberado, o questionário vale 20 min; vencido = refazer o treinamento
+  HAB_PERGUNTAS_MIN: 3, HAB_PERGUNTAS_MAX: 4, HAB_OPCOES_MIN: 2, HAB_OPCOES_MAX: 5,
 
   // ---- Perfil inteligente (espelho de AREAS_EXPERIENCIA em ../../perfil-inteligente.js; test/perfil.test.js confere) ----
   AREAS_EXPERIENCIA: [
@@ -33,7 +55,7 @@ module.exports = {
     JANELA_INICIO: "05:00",    // trabalho noturno (22h–5h) é vedado a menores de 18
     JANELA_FIM: "22:00",
     // Setores que exigem restrição conservadora para menores (carga pesada, exposição a frio/corte, etc.).
-    SETORES_VEDADOS: ["Frios & Laticínios", "Bebidas", "Montagem de ilhas"]
+    SETORES_VEDADOS: ["Frios & Laticínios", "Padaria", "Depósito", "Bebidas", "Montagem de ilhas"]
   },
 
   // ---- Treinamento PRATICAMENTE ----

@@ -3,14 +3,18 @@
 // Mesmo padrão do script-personal.js: firebase.js + core.js + ui.js + config.js
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste } from "./firebase.js";
-import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria } from "./acesso.js";
+import { getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { auth, db, chamarFuncao, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta } from "./firebase.js";
+import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, irParaPainel, limparGuarda } from "./acesso.js";
+import { ligarSeletorDeModo, modoSalvo, gravarModo, termosAceitos, gravarTermos } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
-import { WHATSAPP_SUPORTE, VALOR_DIARIA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MP_PUBLIC_KEY } from "./config.js";
-import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
+import { iniciarSuporte, pararSuporte } from "./suporte.js";
+import { ativarPush, desativarPush } from "./push.js";
+import { WHATSAPP_SUPORTE, MP_PUBLIC_KEY } from "./config.js";
+import { iniciarTaxas } from "./taxas.js";
+import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, TAXAS, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
 import { CIDADES, acharCidade, rotuloCidade, cidadeMaisProxima, capturarPosicao } from "./geo.js";
-import { $, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
+import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
 // ---------- estado ----------
 let lojaGeo = null;   // { cidade, uf, lat, lng } — vira a localização das vagas (o servidor copia para cada pedido)
@@ -20,16 +24,20 @@ let filtro = "ativos", setorSel = SETORES[0].v, preferido = "", dataCal = new Da
 let pedidosUn = null, promUn = null, cartaoUn = null, finUn = null, chatUn = null, chatPedido = null, avPedido = null, avEstrelas = 0, primeira = true;
 const statusAnt = new Map();
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
-const btnLoginHtml = $("btn-login").innerHTML;
 
 iniciarTema(); registrarSW();
 ligarMascaras({ doc: mascaraDoc, tel: mascaraTelefone });
 
 // ---------- textos que dependem da regra de taxas (nunca desatualizam) ----------
 $("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
-$("ajuda-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (loja).")}`;
-$("ajuda-split").textContent = `Cada turno custa ${brl(VALOR_DIARIA_CENTAVOS)} (diária padrão), pagos só depois do serviço, por Pix ou cartão. O turno tem de ${HORAS_MIN_TURNO} a ${HORAS_MAX_TURNO} horas. Os detalhes estão nos Termos de Uso.`;
-$("termos-texto").innerHTML = textoTermos("loja");
+$("ajuda-zap").href = `https://api.whatsapp.com/send?phone=${WHATSAPP_SUPORTE}&text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (loja).")}`;
+/** Redesenha tudo que depende das taxas. Roda ao abrir e sempre que o admin muda algo (taxas.js). */
+function textosTaxas() {
+    $("ajuda-split").textContent = `Cada turno custa ${brl(TAXAS.diariaCentavos)} (diária padrão), pagos só depois do serviço, por Pix ou cartão. O turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas. Os detalhes estão nos Termos de Uso.`;
+    $("termos-texto").innerHTML = textoTermos("loja");
+    atualizarSplit();
+}
+iniciarTaxas(textosTaxas);
 
 // ============================================================
 // LOGIN / LOGOUT
@@ -41,18 +49,21 @@ const msgAuth = (e) => ({
     "auth/popup-closed-by-user": null, "auth/cancelled-popup-request": null
 })[e.code] ?? `Não foi possível entrar com o Google. (${e.code || "erro"})`;
 
-const resetarLogin = () => { const b = $("btn-login"); b.innerHTML = btnLoginHtml; b.disabled = !$("check-termos").checked; };
-$("check-termos").addEventListener("change", (e) => ($("btn-login").disabled = !e.target.checked));
+const TXT_LOGIN = {
+    entrar: { titulo: "Entrar na minha conta", sub: "Use a conta Google do cadastro da sua loja.", botao: "Entrar com Google" },
+    criar: { titulo: "Cadastre sua loja", sub: "Peça um promotor em minutos, acompanhe ao vivo e pague com nota automática.", botao: "Criar conta com Google" }
+};
+const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
+const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 $("link-termos").addEventListener("click", (e) => { e.preventDefault(); abrir("sheet-termos"); });
-$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("btn-login").disabled = false; fechar("sheet-termos"); });
+$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); });
 $("btn-login").addEventListener("click", async () => {
-    const b = $("btn-login"); b.disabled = true; b.innerHTML = '<span class="spinner"></span> Entrando…';
-    try { await signInWithPopup(auth, googleProvider); }
-    catch (e) {
-        if (e.code === "auth/popup-blocked") { try { await signInWithRedirect(auth, googleProvider); return; } catch (e2) { e = e2; } }
-        const m = msgAuth(e); if (m) erro(m);
-        resetarLogin();
-    }
+    const b = $("btn-login"), criando = seletor.atual() === "criar";
+    if (criando && !$("check-termos").checked) return;
+    gravarModo(seletor.atual()); gravarTermos(criando);                    // lembra a intenção (entrar × criar) até o fim do login
+    b.dataset.ocupado = "1"; b.disabled = true; $("btn-login-txt").textContent = "Abrindo o Google…";
+    try { await entrarComGoogle(); }
+    catch (e) { const m = msgAuth(e); if (m) erro(m); resetarLogin(); }
 });
 testeAtivo().then((a) => { $("bloco-teste").hidden = !a; });
 $("btn-login-teste").addEventListener("click", async () => {
@@ -60,22 +71,22 @@ $("btn-login-teste").addEventListener("click", async () => {
     try { await loginDeTeste("loja"); } catch (e) { console.error(e); erro("Não foi possível entrar no modo de teste."); b.disabled = false; }
 });
 getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); resetarLogin(); });
-$("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair da conta?")) { parar(); await signOut(auth); } });
+$("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair da conta?")) { parar(); await desativarPush(); pararSuporte(); await sairDaConta(); } });
 
 const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
 function parar() { pedidosUn?.(); promUn?.(); cartaoUn?.(); finUn?.(); chatUn?.(); pedidosUn = promUn = cartaoUn = finUn = chatUn = null; primeira = true; statusAnt.clear(); fin.clear(); cartaoLoja = null; }
 
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
-    if (!u) { parar(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
+    if (!u) { parar(); pararSuporte(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
     let seguiu = false;
     try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Tente novamente."); return; }
     if (!seguiu) return;                                    // tela de aviso/falha já está na tela; a sessão continua de pé
     ehTeste = await contaDeTeste(); $("btn-teste-reset").hidden = !ehTeste; $("cartao-teste-dica").hidden = !ehTeste;
-    pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar();
+    pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar(); limparGuarda(); iniciarSuporte(u);
 });
 
-const trocarConta = async () => { parar(); await signOut(auth); };
+const trocarConta = async () => { parar(); await desativarPush(); pararSuporte(); await sairDaConta(); };
 const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "loja", perfis: r?.perfis, email: usuario?.email, trocarConta });
 
 /**
@@ -86,14 +97,35 @@ async function carregarPerfil(u) {
     let r;
     try { r = await resolverAcesso("loja"); }
     catch (e) { console.warn(e); telaFalhaTemporaria({ tentarDeNovo: () => location.reload(), trocarConta }); return false; }
-    if (r.estado === "outro-perfil" || r.estado === "escolher") { mostrarOutroPerfil(r); return false; }
-    if (r.estado === "cadastro") {                                  // primeiro acesso: o aceite dos Termos já foi marcado na tela de login
-        try { await chamarFuncao("cadastro/loja", { termos: true }); await renovarToken(); }
-        catch (e) { if (e.code === "papel-conflito") { mostrarOutroPerfil({ perfis: [e.detalhe?.tem].filter(Boolean) }); return false; } throw e; }
+    if (r.estado === "outro-perfil" || r.estado === "escolher") {
+        if (r.sugerido && irParaPainel(r.sugerido, "loja")) return false;   // conta de promotor: vai DIRETO ao painel dele (com trava anti-loop)
+        mostrarOutroPerfil(r); return false;
     }
+    if (r.estado === "cadastro") {
+        if (!(await confirmarNovaConta(u))) return false;
+        try { await chamarFuncao("cadastro/loja", { termos: true }); await renovarToken(); gravarTermos(false); }
+        catch (e) {
+            if (e.code === "papel-conflito") { if (e.detalhe?.sugerido && irParaPainel(e.detalhe.sugerido, "loja")) return false; mostrarOutroPerfil({ perfis: [e.detalhe?.tem].filter(Boolean) }); return false; }
+            throw e;
+        }
+    } else if (termosAceitos()) { gravarTermos(false); toast("Você já tinha cadastro. Entramos na sua conta!", "ok"); }   // clicou em "Criar" mas a conta já existia
     const ref = doc(db, "contratantes", u.uid), s = await getDoc(ref);
     perfil = s.exists() ? s.data() : { uid: u.uid, email: u.email || "", nome: u.displayName || "" };
     return true;
+}
+
+/** Conta Google SEM cadastro de loja. Nunca cria sozinho: em "Criar" os Termos já foram aceitos; em "Entrar" pergunta o que a pessoa quer. */
+async function confirmarNovaConta(u) {
+    if (modoSalvo() === "criar" && termosAceitos()) return true;
+    const quer = await dialogo({
+        icone: "🏪", titulo: "Ainda não existe cadastro de loja", texto: `A conta ${u.email || "Google"} não tem cadastro. Quer criar uma conta de loja com ela ou entrar com outra conta Google?`,
+        acoes: [{ rotulo: "Criar conta de loja", valor: "criar" }, { rotulo: "Entrar com outra conta", tipo: "ghost", valor: "outra" }]
+    });
+    if (quer === "criar") {
+        const aceite = await dialogo({ icone: "📄", titulo: "Termos de Uso e Taxas", html: textoTermos("loja"), marcar: "Li e concordo com os Termos de Uso e Taxas", acoes: [{ rotulo: "Concordar e criar conta", valor: "ok" }, { rotulo: "Cancelar", tipo: "ghost", valor: "nao" }] });
+        if (aceite === "ok") return true;
+    }
+    await trocarConta(); return false;
 }
 
 function pintarPerfil() {
@@ -167,7 +199,7 @@ const fmtHoras = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ?
 /** Resumo ao vivo: o valor sai do horário (nunca digitado). Mostra só valor do serviço + taxa fixa + total. */
 function atualizarSplit() {
     const entrada = $("p-entrada").value, saida = $("p-saida").value, m = minutosEntre(entrada, saida), e = m ? validarTurno(entrada, saida) : "";
-    $("dica-valor").textContent = m ? `Turno de ${fmtHoras(m)} · diária de ${brl(VALOR_DIARIA_CENTAVOS)}` : `Turnos de ${HORAS_MIN_TURNO} a ${HORAS_MAX_TURNO} horas`;
+    $("dica-valor").textContent = m ? `Turno de ${fmtHoras(m)} · diária de ${brl(TAXAS.diariaCentavos)}` : `Turnos de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas`;
     $("e-saida").textContent = m && e ? e : "";
     const valido = m > 0 && !e;
     $("split-card").hidden = !valido;
@@ -386,7 +418,7 @@ $("btn-salvar-prefs").addEventListener("click", async () => {
 });
 $("btn-copiar").addEventListener("click", () => { navigator.clipboard?.writeText($("link-indicar").value); ok("Link copiado!"); });
 $("btn-zap").addEventListener("click", () => window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Precisa de promotor ou repositor? Peça pelo Abastece Já e pague só depois do serviço: " + $("link-indicar").value), "_blank", "noopener"));
-$("btn-ativar-notif").addEventListener("click", async () => ((await pedirPermissaoNotificacao()) ? ok("Avisos ativados neste aparelho.") : toast("Permissão não concedida. Libere nas configurações do navegador.")));
+$("btn-ativar-notif").addEventListener("click", async () => ((await pedirPermissaoNotificacao()) ? (ativarPush(), ok("Avisos ativados neste aparelho.")) : toast("Permissão não concedida. Libere nas configurações do navegador.")));
 $("theme-toggle").addEventListener("change", alternarTema);
 $("btn-instalar").addEventListener("click", instalarApp);
 
