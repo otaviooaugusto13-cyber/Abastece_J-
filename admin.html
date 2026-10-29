@@ -1,163 +1,66 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0a0e16">
-<title>Admin — Abastece Já</title>
-<link rel="icon" href="icons/icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="admin.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin — Abastece Já</title>
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { padding: 0; }
+        .adm { max-width: 1100px; margin: 0 auto; padding: 20px 16px 80px; }
+        .adm header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .adm table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .adm th, .adm td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+        .adm th { color: var(--muted); font-weight: 700; font-size: 11.5px; text-transform: uppercase; }
+        .adm .tw { overflow-x: auto; }
+        .adm .linha { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .adm input, .adm select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); }
+        .adm .ok { color: var(--green); font-weight: 700; } .adm .ruim { color: var(--red); font-weight: 700; }
+        #adm-login { max-width: 420px; margin: 18vh auto; text-align: center; }
+        pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    </style>
 </head>
-<body class="ax-body">
-
-<div id="ax-login" class="ax-card ax-login">
-  <h1>Painel administrativo</h1>
-  <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe. Use a conta Google autorizada.</p>
-  <button class="ax-btn pri" id="ax-entrar" style="width:100%">Entrar com Google</button>
-  <p class="ax-erro ax-mt" id="ax-login-erro" role="alert"></p>
+<body>
+<div id="adm-login" class="card">
+    <h2>Painel administrativo</h2>
+    <p class="muted small mb">Acesso restrito à equipe. Use a conta Google autorizada.</p>
+    <button class="btn btn-primary" id="btn-adm-login">Entrar com Google</button>
+    <p class="msg-erro mt" id="adm-erro"></p>
 </div>
 
-<div id="ax-app" hidden>
-  <aside class="ax-side" id="ax-side" aria-label="Menu principal">
-    <div class="ax-brand"><i>A</i> Abastece Já</div>
-    <nav id="ax-nav">
-      <button class="ax-nav sel" data-v="visao"><span class="ic">◎</span>Visão geral</button>
-      <button class="ax-nav" data-v="usuarios"><span class="ic">☰</span>Usuários<span class="n ax-badge y" id="n-pend" hidden></span></button>
-      <button class="ax-nav" data-v="missoes"><span class="ic">▤</span>Missões</button>
-      <button class="ax-nav" data-v="financeiro"><span class="ic">$</span>Financeiro</button>
-      <button class="ax-nav" data-v="treino"><span class="ic">▶</span>Treinamento</button>
-      <button class="ax-nav" data-v="moderacao"><span class="ic">⚑</span>Moderação e logs<span class="n ax-badge r" id="n-alert" hidden></span></button>
-      <button class="ax-nav" data-v="config"><span class="ic">⚙</span>Configurações</button>
-    </nav>
-    <div style="margin-top:auto;padding:12px 10px"><p class="ax-xs ax-mut" id="ax-quem" style="word-break:break-all"></p><button class="ax-btn sm ax-mt" id="ax-sair" style="width:100%">Sair</button></div>
-  </aside>
-  <div class="ax-veil" id="ax-veil" hidden></div>
+<div class="adm" id="adm-app" hidden>
+    <header><h1>Abastece Já · Admin</h1><div class="linha"><span class="badge" id="adm-quem"></span><button class="btn btn-ghost btn-sm" id="btn-adm-sair">Sair</button></div></header>
+    <div class="pills mb" id="adm-abas">
+        <button class="pill sel" data-aba="cadastros">Cadastros</button><button class="pill" data-aba="treino">Treinamento</button><button class="pill" data-aba="pagamentos">Pagamentos</button>
+        <button class="pill" data-aba="saques">Saques</button><button class="pill" data-aba="conciliacao">Conciliação</button><button class="pill" data-aba="auditoria">Auditoria</button>
+    </div>
+    <p class="msg-erro mb" id="adm-msg" role="alert"></p>
 
-  <div class="ax-wrap">
-    <header class="ax-top">
-      <button class="ax-ibtn ax-burger" id="ax-burger" aria-label="Abrir menu" aria-expanded="false">☰</button>
-      <h1 id="ax-titulo">Visão geral</h1>
-      <span class="ax-badge ax-who" id="ax-quem2"></span>
-      <button class="ax-ibtn" id="ax-sino" aria-label="Pendências e alertas">🔔<span class="dot" id="ax-sino-n" hidden>0</span></button>
-    </header>
-    <div class="ax-toasts" id="ax-toasts" aria-live="polite"></div>
+    <section id="aba-cadastros"><div class="linha"><select id="f-status"><option value="pendente">Pendentes</option><option value="ativo">Ativos</option><option value="bloqueado">Bloqueados</option></select><button class="btn btn-ghost btn-sm" id="btn-recarregar-cad">Atualizar</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Nome</th><th>Cidade</th><th>Treino</th><th>Criado</th><th></th></tr></thead><tbody id="t-cad"></tbody></table></div></div>
+        <div class="card mt" id="ficha" hidden></div></section>
 
-    <main class="ax-main">
-      <div class="ax-banner" id="ax-aviso" hidden></div>
-      <p class="ax-erro ax-mb" id="ax-msg" role="alert"></p>
+    <section id="aba-treino" hidden>
+        <div class="card mb"><h3>Novo módulo / editar</h3>
+            <div class="linha"><input id="m-id" placeholder="ID (vazio = novo)" size="14"><input id="m-ordem" type="number" min="1" placeholder="Ordem" style="width:90px"><input id="m-titulo" placeholder="Título" size="28">
+                <select id="m-prov"><option value="youtube">YouTube</option><option value="mp4">Vídeo (URL https)</option></select><input id="m-ref" placeholder="ID do YouTube ou URL" size="26"><input id="m-dur" type="number" min="30" placeholder="Duração (s)" style="width:120px">
+                <label><input type="checkbox" id="m-ativo" checked> ativo</label><button class="btn btn-primary btn-sm" id="btn-salvar-mod">Salvar</button></div>
+            <p class="muted small">Sem nenhum módulo ativo, ninguém é habilitado a aceitar turnos. Informe a duração real do vídeo: o profissional precisa assistir pelo menos 90%.</p></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Ordem</th><th>Título</th><th>Fonte</th><th>Duração</th><th>Ativo</th><th></th></tr></thead><tbody id="t-mod"></tbody></table></div></div></section>
 
-      <!-- VISÃO GERAL -->
-      <section id="v-visao">
-        <div class="ax-grid ax-g4">
-          <div class="ax-card ax-kpi gold"><span class="l">Lojas cadastradas</span><span class="v" id="k-lojas">—</span><span class="s" id="k-lojas-s"></span></div>
-          <div class="ax-card ax-kpi"><span class="l">Merchandisers ativos</span><span class="v" id="k-ativos">—</span><span class="s" id="k-ativos-s"></span></div>
-          <div class="ax-card ax-kpi blue"><span class="l">Missões abertas</span><span class="v" id="k-abertas">—</span><span class="s" id="k-abertas-s"></span></div>
-          <div class="ax-card ax-kpi"><span class="l">Volume processado (Mercado Pago)</span><span class="v" id="k-vol">—</span><span class="s" id="k-vol-s"></span></div>
-        </div>
-        <div class="ax-grid ax-g2 ax-mt">
-          <div class="ax-card"><h2>Missões por status</h2><div class="ax-stack" id="g-status"></div><div class="ax-leg" id="g-status-l"></div></div>
-          <div class="ax-card"><h2>Volume pago · últimos 14 dias</h2><div class="ax-bars" id="g-vol"></div></div>
-        </div>
-        <div class="ax-card ax-mt"><div class="ax-row"><h2 class="ax-grow">Atenção agora</h2><button class="ax-btn sm" data-ir="moderacao">Ver central</button></div><div class="ax-mt" id="v-resumo"></div></div>
-      </section>
+    <section id="aba-pagamentos" hidden><div class="linha"><button class="btn btn-ghost btn-sm" data-csv="pagamentos">⬇ CSV pagamentos</button><button class="btn btn-ghost btn-sm" data-csv="lancamentos">⬇ CSV ledger</button><button class="btn btn-ghost btn-sm" data-csv="estornos">⬇ CSV estornos</button><button class="btn btn-ghost btn-sm" id="btn-liberar">Liberar saldos vencidos</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Pedido</th><th>Status</th><th>Total</th><th>Repasse</th><th>Comissão</th><th>Pago em</th><th></th></tr></thead><tbody id="t-pag"></tbody></table></div></div></section>
 
-      <!-- USUÁRIOS -->
-      <section id="v-usuarios" hidden>
-        <div class="ax-row ax-mb"><div class="ax-pills" id="u-tipo"><button class="ax-pill sel" data-t="promotor">Merchandisers</button><button class="ax-pill" data-t="loja">Lojas</button></div></div>
-        <div class="ax-card">
-          <div class="ax-row ax-mb">
-            <div class="ax-pills ax-grow" id="u-status"><button class="ax-pill sel" data-s="pendente">Pendentes</button><button class="ax-pill" data-s="ativo">Ativos</button><button class="ax-pill" data-s="bloqueado">Suspensos</button></div>
-            <input class="ax-in ax-grow" id="u-busca" type="search" placeholder="Buscar por nome, cidade ou e-mail" aria-label="Buscar usuários">
-            <button class="ax-btn sm" id="u-atualizar">Atualizar</button><button class="ax-btn sm" id="u-csv">⬇ CSV/Excel</button>
-          </div>
-          <p class="ax-xs ax-mut ax-mb" id="u-nota"></p>
-          <div class="ax-tw"><table class="ax-tbl"><thead id="u-head"></thead><tbody id="u-body"></tbody></table></div>
-        </div>
-      </section>
+    <section id="aba-saques" hidden><div class="linha"><select id="f-saque"><option value="solicitado">Solicitados</option><option value="pago">Pagos</option><option value="rejeitado">Rejeitados</option></select><button class="btn btn-ghost btn-sm" data-csv="saques">⬇ CSV saques</button></div>
+        <div class="card"><div class="tw"><table><thead><tr><th>Quando</th><th>Profissional</th><th>Valor</th><th>Pix</th><th></th></tr></thead><tbody id="t-saq"></tbody></table></div></div></section>
 
-      <!-- MISSÕES -->
-      <section id="v-missoes" hidden>
-        <div class="ax-card">
-          <div class="ax-row ax-mb">
-            <select class="ax-sel ax-grow" id="m-status" aria-label="Status"><option value="">Todos os status</option><option value="aberta">Aguardando promotor</option><option value="aceita">Aceita</option><option value="paga">Paga</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select>
-            <input class="ax-in ax-grow" id="m-busca" type="search" placeholder="Buscar loja, promotor ou setor" aria-label="Buscar missões">
-            <input class="ax-in ax-grow" id="m-de" type="date" aria-label="A partir de"><input class="ax-in ax-grow" id="m-ate" type="date" aria-label="Até">
-            <button class="ax-btn sm" id="m-csv">⬇ CSV/Excel</button>
-          </div>
-          <p class="ax-xs ax-mut ax-mb" id="m-nota"></p>
-          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Data</th><th>Horário</th><th>Loja</th><th>Foco</th><th>Valor</th><th>Promotor</th><th>Presença</th><th>Status</th></tr></thead><tbody id="m-body"></tbody></table></div>
-        </div>
-      </section>
+    <section id="aba-conciliacao" hidden><div class="linha"><button class="btn btn-primary btn-sm" id="btn-conc">Conciliar agora</button><button class="btn btn-ghost btn-sm" id="btn-conc-mp">Conciliar + Mercado Pago</button><button class="btn btn-ghost btn-sm" data-csv="conciliacao">⬇ CSV</button></div>
+        <div class="card" id="conc-res"><p class="muted">Rode a conciliação para ver se os saldos, o ledger, os saques e os pagamentos fecham.</p></div></section>
 
-      <!-- FINANCEIRO -->
-      <section id="v-financeiro" hidden>
-        <div class="ax-pills ax-mb" id="f-abas"><button class="ax-pill sel" data-f="pag">Pagamentos</button><button class="ax-pill" data-f="saq">Saques</button><button class="ax-pill" data-f="conc">Conciliação</button></div>
-        <div id="f-pag" class="ax-card">
-          <div class="ax-row ax-mb"><button class="ax-btn sm" data-csv="pagamentos">⬇ Pagamentos</button><button class="ax-btn sm" data-csv="lancamentos">⬇ Ledger</button><button class="ax-btn sm" data-csv="estornos">⬇ Estornos</button><button class="ax-btn sm" id="f-liberar">Liberar saldos vencidos</button></div>
-          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Pedido</th><th>Status</th><th>Total</th><th>Repasse</th><th>Comissão</th><th>Pago em</th><th></th></tr></thead><tbody id="f-pag-b"></tbody></table></div>
-        </div>
-        <div id="f-saq" class="ax-card" hidden>
-          <div class="ax-row ax-mb"><select class="ax-sel ax-grow" id="f-saq-st" aria-label="Status do saque"><option value="solicitado">Solicitados</option><option value="pago">Pagos</option><option value="rejeitado">Rejeitados</option></select><button class="ax-btn sm" data-csv="saques">⬇ Saques</button></div>
-          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Quando</th><th>Profissional</th><th>Valor</th><th>Pix</th><th></th></tr></thead><tbody id="f-saq-b"></tbody></table></div>
-        </div>
-        <div id="f-conc" class="ax-card" hidden>
-          <div class="ax-row ax-mb"><button class="ax-btn pri sm" id="c-rodar">Conciliar agora</button><button class="ax-btn sm" id="c-rodar-mp">Conciliar + Mercado Pago</button><button class="ax-btn sm" data-csv="conciliacao">⬇ CSV</button></div>
-          <div id="c-res"><p class="ax-mut">Rode a conciliação para ver se saldos, ledger, saques e pagamentos fecham.</p></div>
-        </div>
-      </section>
-
-      <!-- TREINAMENTO -->
-      <section id="v-treino" hidden>
-        <div class="ax-card ax-mb"><h2>Módulo de treinamento</h2>
-          <div class="ax-grid ax-g2 ax-mt">
-            <div><label class="ax-lbl" for="t-id">ID (vazio = novo)</label><input class="ax-in" id="t-id"></div>
-            <div><label class="ax-lbl" for="t-ordem">Ordem</label><input class="ax-in" id="t-ordem" type="number" min="1"></div>
-            <div><label class="ax-lbl" for="t-titulo">Título</label><input class="ax-in" id="t-titulo"></div>
-            <div><label class="ax-lbl" for="t-prov">Fonte</label><select class="ax-sel" id="t-prov"><option value="youtube">YouTube</option><option value="mp4">Vídeo (URL https)</option></select></div>
-            <div><label class="ax-lbl" for="t-ref">ID do YouTube ou URL</label><input class="ax-in" id="t-ref"></div>
-            <div><label class="ax-lbl" for="t-dur">Duração real (segundos)</label><input class="ax-in" id="t-dur" type="number" min="30"></div>
-          </div>
-          <div class="ax-grid ax-g2">
-            <div><label class="ax-lbl" for="t-cat">Categoria (cursos opcionais)</label><select class="ax-sel" id="t-cat"><option value="reposicao">Reposição e mercearia</option><option value="perdas">Prevenção de perdas</option><option value="atendimento">Atendimento e postura</option><option value="seguranca">Segurança e saúde</option><option value="carreira">Carreira e finanças</option><option value="geral">Outros cursos</option></select></div>
-          </div>
-          <label class="ax-chk"><input type="checkbox" id="t-obrig" checked> Obrigatório (faz parte da habilitação PRATICAMENTE)</label>
-          <label class="ax-chk"><input type="checkbox" id="t-ativo" checked> Módulo ativo</label>
-          <div class="ax-row"><button class="ax-btn pri" id="t-salvar">Salvar módulo</button><button class="ax-btn" id="t-limpar">Limpar</button></div>
-          <p class="ax-xs ax-mut ax-mt"><strong>Obrigatório</strong> = sequencial e libera os turnos. Desmarcado = curso opcional que aparece em Menu → Cursos, na categoria escolhida. Sem módulo obrigatório ativo, ninguém é habilitado a aceitar turnos. O profissional precisa assistir pelo menos 90%.</p>
-        </div>
-        <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Ordem</th><th>Título</th><th>Fonte</th><th>Tipo</th><th>Duração</th><th>Ativo</th><th></th></tr></thead><tbody id="t-body"></tbody></table></div></div>
-      </section>
-
-      <!-- MODERAÇÃO -->
-      <section id="v-moderacao" hidden>
-        <div class="ax-card ax-mb"><div class="ax-row"><div class="ax-grow"><h2>Alertas de operação</h2><p class="ax-xs ax-mut">Calculados em tempo real a partir das missões. Divergências financeiras vêm da conciliação.</p></div><button class="ax-btn sm" id="a-conc">Verificar divergências financeiras</button></div><div class="ax-mt" id="a-lista"></div></div>
-        <div class="ax-card">
-          <div class="ax-row ax-mb"><h2 class="ax-grow">Registro de auditoria</h2><input class="ax-in ax-grow" id="a-busca" type="search" placeholder="Filtrar por ação, alvo ou usuário" aria-label="Filtrar auditoria"><button class="ax-btn sm" id="a-atualizar">Atualizar</button><button class="ax-btn sm" id="a-csv">⬇ CSV/Excel</button></div>
-          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th><th>IP</th></tr></thead><tbody id="a-body"></tbody></table></div>
-        </div>
-      </section>
-
-      <!-- CONFIGURAÇÕES -->
-      <section id="v-config" hidden>
-        <div class="ax-grid ax-g2">
-          <div class="ax-card"><h2>Taxas da plataforma</h2><p class="ax-xs ax-mut ax-mb">Somente leitura: o split é calculado e validado pelo servidor (server/split.js) e coberto por testes. Para alterar, edite split.js e config.js e rode <code>npm test</code>.</p><dl class="ax-dl" id="c-taxas"></dl></div>
-          <div class="ax-card"><h2>Integrações</h2><p class="ax-xs ax-mut ax-mb">Chaves nunca passam pelo navegador. Ficam como variáveis de ambiente no Render.</p><dl class="ax-dl" id="c-integ"></dl><button class="ax-btn sm" id="c-testar-mp">Testar Mercado Pago (conciliação)</button></div>
-        </div>
-        <div class="ax-card ax-mt"><h2>Aviso global</h2><p class="ax-xs ax-mut ax-mb">Mensagem para todos os usuários, servida por GET /aviso (exibida nos apps de loja e promotor quando eles consumirem este endpoint).</p>
-          <label class="ax-lbl" for="c-av-txt">Texto (até 280 caracteres)</label><textarea class="ax-ta" id="c-av-txt" maxlength="280"></textarea>
-          <div class="ax-row ax-mt"><select class="ax-sel ax-grow" id="c-av-nivel" aria-label="Nível"><option value="info">Informativo</option><option value="alerta">Alerta</option></select><label class="ax-chk ax-grow"><input type="checkbox" id="c-av-on"> Aviso ativo</label><button class="ax-btn pri" id="c-av-salvar">Salvar aviso</button></div>
-        </div>
-      </section>
-    </main>
-  </div>
+    <section id="aba-auditoria" hidden><div class="card"><div class="tw"><table><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th><th>IP</th></tr></thead><tbody id="t-aud"></tbody></table></div></div></section>
 </div>
-
-<dialog class="ax-dlg" id="ax-dlg"><form method="dialog" id="ax-dlg-f"><h2 id="ax-dlg-t"></h2><p class="ax-sm ax-mut ax-mt" id="ax-dlg-p"></p><div id="ax-dlg-c" class="ax-mt" hidden><label class="ax-lbl" for="ax-dlg-i" id="ax-dlg-l"></label><textarea class="ax-ta" id="ax-dlg-i" maxlength="300"></textarea><p class="ax-erro" id="ax-dlg-e"></p></div><div class="ax-row ax-mt" style="justify-content:flex-end"><button class="ax-btn" value="cancel" id="ax-dlg-x">Cancelar</button><button class="ax-btn pri" value="ok" id="ax-dlg-ok">Confirmar</button></div></form></dialog>
-<dialog class="ax-dlg" id="ax-ficha"><div id="ax-ficha-c"></div><div class="ax-row ax-mt" id="ax-ficha-a"></div></dialog>
-
 <script type="module" src="admin.js"></script>
 </body>
 </html>
