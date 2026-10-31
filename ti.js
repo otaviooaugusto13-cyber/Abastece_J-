@@ -214,7 +214,7 @@ $("c-novo").addEventListener("click", seguro(async () => {
     const v = await formulario({ titulo: "Novo chamado", texto: "Registre um problema relatado por telefone, WhatsApp ou pessoalmente.", ok: "Abrir chamado", campos: [
         { n: "solicitanteNome", label: "Quem pediu", req: true, min: 2, max: 100, ph: "Nome da pessoa / loja" }, { n: "titulo", label: "Título", req: true, min: 5, max: 120 },
         { n: "descricao", label: "Descrição", tipo: "textarea", req: true, min: 10, max: 2000 },
-        { n: "categoria", label: "Categoria", tipo: "select", valor: "outro", opcoes: S.cfg.categorias.map((c) => [c, CAT[c]]) }, { n: "prioridade", label: "Prioridade", tipo: "select", valor: "media", opcoes: S.cfg.prioridades.map((p) => [p, PRI[p]]) }] });
+        { n: "categoria", label: "Categoria", tipo: "select", valor: "outro", opcoes: S.cfg?.categorias.map((c) => [c, CAT[c]]) }, { n: "prioridade", label: "Prioridade", tipo: "select", valor: "media", opcoes: S.cfg.prioridades.map((p) => [p, PRI[p]]) }] });
     if (!v) return; const c = await chamarFuncao("ti/chamados", v); toast(`Chamado ${c.protocolo} aberto.`, "ok"); await carregarChamados(true); detalhe(c.id);
 }));
 
