@@ -353,6 +353,20 @@ t("segurança: cabeçalho de token inválido, injeção NoSQL em filtros e IDs m
   falha(await chamar("POST", "/ti/operadores/ti-gest/excluir", { token: "ruim.ruim.ruim", body: {} }), 401);
 });
 
+t("bootstrap: cria o 1º gestor por variáveis de ambiente, com troca de senha obrigatória, e não age de novo", async () => {
+  const env = { TI_BOOTSTRAP_EMAIL: "Chefe+ti@Exemplo.com", TI_BOOTSTRAP_NOME: "Chefe", TI_BOOTSTRAP_SENHA: "Cavalo-Bateria-Grampo-42" };
+  assert.equal((await ti.bootstrapGestor({})).motivo, "nao-configurado");
+  const r = await ti.bootstrapGestor(env); assert.equal(r.feito, true);
+  const op = await get("ti_operadores", r.uid);
+  assert.equal(op.nivel, "gestor"); assert.equal(op.status, "ativo"); assert.equal(op.trocarSenha, true); assert.equal(op.email, "chefe+ti@exemplo.com");
+  assert.ok((await todos("ti_auditoria")).some((a) => a.acao === "operador.criar"));
+  assert.equal((await ti.bootstrapGestor(env)).motivo, "ja-existem-operadores");      // idempotente
+});
+t("bootstrap: senha fraca é recusada e nada é criado", async () => {
+  const r = await ti.bootstrapGestor({ TI_BOOTSTRAP_EMAIL: "x@exemplo.com", TI_BOOTSTRAP_SENHA: "curta" });
+  assert.equal(r.feito, false); assert.equal((await todos("ti_operadores")).length, 0);
+});
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {

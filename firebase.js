@@ -32,7 +32,7 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  * Chama a API do servidor (token no cabeçalho Authorization; nunca em URL). `metodo` padrão: POST (ou GET se corpo === null).
  * Resiliência (era a causa de "pede login toda hora"): token velho (401 sessao-invalida) → renova UMA vez e repete;
- * rede/502/503/504 em chamadas idempotentes (GET e /sessao) → repete até 2x (o plano gratuito do Render "acorda" em até ~50 s).
+ * rede/502/503/504 em chamadas idempotentes (GET e /sessao) → repete até 6x com espera crescente (o plano gratuito do Render "acorda" em até ~50 s).
  */
 export async function chamarFuncao(nome, corpo = {}, metodo) {
     if (!FUNCTIONS_BASE) throw Object.assign(new Error("backend-nao-configurado"), { code: "backend-nao-configurado" });
@@ -48,16 +48,18 @@ export async function chamarFuncao(nome, corpo = {}, metodo) {
             });
         } catch (e) {
             if (e.code === "sem-sessao" || String(e.code || "").startsWith("auth/")) throw e;
-            if (idempotente && tentativa < 2) { await dormir(1500 * (tentativa + 1)); continue; }
+            if (idempotente && tentativa < 6) { await dormir(2500 * Math.min(tentativa + 1, 4)); continue; }
             throw Object.assign(new Error("Sem conexão com o servidor. Confira a internet e tente de novo."), { code: "rede" });
         }
         if (r.status === 401 && !renovou && (await r.clone().json().catch(() => ({}))).codigo === "sessao-invalida") { renovou = true; continue; }
-        if ([502, 503, 504].includes(r.status) && idempotente && tentativa < 2) { await dormir(1500 * (tentativa + 1)); continue; }
+        if ([502, 503, 504].includes(r.status) && idempotente && tentativa < 6) { await dormir(2500 * Math.min(tentativa + 1, 4)); continue; }
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw Object.assign(new Error(j.erro || "falha"), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
         return j;
     }
 }
+/** Acorda o servidor (Render gratuito dorme) enquanto a pessoa ainda está na tela de login. Falha em silêncio. */
+export const aquecerServidor = () => { try { if (FUNCTIONS_BASE) fetch(`${FUNCTIONS_BASE}/saude`, { cache: "no-store" }).catch(() => {}); } catch (e) {} };
 export const consultar = (nome) => chamarFuncao(nome, null, "GET");
 
 /** Baixa um CSV protegido (exige login): faz GET com o token e salva o arquivo. */

@@ -4,7 +4,7 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta } from "./firebase.js";
+import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, aquecerServidor } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
@@ -20,6 +20,10 @@ import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
 import { iniciar as iniciarJogo, abrirCheckin, abrirCheckout, abrirFaltaLoja, alertaRelampago, manterPosicao, pararPosicao } from "./promotor-jogo.js";
 import { coracoes, cartaoNivel, listaInfracoes, telaBanido, esconderBanido, animarPerdaVida, chipNivel, medalha, abrirFoto } from "./gamificacao-ui.js";
+let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
+let ofertas = [], turnos = [], filtroSetor = "", ordem = "match";
+let perfilIA = { experiencias: [], eneagrama: null, palavrasChave: [], bioAuto: true };
+let rep = null, repTimer = null;                 // reputação/gamificação
 let offUn = null, turnosUn = null, chatUn = null, chatPedido = null, qrAtual = null;
 let dataCal = new Date(), diaSel = "", prim = { o: true, t: true };
 const vistos = new Set(), statusAnt = new Map();
@@ -55,16 +59,20 @@ const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
 const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 const abrirTermos = (e) => { e.preventDefault(); abrir("sheet-termos"); };
 $("link-termos").addEventListener("click", abrirTermos); $("link-termos2").addEventListener("click", abrirTermos);
-let aguardandoTermos = false;                                          // clicou em "Criar conta" sem aceitar: abrimos os Termos e, ao aceitar, seguimos para o Google
+let aguardandoTermos = false, vigiaLogin = null;                                          // clicou em "Criar conta" sem aceitar: abrimos os Termos e, ao aceitar, seguimos para o Google
 $("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("c-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); if (aguardandoTermos) { aguardandoTermos = false; $("btn-login").click(); } });
 $("btn-login").addEventListener("click", async () => {
     const b = $("btn-login");
     if (seletor.atual() === "criar" && !$("check-termos").checked) { aguardandoTermos = true; abrir("sheet-termos"); return; }
     gravarModo(seletor.atual());                                           // lembra a intenção (entrar × criar) até o fim do login
     b.dataset.ocupado = "1"; b.disabled = true; $("btn-login-txt").textContent = "Abrindo o Google…";
-    try { await entrarComGoogle(); }
-    catch (e) { const m = msgAuth(e); if (m) erro(m); resetarLogin(); }
+    // Vigia: se nada acontecer (popup travado, navegador embutido do Instagram/WhatsApp, servidor acordando), o botão volta a funcionar.
+    clearTimeout(vigiaLogin); vigiaLogin = setTimeout(() => { if (b.dataset.ocupado && !usuario) { resetarLogin(); erro("Não conseguimos concluir o login. Tente de novo — se continuar, abra o site no Chrome ou Safari."); } }, 90_000);
+    try { const cred = await entrarComGoogle(); if (cred) $("btn-login-txt").textContent = "Verificando sua conta…"; }
+    catch (e) { clearTimeout(vigiaLogin); const m = msgAuth(e); if (m) erro(m); resetarLogin(); }
 });
+aquecerServidor();
+if (/Instagram|FBAN|FBAV|Line\/|MicroMessenger|WhatsApp/i.test(navigator.userAgent)) { try { toast("Dica: se o login com Google não abrir, abra este site no Chrome ou Safari."); } catch (e) {} }
 testeAtivo().then((a) => { $("bloco-teste").hidden = !a; });
 $("btn-login-teste").addEventListener("click", async () => {
     const b = $("btn-login-teste"); b.disabled = true;

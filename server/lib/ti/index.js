@@ -43,8 +43,30 @@ function criarTI({ db, admin, FieldValue, Timestamp, V, auth }) {
   /** Ações sensíveis (criar/excluir operador, resetar senha…): exigem login recente (≤ 5 min). */
   const recente = (req, res, next) => { try { auth.exigirRecente(req.usuario); next(); } catch (e) { next(e); } };
 
+  /**
+   * Cria o PRIMEIRO gestor a partir de variáveis de ambiente (TI_BOOTSTRAP_EMAIL / _NOME / _SENHA), sem precisar de terminal.
+   * Só age se NÃO existir nenhum operador (ativo ou excluído) — depois disso é ignorado. A senha é de uso único: troca obrigatória no 1º login.
+   * Nunca converte uma conta que já existe (ex.: a conta Google de um promotor) — nesse caso apenas avisa no log.
+   */
+  async function bootstrapGestor(env = process.env) {
+    const email = String(env.TI_BOOTSTRAP_EMAIL || "").trim().toLowerCase(), senha = env.TI_BOOTSTRAP_SENHA || "", nome = String(env.TI_BOOTSTRAP_NOME || "Gestor de TI").trim();
+    if (!email || !senha) return { feito: false, motivo: "nao-configurado" };
+    try {
+      if (!(await db.collection("ti_operadores").limit(1).get()).empty) return { feito: false, motivo: "ja-existem-operadores" };
+      const r = await operadores.criar({ nome, email, nivel: "gestor", senha }, { uid: "sistema", nome: "Bootstrap (variáveis de ambiente)" });
+      await db.collection("ti_operadores").doc(r.operador.uid).update({ trocarSenha: true });
+      operadores.invalidar(r.operador.uid);
+      await auditoria.registrar({ uid: "sistema", nome: "Bootstrap", nivel: "gestor" }, { acao: "operador.criar", resultado: "ok", resumo: `Primeiro gestor criado por variáveis de ambiente: ${email}`, alvoTipo: "operador", alvoId: r.operador.uid });
+      console.log(`✅ TI: primeiro gestor criado (${email}). Entre em /painel-ti e troque a senha; depois REMOVA TI_BOOTSTRAP_SENHA do ambiente.`);
+      return { feito: true, uid: r.operador.uid };
+    } catch (e) {
+      console.error(`⚠️  TI: não foi possível criar o primeiro gestor (${e.codigo || e.code || e.message}). ${e.codigo === "email-em-uso" ? "Esse e-mail já tem conta no Firebase Auth — use um e-mail NOVO (ex.: seunome+ti@gmail.com)." : ""}`);
+      return { feito: false, motivo: e.codigo || e.code || "erro" };
+    }
+  }
+
   /** Zera caches em memória (uso dos testes). */
   const limparCaches = () => { metricas.limparCache(); chamados.invalidarCache(); presenca.limparCache(); presenca._mapa.clear(); for (const uid of [...operadores._cache.keys()]) operadores.invalidar(uid); };
-  return { auditoria, operadores, metricas, chamados, presenca, tempoReal, exigirTI, recente, auditar, atorDe, limparCaches, K };
+  return { auditoria, operadores, metricas, chamados, presenca, tempoReal, bootstrapGestor, exigirTI, recente, auditar, atorDe, limparCaches, K };
 }
 module.exports = { criarTI };

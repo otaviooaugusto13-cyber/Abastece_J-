@@ -17,6 +17,12 @@ services:
         sync: false                  # opcional: outros domínios do front (separados por vírgula)
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
+      - key: TI_BOOTSTRAP_EMAIL      # opcional: cria o 1º gestor de TI (use um e-mail NOVO, sem conta anterior)
+        sync: false
+      - key: TI_BOOTSTRAP_NOME
+        sync: false
+      - key: TI_BOOTSTRAP_SENHA      # uso único (troca obrigatória no 1º login) — REMOVA depois de entrar
+        sync: false
       - key: MP_ACCESS_TOKEN         # conta Mercado Pago da PLATAFORMA (todo pagamento entra aqui)
         sync: false
       - key: MP_WEBHOOK_SECRET

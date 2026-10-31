@@ -83,7 +83,7 @@ onAuthStateChanged(auth, async (u) => {
         const r = await chamarFuncao("ti/sessao", {}); S.op = r.operador; S.perm = r.permissoes; S.cfg = r.config;
     } catch (e) {
         if (e.code === "trocar-senha") { $("ti-login").hidden = true; return trocaObrigatoria(); }
-        $("ti-login-erro").textContent = e.code === "sem-permissao" || e.code === "operador-inativo" ? "Esta conta não tem acesso ao painel de TI." : "Não foi possível entrar agora. Tente novamente.";
+        $("ti-login-erro").textContent = e.code === "sem-permissao" ? "Esta conta não é de operador de TI. O painel de TI usa e-mail e senha próprios, criados pelo gestor — não a conta de loja, promotor ou admin." : e.code === "operador-inativo" ? "Esta conta de operador está desativada. Fale com o gestor de TI." : "Não foi possível entrar agora. Tente novamente.";
         await signOut(auth); return;
     }
     if (S.op?.trocarSenha) { $("ti-login").hidden = true; return trocaObrigatoria(); }

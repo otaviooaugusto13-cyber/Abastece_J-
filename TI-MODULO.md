@@ -71,3 +71,18 @@ Deny-by-default no Firestore (regras explícitas para todas as coleções novas)
 - Rate limit e cache de métricas são em memória por instância (igual ao resto do projeto); com escala horizontal, troque o limitador por Redis. A presença já é multi-instância.
 - Lojas/promotores ainda não têm tela para abrir chamados: a API (`/chamados*`) está pronta e a equipe abre em nome deles pelo painel. Notificação push ao solicitante em respostas é um próximo passo simples (`suporte.enviarPush`).
 - O ranking conta eventos de resolução; um chamado reaberto e resolvido de novo conta duas vezes.
+
+
+## Como criar o primeiro gestor de TI (sem terminal)
+
+O login do TI é por **e-mail e senha** (não é o botão do Google) e só funciona para quem foi cadastrado como operador.
+Uma conta já usada como loja, promotor ou admin **não** vira operador: use um e-mail **novo** (ex.: `seunome+ti@gmail.com` — cai na mesma caixa de entrada).
+
+1. Firebase Console → Authentication → Sign-in method → ative **E-mail/senha**.
+2. No Render → Environment, crie: `TI_BOOTSTRAP_EMAIL` (e-mail novo), `TI_BOOTSTRAP_NOME` e `TI_BOOTSTRAP_SENHA` (mín. 12 caracteres, 3 tipos de caractere, sem conter o e-mail). Salve: o serviço reinicia.
+3. O servidor cria o gestor **somente se ainda não existir nenhum operador** (veja a linha `✅ TI: primeiro gestor criado` nos logs).
+4. Entre em `/painel-ti`, defina a nova senha (obrigatório) e **apague `TI_BOOTSTRAP_SENHA`** do Render.
+5. Daqui em diante, crie os técnicos pela tela *Operadores*.
+6. Deploy das regras/índices: `firebase deploy --only firestore:rules,firestore:indexes`.
+
+Alternativa: `node scripts/criar-operador-ti.js` (exige a chave de serviço no computador).

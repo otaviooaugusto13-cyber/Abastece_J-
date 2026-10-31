@@ -150,6 +150,7 @@ app.use((req, res) => res.status(404).json({ erro: "não encontrado", codigo: "r
 app.use(Seg.tratadorErros);
 
 if (require.main === module) {
+  ti.bootstrapGestor();                                     // 1º gestor de TI via variáveis de ambiente (só se ainda não houver operadores)
   ti.presenca.iniciar();                                    // publica os pings desta instância (contador de usuários online)
   taxas.iniciar();                                          // listener em tempo real: a mudança do admin vale em milissegundos
   app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
