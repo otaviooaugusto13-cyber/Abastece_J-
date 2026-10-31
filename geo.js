@@ -1,7 +1,7 @@
 // Geolocalização do Abastece Já — funções puras (testáveis em node) + captura da posição pelo navegador.
 // Sem chamadas externas: as cidades vêm de uma tabela local (centros municipais aproximados, precisão ~1–2 km).
 // Para precisão de rua, a loja usa "Usar minha localização" no cadastro (GPS) e a coordenada exata vai para a vaga.
-import { RAIO_KM_OFERTAS, LOCAL_MAX_IDADE_MS } from "./config.js";
+import { RAIO_KM_OFERTAS, LOCAL_MAX_IDADE_MS, GEO_RAIO_METROS } from "./config.js";
 
 export const RAIO_KM = RAIO_KM_OFERTAS;
 
@@ -79,15 +79,16 @@ export function cidadeMaisProxima(p, maxKm = 30) {
 }
 export const fmtKm = (km) => (!Number.isFinite(km) ? "" : km < 1 ? `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m` : `${km.toFixed(1).replace(".", ",")} km`);
 
-/** Coordenadas de uma vaga: as da própria vaga (loja) ou, na falta, o centro da cidade informada. */
+/** Coordenadas de uma vaga: `local` (gravado pelo servidor a partir do GPS da loja), ou lat/lng soltos, ou o centro da cidade informada. */
 export function pontoDaVaga(v) {
-    if (Number.isFinite(v?.lat) && Number.isFinite(v?.lng)) return { lat: v.lat, lng: v.lng };
-    const c = acharCidade(v?.cidade); return c ? { lat: c.lat, lng: c.lng } : null;
+    const l = v?.local, lat = Number.isFinite(l?.lat) ? l.lat : v?.lat, lng = Number.isFinite(l?.lng) ? l.lng : v?.lng;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    const c = acharCidade(v?.regiao?.cidade || v?.cidade); return c ? { lat: c.lat, lng: c.lng } : null;
 }
 /** Nome da cidade da vaga normalizado para o contador ("Itapira - SP"); "" se a vaga não tem localização. */
 export function cidadeDaVaga(v) {
-    const c = acharCidade(v?.cidade); if (c) return rotuloCidade(c);
-    const p = pontoDaVaga(v); const prox = p && cidadeMaisProxima(p, 15); return prox ? rotuloCidade(prox) : (v?.cidade ? String(v.cidade) : "");
+    const nome = v?.regiao?.cidade || v?.cidade, c = acharCidade(nome); if (c) return rotuloCidade(c);
+    const p = pontoDaVaga(v); const prox = p && cidadeMaisProxima(p, 15); return prox ? rotuloCidade(prox) : (nome ? (v?.regiao?.uf ? `${nome} - ${v.regiao.uf}` : String(nome)) : "");
 }
 /** Contadores por localidade, do maior para o menor: [{ cidade, vagas }]. Vagas sem localização ficam fora. */
 export function contarPorCidade(vagas) {
@@ -121,3 +122,37 @@ export async function estadoPermissao() { try { return (await navigator.permissi
 
 /** Rumo de a → b em radianos (0 = norte, π/2 = leste). Usado só para desenhar o radar da vaga. */
 export function rumoRad(a, b) { const dy = b.lat - a.lat, dx = (b.lng - a.lng) * Math.cos(rad((a.lat + b.lat) / 2)); return Math.atan2(dx, dy); }
+
+// ============================================================
+// Check-in / check-out e radar do turno (GPS de alta precisão; o SERVIDOR refaz toda a validação)
+// ============================================================
+/** Distância em metros (haversine) — só para o "radar" da interface; quem decide é o servidor. */
+export function distanciaM(a, b) {
+    const R = 6371008.8, rad = (g) => (g * Math.PI) / 180, dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+const MSG_GPS = { 1: "Permissão de localização negada. Libere o GPS para este site nas configurações do navegador.", 2: "Não foi possível obter sua posição. Vá para um local aberto e tente de novo.", 3: "O GPS demorou demais para responder. Tente de novo." };
+
+/** Lê o GPS (alta precisão). Devolve { lat, lng, precisao, idadeFixMs } — idade medida agora, no aparelho. */
+export function lerGPS({ timeout = 15000 } = {}) {
+    return new Promise((resolve, reject) => {
+        if (!("geolocation" in navigator)) return reject(Object.assign(new Error("Este aparelho não tem GPS disponível no navegador."), { code: "sem-gps" }));
+        navigator.geolocation.getCurrentPosition(
+            (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: Math.round(p.coords.accuracy), idadeFixMs: Math.max(0, Date.now() - p.timestamp) }),
+            (e) => reject(Object.assign(new Error(MSG_GPS[e.code] || "Falha ao ler o GPS."), { code: e.code === 1 ? "gps-negado" : "gps-falhou" })),
+            { enableHighAccuracy: true, timeout, maximumAge: 0 });
+    });
+}
+
+/** Acompanha o GPS enquanto o "radar" está aberto. Devolve a função que para o acompanhamento. */
+export function vigiarGPS(aoLer, aoErrar) {
+    if (!("geolocation" in navigator)) { aoErrar?.(Object.assign(new Error("Sem GPS neste aparelho."), { code: "sem-gps" })); return () => {}; }
+    const id = navigator.geolocation.watchPosition(
+        (p) => aoLer({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: Math.round(p.coords.accuracy), idadeFixMs: Math.max(0, Date.now() - p.timestamp) }),
+        (e) => aoErrar?.(Object.assign(new Error(MSG_GPS[e.code] || "Falha ao ler o GPS."), { code: e.code === 1 ? "gps-negado" : "gps-falhou" })),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    return () => navigator.geolocation.clearWatch(id);
+}
+export { GEO_RAIO_METROS };

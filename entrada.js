@@ -36,7 +36,8 @@ export function modoInicial() {
 export function ligarSeletorDeModo({ textos }) {
     let modo = modoInicial();
     const botoes = { entrar: $("modo-entrar"), criar: $("modo-criar") };
-    const atualizarBotao = () => { const b = $("btn-login"); if (!b.dataset.ocupado) b.disabled = modo === "criar" && !$("check-termos").checked; };
+    // O botão NUNCA fica travado por causa dos Termos (antes ele ficava desabilitado, sem explicar o motivo): sem o aceite, o clique abre os Termos.
+    const atualizarBotao = () => { const b = $("btn-login"); if (!b.dataset.ocupado) b.disabled = false; };
     function definir(novo) {
         modo = MODOS.includes(novo) ? novo : "entrar"; gravarModo(modo);
         for (const m of MODOS) { botoes[m].setAttribute("aria-selected", String(m === modo)); botoes[m].tabIndex = m === modo ? 0 : -1; }

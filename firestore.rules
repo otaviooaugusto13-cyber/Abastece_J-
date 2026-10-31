@@ -16,6 +16,7 @@ service cloud.firestore {
     function ehPromotor() { return papel() == 'promotor'; }
     function ehAdmin() { return papel() == 'admin'; }
     function treinado() { return request.auth.token.get('treinado', false) == true; }
+    function banido() { return logado() && request.auth.token.get('banido', false) == true; }   // claim definida pelo servidor na 3ª advertência
     function dono(uid) { return logado() && request.auth.uid == uid; }
     // só estes campos podem mudar numa atualização feita pelo cliente
     function soMuda(campos) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos); }
@@ -36,12 +37,8 @@ service cloud.firestore {
       allow read: if dono(uid) || ehAdmin();
       allow create, delete: if false;                           // criado por POST /cadastro/loja
       allow update: if dono(uid) && ehLoja()
-        && soMuda(['razaoSocial', 'documento', 'endereco', 'email', 'telefone', 'ramo', 'prefs', 'nome', 'atualizadoEm', 'cidade', 'uf', 'lat', 'lng'])
+        && soMuda(['razaoSocial', 'documento', 'endereco', 'email', 'telefone', 'ramo', 'prefs', 'nome', 'atualizadoEm'])
         && str('razaoSocial', 160) && str('documento', 20) && str('endereco', 200) && str('email', 120) && str('telefone', 20) && str('ramo', 60) && str('nome', 100)
-        && str('cidade', 80) && (!('uf' in request.resource.data) || (request.resource.data.uf is string && request.resource.data.uf.size() <= 2))
-        // localização da loja (usada para dar cidade/raio às vagas): números dentro da caixa do Brasil
-        && (!('lat' in request.resource.data) || (request.resource.data.lat is number && request.resource.data.lat >= -34 && request.resource.data.lat <= 6))
-        && (!('lng' in request.resource.data) || (request.resource.data.lng is number && request.resource.data.lng >= -74 && request.resource.data.lng <= -28))
         && (!('prefs' in request.resource.data) || request.resource.data.prefs is map);
     }
     match /cartoes/{uid} {                                      // só exibição (bandeira, final, validade); IDs do gateway ficam em cartoes_privado
@@ -85,7 +82,7 @@ service cloud.firestore {
         || resource.data.get('promotorUid', '') == request.auth.uid                     // profissional escalado
         || ehAdmin()
         // ofertas abertas: só para profissional aprovado-e-TREINADO (claim) — defesa em profundidade além do bloqueio no servidor
-        || (ehPromotor() && treinado() && resource.data.status == 'aberta'));
+        || (ehPromotor() && treinado() && !banido() && resource.data.status == 'aberta'));
       allow write: if false;                                                            // criar/aceitar/cancelar/desistir/avaliar: só pelo servidor
 
       match /mensagens/{mid} {
@@ -112,5 +109,25 @@ service cloud.firestore {
     match /estornos/{id}            { allow read, write: if false; }
     match /contadores/{id}          { allow read, write: if false; }
     match /auditoria/{id}           { allow read, write: if false; }
+
+    // ---------- módulo de TI: TUDO só pelo servidor (a tela de TI usa a API; Admin SDK ignora estas regras) ----------
+    // Negar de forma explícita documenta a intenção e protege contra um "allow" genérico futuro. A trilha é append-only e encadeada por hash.
+    match /ti_operadores/{id}            { allow read, write: if false; }
+    match /ti_auditoria/{id}             { allow read, write: if false; }
+    match /ti_auditoria_cadeia/{id}      { allow read, write: if false; }
+    match /chamados_ti/{id}              { allow read, write: if false; match /eventos/{ev} { allow read, write: if false; } }
+    match /ti_metricas_dia/{id}          { allow read, write: if false; }
+    match /ti_produtividade/{id}         { allow read, write: if false; }
+    match /presenca_instancias/{id}      { allow read, write: if false; }
+    // ---------- reputação: níveis, vidas, infrações (o dono LÊ; só o servidor escreve) ----------
+    match /reputacao/{uid}          { allow read: if dono(uid) || ehAdmin(); allow write: if false; }
+    match /infracoes/{id}           { allow read: if logado() && (resource.data.uid == request.auth.uid || ehAdmin()); allow write: if false; }
+    match /niveis_historico/{id}    { allow read, write: if false; }
+
+    // ---------- execução do turno: foto da gôndola, presença por GPS, alertas, marcas (tudo só pela API) ----------
+    match /fotos_checkout/{id}      { allow read, write: if false; }
+    match /presencas/{id}           { allow read, write: if false; }
+    match /alertas_promotor/{id}    { allow read, write: if false; }
+    match /marcas/{id}              { allow read, write: if false; }
   }
 }

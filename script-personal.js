@@ -9,31 +9,32 @@ import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, ir
 import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
 import { iniciarSuporte, pararSuporte } from "./suporte.js";
+import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { ativarPush, desativarPush } from "./push.js";
-import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS } from "./config.js";
+import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS, NIVEIS } from "./config.js";
 import { iniciarTaxas } from "./taxas.js";
-import { brl, reaisParaCentavos, TAXAS, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, CATEGORIAS, categoriaDoSetor, textoTermos } from "./core.js";
+import { brl, reaisParaCentavos, TAXAS, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, CATEGORIAS, categoriaDoSetor, textoTermos, calcularDiaria } from "./core.js";
 import { CIDADES, RAIO_KM, acharCidade, rotuloCidade, distanciaKm, cidadeMaisProxima, cidadeDaVaga, pontoDaVaga, contarPorCidade, filtrarPorRaio, fmtKm, rumoRad, observarPosicao } from "./geo.js";
 import { AREAS, AREA, ENEAGRAMA, INSTINTOS, MAX_EXPERIENCIAS, asasDoTipo, codigoEneagrama, lerCodigoEneagrama, eneagramaValido, normalizarExperiencias, gerarPerfil, pontuarOferta, ranquearOfertas } from "./perfil-inteligente.js";
 import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
-
-let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
-let ofertas = [], turnos = [], filtroSetor = "", ordem = "match";
-let perfilIA = { experiencias: [], eneagrama: null, palavrasChave: [], bioAuto: true };
+import { iniciar as iniciarJogo, abrirCheckin, abrirCheckout, abrirFaltaLoja, alertaRelampago, manterPosicao, pararPosicao } from "./promotor-jogo.js";
+import { coracoes, cartaoNivel, listaInfracoes, telaBanido, esconderBanido, animarPerdaVida, chipNivel, medalha, abrirFoto } from "./gamificacao-ui.js";
 let offUn = null, turnosUn = null, chatUn = null, chatPedido = null, qrAtual = null;
 let dataCal = new Date(), diaSel = "", prim = { o: true, t: true };
 const vistos = new Set(), statusAnt = new Map();
 
 iniciarTema(); registrarSW();
+iniciarJogo({ recarregar: () => { carregarRep(); carregarCarteira(); }, subiuNivel: (n) => { ok(`Você subiu para ${NIVEIS.find((x) => x.id === n.para)?.nome || n.para}! 🏆`); } });
 ligarMascaras({ cpf: mascaraCPF, tel: mascaraTelefone });
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
 $("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
 $("ajuda-zap").href = `https://api.whatsapp.com/send?phone=${WHATSAPP_SUPORTE}&text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (promotor).")}`;
 /** Redesenha tudo que depende das taxas. Roda ao abrir e sempre que o admin muda algo (taxas.js). */
 function textosTaxas() {
-$("benef-split").textContent = `Receba ${brl(TAXAS.repasseCentavos)} por diária (turnos de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas), sem mensalidade`;
-$("ajuda-split").textContent = `Você recebe ${brl(TAXAS.repasseCentavos)} por diária, creditados na sua carteira digital depois do pagamento da loja. O saldo fica alguns dias em carência e depois você saca por Pix. Cada turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas e você pode fazer até ${TAXAS.maxSemana} turnos por semana na mesma loja. Para aceitar turnos é preciso concluir o treinamento PRATICAMENTE.`;
+    const pct = (id) => String(Math.round(calcularDiaria(id).pct * 10) / 10).replace(".", ",");   // comissão do nível sobre a diária vigente
+    $("benef-split").textContent = `Taxa de ${pct("bronze")}% no Bronze, caindo até ${pct("platina")}% no Platina — quanto mais chamados, mais você ganha. Diária de ${brl(TAXAS.diariaCentavos)} (turnos de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas), sem mensalidade`;
+    $("ajuda-split").textContent = `A diária é de ${brl(TAXAS.diariaCentavos)} e a taxa da plataforma depende do seu nível: ${NIVEIS.map((n) => `${n.nome} ${pct(n.id)}% (a partir de ${n.minConcluidos} chamados)`).join(", ")}. O valor entra na carteira depois do pagamento da loja, fica alguns dias em carência e depois você saca por Pix. Cada turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas, com até ${TAXAS.maxSemana} turnos por semana na mesma loja. Faça check-in a até 100 m da loja e finalize com a foto da gôndola. Desistir ou faltar em cima da hora gera advertência e multa; com 3 advertências a conta é bloqueada. Sem concluir chamados por 2 meses, o nível cai. Para aceitar turnos é preciso concluir o treinamento PRATICAMENTE.`;
 $("nota-taxa-mp").textContent = "Pagamentos estornados ou contestados pela loja são descontados da carteira.";
 $("termos-texto").innerHTML = textoTermos("promotor");
 }
@@ -41,6 +42,7 @@ iniciarTaxas(textosTaxas);
 
 // ---------- indicação (?ref=) ----------
 try { const r = new URLSearchParams(location.search).get("ref"); if (r) localStorage.setItem("abastece_ref", r.replace(/[^\w-]/g, "").slice(0, 40)); } catch (e) {}
+try { const et = new URLSearchParams(location.search).get("et"); if (et) localStorage.setItem("abastece_et", et.replace(/[^\w.-]/g, "").slice(0, 600)); } catch (e) {}   // link assinado do teste (Eneagrama automático)
 const refRecebido = () => { try { return localStorage.getItem("abastece_ref") || ""; } catch (e) { return ""; } };
 
 // ---------- login ----------
@@ -53,10 +55,11 @@ const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
 const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 const abrirTermos = (e) => { e.preventDefault(); abrir("sheet-termos"); };
 $("link-termos").addEventListener("click", abrirTermos); $("link-termos2").addEventListener("click", abrirTermos);
-$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("c-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); });
+let aguardandoTermos = false;                                          // clicou em "Criar conta" sem aceitar: abrimos os Termos e, ao aceitar, seguimos para o Google
+$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; $("c-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); if (aguardandoTermos) { aguardandoTermos = false; $("btn-login").click(); } });
 $("btn-login").addEventListener("click", async () => {
     const b = $("btn-login");
-    if (seletor.atual() === "criar" && !$("check-termos").checked) return;
+    if (seletor.atual() === "criar" && !$("check-termos").checked) { aguardandoTermos = true; abrir("sheet-termos"); return; }
     gravarModo(seletor.atual());                                           // lembra a intenção (entrar × criar) até o fim do login
     b.dataset.ocupado = "1"; b.disabled = true; $("btn-login-txt").textContent = "Abrindo o Google…";
     try { await entrarComGoogle(); }
@@ -68,15 +71,15 @@ $("btn-login-teste").addEventListener("click", async () => {
     try { await loginDeTeste("promotor"); } catch (e) { console.error(e); erro("Não foi possível entrar no modo de teste."); b.disabled = false; }
 });
 getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); });
-const sair = async () => { offUn?.(); turnosUn?.(); chatUn?.(); pararPings(); pararHab(); pararDeAcompanhar(); pos = null; posFonte = ""; await desativarPush(); pararSuporte(); await sairDaConta(); };
+const sair = async () => { clearInterval(repTimer); pararPosicao(); esconderBanido(); rep = null; offUn?.(); turnosUn?.(); chatUn?.(); pararPings(); pararHab(); pararDeAcompanhar(); pos = null; posFonte = ""; await desativarPush(); pararSuporte(); await sairDaConta(); };
 $("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair do portal?")) await sair(); });
 $("btn-cadastro-sair").addEventListener("click", sair);
 
 const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
-    if (!u) { offUn?.(); turnosUn?.(); pararPings(); pararHab(); habCats = null; pararSuporte(); tela("screen-login"); resetarLogin(); prim = { o: true, t: true }; return; }
-    try { await entrar(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Tente novamente."); }
+    if (!u) { clearInterval(repTimer); pararPosicao(); pub = {}; priv = {}; hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }; offUn?.(); turnosUn?.(); pararPings(); pararHab(); habCats = null; pararDeAcompanhar(); pararSuporte(); tela("screen-login"); resetarLogin(); prim = { o: true, t: true }; return; }
+    try { await entrar(u); } catch (e) { console.error(e); resetarLogin(); erro("Não foi possível carregar seu cadastro. Tente novamente."); }
 });
 
 /**
@@ -86,6 +89,7 @@ onAuthStateChanged(auth, async (u) => {
 const trocarConta = async () => { await sair(); };
 const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "promotor", perfis: r?.perfis, email: usuario?.email, trocarConta });
 async function entrar(u) {
+    pub = {}; priv = {};                                                // nunca herdar dados (CPF/nascimento) de outra conta usada antes neste navegador
     let r;
     try { r = await resolverAcesso("promotor"); }
     catch (e) { console.warn(e); return telaFalhaTemporaria({ tentarDeNovo: () => entrar(u), trocarConta }); }
@@ -93,6 +97,7 @@ async function entrar(u) {
         if (r.sugerido && irParaPainel(r.sugerido, "promotor")) return;      // conta de loja: vai DIRETO ao painel da loja (com trava anti-loop)
         return mostrarOutroPerfil(r);
     }
+    if (r.estado !== "cadastro" && await carregarRep() && rep.banido) return;                // conta banida: só a tela vermelha com o motivo
     const s = r.estado === "cadastro" ? null : await getDoc(doc(db, "profissionais", u.uid));
     if (!s?.exists()) { if (!(await confirmarNovaConta(u))) return; return abrirCadastro(false); }
     pub = s.data();
@@ -102,6 +107,7 @@ async function entrar(u) {
     tela("screen-dashboard"); limparGuarda(); iniciarSuporte(u);
     $("btn-teste-reset").hidden = !(await contaDeTeste());
     montarSetoresPrefs(); montarFormIA(); pintarPerfil(); escutar(); carregarCarteira(); carregarTreino(); carregarPerfilIA(); carregarHabCats();
+    clearInterval(repTimer); repTimer = setInterval(() => { if (!document.hidden) carregarRep(); }, 90_000); manterPosicao();
     if (abaOfertasAtiva()) iniciarGeo();
     window.scrollTo(0, 0);
 }
@@ -132,6 +138,26 @@ async function aoCpfDuplicado(err) {
     } else if (escolha === "corrigir") { $("c-cpf").focus(); $("c-cpf").select?.(); }
     else if (escolha === "suporte") window.open("https://api.whatsapp.com/send?phone=" + WHATSAPP_SUPORTE + "&text=" + encodeURIComponent("Olá! Meu CPF aparece como já cadastrado no Abastece Já e preciso de ajuda para acessar minha conta."), "_blank", "noopener");
 }
+/** Reputação: nível, vidas, advertências. Detecta perda de vida/subida de nível e mostra a animação. */
+async function carregarRep() {
+    const antes = rep;
+    try { rep = await consultar("reputacao"); } catch (e) {
+        if (e.code === "conta-banida" || e.status === 403) { rep = { banido: true, vidas: 0, infracoes: [], banidoMotivo: "Conta bloqueada." }; } else { console.warn(e); return false; }
+    }
+    if (rep.banido) { pararPosicao(); clearInterval(repTimer); telaBanido(rep, sair); return true; }
+    if (antes && !antes.banido) {
+        if (rep.vidas < antes.vidas) { const i = (rep.infracoes || []).find((x) => x.status !== "revogada"); animarPerdaVida({ ...(i || {}), vidas: rep.vidas }); }
+        if (antes.nivel && rep.nivel && rep.nivel.id !== antes.nivel.id && NIVEIS.findIndex((n) => n.id === rep.nivel.id) > NIVEIS.findIndex((n) => n.id === antes.nivel.id)) ok(`Você subiu para ${rep.nivel.nome}! 🏆`);
+    }
+    pintarRep(); return true;
+}
+function pintarRep() {
+    if (!rep || rep.banido) return;
+    const n = rep.nivel;
+    $("rep-home").innerHTML = `<div class="vidas-linha"><div>${chipNivel(n.id, n.nome)}<div class="vidas-txt" style="margin-top:6px">Taxa ${n.comissaoPct}% · <b>${rep.concluidos}</b> chamados</div></div><div style="text-align:right">${coracoes(rep.vidas, rep.vidasMax)}<div class="vidas-txt"><b>${rep.vidas}</b> de ${rep.vidasMax} vidas</div></div></div>`;
+    $("rep-corpo").innerHTML = cartaoNivel(rep) + `<div class="glass-card mt"><div class="vidas-linha"><h4>Suas vidas</h4>${coracoes(rep.vidas, rep.vidasMax)}</div><p class="muted small mt">Cada advertência apaga um coração e gera multa. Na ${rep.vidasMax}ª, a conta é bloqueada. Desistir ou faltar com menos de ${rep.regras.cancelamentoTardioHoras} h de antecedência conta como infração.</p><div class="mt">${listaInfracoes(rep.infracoes)}</div></div>`;
+    $("menu-rep-sub").textContent = `${n.nome} · ${rep.vidas}/${rep.vidasMax} vidas`;
+}
 const carregarPrivado = async () => { try { priv = await consultar("perfil/privado"); } catch (e) { priv = {}; } };
 const carregarHabilitacao = async () => { try { hab = await consultar("habilitacao"); } catch (e) { console.warn(e); } };
 
@@ -141,23 +167,26 @@ function abrirCadastro(completar) {
     modoCompletar = completar; tela("screen-cadastro");
     const lim = limitesNascimento(); $("c-nasc").min = lim.min; $("c-nasc").max = lim.max;
     $("c-nasc-dica").textContent = `Cadastro permitido a partir dos ${IDADE_MINIMA} anos.`;
-    $("c-nasc").value = priv.nascimento || ""; $("c-nasc").readOnly = !!priv.nascimento;
-    $("c-cpf").value = priv.cpfMascarado || ""; $("c-cpf").readOnly = !!priv.temCpf;
-    $("c-tel").value = priv.telefone ? mascaraTelefone(priv.telefone) : "";
+    // Cadastro novo: tudo editável e vazio. Só em "completar dados" (conta antiga) o que já está gravado aparece travado — e nunca em conta nova.
+    const d = completar ? priv : {};
+    $("c-nasc").value = d.nascimento || ""; $("c-nasc").readOnly = !!d.nascimento;
+    $("c-cpf").value = d.cpfMascarado || ""; $("c-cpf").readOnly = !!d.temCpf;
+    $("c-tel").value = d.telefone ? mascaraTelefone(d.telefone) : "";
     $("c-termos").checked = $("check-termos").checked; $("c-termos").closest(".check-line").hidden = completar;
     $("btn-cadastrar").textContent = completar ? "Salvar e continuar" : "Concluir cadastro"; atualizarBlocoResp();
 }
-function atualizarBlocoResp() { const v = validarNascimento($("c-nasc").value); $("bloco-resp").hidden = !(v.menor && !(priv.autorizacaoResponsavel)); }
+const dadosGravados = () => (modoCompletar ? priv : {});                // em cadastro novo não existe dado gravado
+function atualizarBlocoResp() { const v = validarNascimento($("c-nasc").value); $("bloco-resp").hidden = !(v.menor && !dadosGravados().autorizacaoResponsavel); }
 $("c-nasc").addEventListener("input", atualizarBlocoResp);
 $("btn-cadastrar").addEventListener("click", async () => {
     document.querySelectorAll("#screen-cadastro .msg-erro").forEach((x) => (x.textContent = ""));
     let falhou = false; const e = (id, m) => { $(id).textContent = m; falhou = true; };
-    const nasc = $("c-nasc").value, cpf = soDigitos($("c-cpf").value), tel = soDigitos($("c-tel").value), vn = validarNascimento(nasc);
+    const g = dadosGravados(), nasc = $("c-nasc").value, cpf = soDigitos($("c-cpf").value), tel = soDigitos($("c-tel").value), vn = validarNascimento(nasc);
     if (vn.erro) e("e-c-nasc", vn.erro);
-    if (!priv.temCpf && !cpfValido(cpf)) e("e-c-cpf", "CPF inválido. Confira os 11 dígitos.");
+    if (!g.temCpf && !cpfValido(cpf)) e("e-c-cpf", cpf ? "CPF inválido. Confira os 11 dígitos." : "Informe seu CPF.");
     if (tel.length < 10 || tel.length > 11) e("e-c-tel", "Informe DDD + número.");
     let responsavel;
-    if (vn.menor && !priv.autorizacaoResponsavel) {
+    if (vn.menor && !g.autorizacaoResponsavel) {
         const rc = soDigitos($("c-resp-cpf").value), rt = soDigitos($("c-resp-tel").value), rn = $("c-resp-nome").value.trim();
         if (rn.length < 5) e("e-c-resp-nome", "Informe o nome completo do responsável.");
         if (!cpfValido(rc)) e("e-c-resp-cpf", "CPF do responsável inválido."); else if (rc === cpf) e("e-c-resp-cpf", "Deve ser diferente do seu CPF.");
@@ -169,9 +198,9 @@ $("btn-cadastrar").addEventListener("click", async () => {
     if (falhou) return;
     const b = $("btn-cadastrar"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Salvando…';
     try {
-        const corpo = { ...(priv.nascimento ? {} : { nascimento: nasc }), ...(priv.temCpf ? {} : { cpf }), telefone: tel, ...(responsavel ? { responsavel, autorizacaoResponsavel: true } : {}) };
+        const corpo = { ...(g.nascimento ? {} : { nascimento: nasc }), ...(g.temCpf ? {} : { cpf }), telefone: tel, ...(responsavel ? { responsavel, autorizacaoResponsavel: true } : {}) };
         if (modoCompletar) await chamarFuncao("perfil/promotor/privado", corpo, "PUT");
-        else await chamarFuncao("cadastro/promotor", { ...corpo, termos: true, nome: usuario.displayName || "", indicadoPor: refRecebido() });
+        else await chamarFuncao("cadastro/promotor", { ...corpo, termos: true, nome: usuario.displayName || "", indicadoPor: refRecebido(), eneagramaToken: (() => { try { return localStorage.getItem("abastece_et") || undefined; } catch (e) { return undefined; } })() });
         await renovarToken(); await entrar(usuario);
     } catch (err) {
         console.error(err);
@@ -237,7 +266,7 @@ function escutar() {
     // Ofertas abertas só são legíveis para quem concluiu o treinamento (regra do Firestore + claim "treinado")
     if (hab.treinamento?.completo) {
         offUn = onSnapshot(query(collection(db, "solicitacoes"), where("status", "==", "aberta")), (snap) => {
-            if (habilitado()) snap.docChanges().forEach((c) => { if (c.type === "added" && !prim.o && !vistos.has(c.doc.id)) { const x = c.doc.data(); if (valorFiltro(x) && podeVer(x)) notificar("Nova oferta 🔔", `${x.loja} · ${brl(valorPromotor(x))} para você`); } vistos.add(c.doc.id); });
+            if (habilitado()) snap.docChanges().forEach((c) => { if (c.type === "added" && !prim.o && !vistos.has(c.doc.id)) { const x = c.doc.data(); if (valorFiltro(x) && podeVer(x)) { if (x.tipo === "ruptura") alertaRelampago(x, () => irPara("tab-ofertas")); else notificar("Nova oferta 🔔", `${x.loja} · ${brl(valorOferta(x))} para você`); } } vistos.add(c.doc.id); });
             prim.o = false;
             ofertas = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderOfertas();
         }, (e) => { ofertas = []; renderOfertas(); if (e.code !== "permission-denied") console.warn(e.code); });
@@ -249,9 +278,10 @@ function escutar() {
         renderTudo();
     }, (e) => { turnos = []; renderTudo(); if (e.code === "permission-denied") erro("Sem permissão para ler turnos."); });
 }
-const valorFiltro = (x) => valorPromotor(x) >= (pub.valorMin || 0);
+const valorFiltro = (x) => valorOferta(x) >= (pub.valorMin || 0);
 /** Menores de 18: esconde o que o servidor recusaria (turno noturno e setores vedados). */
 const podeVer = (x) => !priv.menor || (x.entrada >= MENOR_JANELA_INICIO && x.saida <= MENOR_JANELA_FIM && !MENOR_SETORES_VEDADOS.includes(x.foco));
+const valorOferta = (x) => rep?.nivel ? calcularDiaria(rep.nivel.id, x.bonusCentavos || 0).promotor : valorPromotor(x);   // oferta aberta: pelo nível de quem vai aceitar
 const meu = (t) => valorPromotor(t);   // líquido do promotor: único valor exibido neste portal
 function renderTudo() { renderProximos(); renderAgenda(); renderCarteira(); renderCalendario(); renderConversas(); if (diaSel) renderDia(); }
 
@@ -299,22 +329,24 @@ function desenharGeo() {
 }
 function atualizarSeg() { document.querySelectorAll("#seg-modo button").forEach((b) => { const on = b.dataset.modo === modo; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); }); }
 
-const ofertasBase = () => ofertas.filter((x) => x.data >= hojeLocal() && valorFiltro(x) && podeVer(x));
+const ofertasBase = () => ofertas.filter((x) => (x.tipo !== "ruptura" || (x.expiraEm?.toMillis?.() || 0) > Date.now()) && x.data >= hojeLocal() && valorFiltro(x) && podeVer(x));   // relâmpago vencido some
 function desenharChips(base) {
     const c = contarPorCidade(base), todas = modo === "cidades" && !filtroCidade;
     $("chips-cidades").innerHTML = `<button class="pill city${todas ? " sel" : ""}" data-cidade="">Todas<b>${base.length}</b></button>` + c.map((x) => `<button class="pill city${modo === "cidades" && filtroCidade === x.cidade ? " sel" : ""}" data-cidade="${esc(x.cidade)}">${esc(x.cidade.replace(/ - [A-Z]{2}$/, ""))}<b>${x.vagas}</b><small>${x.vagas === 1 ? "vaga" : "vagas"}</small></button>`).join("");
 }
 function cartaoOferta(x, compacto = false) {
-    const m = x.match, paraMim = x.promotorPreferido && x.promotorPreferido === usuario.uid, cid = cidadeDaVaga(x);
+    const m = x.match, paraMim = x.promotorPreferido && x.promotorPreferido === usuario.uid, cid = cidadeDaVaga(x), rel = x.tipo === "ruptura";
+    const resta = rel && x.expiraEm?.toMillis ? Math.max(0, x.expiraEm.toMillis() - Date.now()) : 0;
     const local = cid || x.distKm != null ? `<span class="dist-tag">📍 ${esc(cid)}${x.distKm != null && Number.isFinite(x.distKm) ? `${cid ? " · " : ""}${fmtKm(x.distKm)}` : ""}</span>` : "";
     const anel = m?.score != null ? `<div class="match ${m.nivel}" style="--p:${m.score}" title="Compatibilidade com você"><b>${m.score}%</b><span>match</span></div>` : "";
-    if (compacto) return `<article class="card sug-card" data-det="${esc(x.id)}" role="button" tabindex="0"><div class="sug-top">${anel || "<span></span>"}<strong style="color:var(--green)">${brl(valorPromotor(x))}</strong></div><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}</article>`;
+    if (compacto) return `<article class="card sug-card" data-det="${esc(x.id)}" role="button" tabindex="0"><div class="sug-top">${anel || "<span></span>"}<strong style="color:var(--green)">${brl(valorOferta(x))}</strong></div><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}</article>`;
     const cat = categoriaDoSetor(x.foco), trav = !catsOk().has(cat), nomeCat = CATEGORIAS[cat]?.titulo || x.foco;
     const rodape = trav ? `<div class="trava"><span aria-hidden="true">🔒</span><span>Exige habilitação em ${esc(nomeCat)}</span></div><div class="acoes"><button class="btn btn-ghost btn-sm" data-det="${esc(x.id)}">Detalhes</button><button class="btn btn-ghost btn-sm" data-hab-iniciar="${esc(cat || "")}">Habilitar-me em ${esc(nomeCat)}</button></div>`
         : `<div class="acoes"><button class="btn btn-ghost btn-sm" data-det="${esc(x.id)}">Detalhes</button><button class="btn btn-primary btn-sm" data-aceitar="${esc(x.id)}">Aceitar turno</button></div>`;
-    return `<article class="card pedido oferta${trav ? " travada" : ""}"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}${paraMim ? ' <span class="badge green">Pedido para você</span>' : ""}</div>${anel}</div>
+    return `<article class="card pedido oferta${trav ? " travada" : ""}${rel ? " ruptura" : ""}"><div class="topo"><div class="grow"><h4>${esc(x.loja)}</h4><div class="meta">${rel ? "Hoje" : fmtData(x.data)} · ${esc(x.entrada)}–${esc(x.saida)} · ${esc(x.foco)}</div>${local}${rel ? ' <span class="badge badge-raio">⚡ Relâmpago</span>' : ""}${paraMim ? ' <span class="badge green">Pedido para você</span>' : ""}</div>${anel}</div>
+        ${rel && x.observacao ? `<p class="small muted">${esc(x.observacao)}</p>` : ""}
         ${m?.razoes?.length ? `<div class="razoes">${m.razoes.map((r) => `<span>${esc(r)}</span>`).join("")}</div>` : ""}
-        <div class="ganho"><span>Você recebe<br><small class="muted">diária${x.minutos ? ` · ${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h` : ""}</small></span><strong>${brl(valorPromotor(x))}</strong></div>
+        <div class="ganho"><span>Você recebe<br><small class="muted">diária${x.minutos ? ` · ${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h` : ""}${x.bonusCentavos ? ` · <span class="bonus-tag">inclui bônus ${brl(x.bonusCentavos)}</span>` : ""}${rel ? ` · expira em <span class="contagem" data-expira="${x.expiraEm?.toMillis?.() || 0}">${Math.ceil(resta / 60000)} min</span>` : ""}</small></span><strong>${brl(valorOferta(x))}</strong></div>
         ${rodape}</article>`;
 }
 function renderOfertas() {
@@ -337,6 +369,7 @@ function renderOfertas() {
     if (ordem === "perto") rk.sort((a, b) => (a.distKm ?? 1e9) - (b.distKm ?? 1e9));
     else if (ordem === "valor") rk.sort((a, b) => valorPromotor(b) - valorPromotor(a) || (b.match.score ?? -1) - (a.match.score ?? -1));
     else if (ordem === "data") rk.sort((a, b) => `${a.data}${a.entrada}`.localeCompare(`${b.data}${b.entrada}`));
+    rk.sort((a, b) => (b.tipo === "ruptura") - (a.tipo === "ruptura"));          // chamados relâmpago sempre no topo (ordenação estável mantém o resto)
     // Só pode ACEITAR oferta de categoria em que está habilitado (o servidor confere de novo). As demais ficam no fim, travadas.
     const habOk = catsOk(), liberada = (x) => habOk.has(categoriaDoSetor(x.foco));
     rk = [...rk.filter(liberada), ...rk.filter((x) => !liberada(x))];
@@ -385,7 +418,7 @@ function abrirDetalhe(id) {
     $("of-titulo").textContent = x.loja;
     $("of-corpo").innerHTML = `<div class="row between"><div class="muted small">📍 ${esc(cid || "Localização não informada")}${Number.isFinite(d) ? ` · ${fmtKm(d)} de você` : ""}</div>${m.score != null ? `<span class="badge ${m.nivel === "alto" ? "green" : m.nivel === "medio" ? "" : "blue"}">${m.score}% de match</span>` : ""}</div>
         ${radarSVG(x)}
-        <div class="of-info"><div><small>Data</small><strong>${fmtData(x.data)}</strong></div><div><small>Horário</small><strong>${esc(x.entrada)}–${esc(x.saida)}</strong></div><div><small>Setor</small><strong>${esc(x.foco)}</strong></div><div><small>Você recebe</small><strong style="color:var(--green)">${brl(valorPromotor(x))}</strong></div></div>
+        <div class="of-info"><div><small>Data</small><strong>${fmtData(x.data)}</strong></div><div><small>Horário</small><strong>${esc(x.entrada)}–${esc(x.saida)}</strong></div><div><small>Setor</small><strong>${esc(x.foco)}</strong></div><div><small>Você recebe</small><strong style="color:var(--green)">${brl(valorOferta(x))}</strong></div></div>
         <div class="card flat mb"><h4 class="highlight mb">Por que combina com você</h4>${barra("Proximidade", m.partes.dist)}${barra("Experiência", m.partes.exp)}${barra("Perfil (Eneagrama)", m.partes.enea)}
         ${m.razoes.length ? `<div class="razoes">${m.razoes.map((r) => `<span>${esc(r)}</span>`).join("")}</div>` : '<p class="muted small">Complete sua experiência e seu perfil para ver os motivos.</p>'}
         ${m.conhecidos < 3 ? '<button class="btn btn-ghost btn-sm mt" data-fechar="sheet-oferta" data-abrir="sheet-perfil">Completar perfil</button>' : ""}</div>
@@ -395,10 +428,10 @@ function abrirDetalhe(id) {
 
 async function aceitar(id, b) {
     b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
-    try { await chamarFuncao("aceitarTurno", { solicitacaoId: id }); ok("Turno aceito! Ele já está na sua escala."); fechar("sheet-oferta"); irPara("tab-agenda"); }
+    try { await chamarFuncao("aceitarTurno", { solicitacaoId: id }); ok("Turno aceito! Ele já está na sua escala."); fechar("sheet-oferta"); irPara("tab-agenda"); carregarRep(); }
     catch (e) {
         console.error(e);
-        const m = { "limite-semanal": e.message, "turno-indisponivel": e.message, "conflito-horario": e.message, exclusivo: e.message, "promotor-inativo": "Seu cadastro ainda não foi aprovado.", "treinamento-pendente": "Conclua o treinamento PRATICAMENTE para aceitar turnos.", "idade-nao-verificada": "Informe sua data de nascimento para continuar.", "responsavel-pendente": "Falta a autorização do responsável legal.", "menor-horario": e.message, "menor-setor": e.message, "categoria-pendente": e.message }[e.code];
+        const m = { "limite-semanal": e.message, "turno-indisponivel": e.message, "conflito-horario": e.message, exclusivo: e.message, "promotor-inativo": "Seu cadastro ainda não foi aprovado.", "treinamento-pendente": "Conclua o treinamento PRATICAMENTE para aceitar turnos.", "idade-nao-verificada": "Informe sua data de nascimento para continuar.", "responsavel-pendente": "Falta a autorização do responsável legal.", "menor-horario": e.message, "menor-setor": e.message, "categoria-pendente": e.message, "turno-expirado": "Este chamado relâmpago expirou.", "conta-banida": "Sua conta está bloqueada." }[e.code];
         erro(m || "Não foi possível aceitar o turno. Tente de novo.");
         if (["treinamento-pendente", "promotor-inativo", "idade-nao-verificada", "responsavel-pendente"].includes(e.code)) { await carregarHabilitacao(); pintarPerfil(); renderOfertas(); }
         if (e.code === "categoria-pendente") await carregarHabCats();
@@ -407,15 +440,20 @@ async function aceitar(id, b) {
 }
 
 // ---------- turnos / agenda ----------
+const tardio = (t) => { const [h, m] = (t.entrada || "00:00").split(":").map(Number), ini = new Date(`${t.data}T00:00:00-03:00`).getTime() + (h * 60 + m) * 60_000; return ini - Date.now() < (rep?.regras?.cancelamentoTardioHoras || 12) * 3_600_000; };
 function cartaoTurno(t) {
     const st = t.status, pago = estaPago(t), cancel = st === "cancelada";
     const acoes = [];
-    if (st === "aceita") acoes.push(`<button class="btn btn-primary btn-sm" data-qr="${t.id}">💳 Cobrar (QR)</button>`, `<button class="btn btn-danger btn-sm" data-desistir="${t.id}">Desistir</button>`);
-    if (!cancel && t.data === hojeLocal() && (st === "aceita" || pago)) { if (!t.checkinEm) acoes.push(`<button class="btn btn-green btn-sm" data-checkin="${t.id}">📍 Check-in</button>`); else if (!t.checkoutEm) acoes.push(`<button class="btn btn-green btn-sm" data-checkout="${t.id}">🏁 Check-out</button>`); }
+    const exec = t.exigeExecucao !== false && t.exigeExecucao !== undefined, fase = t.fase || "";
+    if (st === "aceita" && exec && !fase) acoes.push(`<button class="btn btn-primary btn-sm" data-checkin="${t.id}">📍 Check-in</button>`, `<button class="btn btn-danger btn-sm" data-desistir="${t.id}">Desistir</button>`);
+    else if (st === "aceita" && fase === "em_andamento") acoes.push(`<button class="btn btn-primary btn-sm" data-checkout="${t.id}">📸 Finalizar (foto)</button>`, `<button class="btn btn-ghost btn-sm" data-faltaloja="${t.id}">Loja ausente?</button>`);
+    else if (st === "aceita") acoes.push(`<button class="btn btn-primary btn-sm" data-qr="${t.id}">💳 Cobrar (QR)</button>`, ...(exec ? [] : [`<button class="btn btn-danger btn-sm" data-desistir="${t.id}">Desistir</button>`]));
+    const pill = fase === "em_andamento" ? '<span class="fase-pill andamento">Em andamento</span>' : fase === "executada" && !pago ? '<span class="fase-pill executada">Executado ✓</span>' : "";
     if (!cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-chat="${t.id}">💬 Chat</button>`);
     const rot = cancel ? ["Cancelado", "red"] : pago ? ["Recebido", "green"] : ["Aguardando pagamento", "blue"];
-    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(t.loja)}</h4><div class="meta">${fmtData(t.data)} · ${esc(t.entrada)}–${esc(t.saida)} · ${esc(t.foco)}</div></div>
+    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(t.loja)}</h4><div class="meta">${t.tipo === "ruptura" ? "⚡ " : ""}${fmtData(t.data)} · ${esc(t.entrada)}–${esc(t.saida)} · ${esc(t.foco)}</div>${pill}</div>
         <div class="center"><div class="valor">${brl(meu(t))}</div><span class="badge ${rot[1]}" style="margin-top:4px">${rot[0]}</span></div></div>
+        ${fase === "executada" ? `<div class="row" style="gap:10px;margin-top:10px"><button class="btn btn-ghost btn-sm" data-foto="${t.id}" data-legenda="${esc(t.loja)}">🖼 Ver foto enviada</button>${t.auditoriaLoja ? `<span class="badge ${t.auditoriaLoja.resultado === "aprovada" ? "green" : "red"}">Loja: ${t.auditoriaLoja.resultado}</span>` : ""}</div>` : ""}
         ${acoes.length ? `<div class="acoes">${acoes.join("")}</div>` : ""}</article>`;
 }
 function renderProximos() {
@@ -833,7 +871,7 @@ const ANOS_ROT = (n) => (n < 1 ? "menos de 1 ano" : n === 1 ? "1 ano" : n >= 12 
 let formIA = { experiencias: [], eneagrama: null, bioAuto: true }, kwAtual = [];
 
 async function carregarPerfilIA() {
-    try { const r = await consultar("perfil/promotor/inteligente"); perfilIA = { experiencias: normalizarExperiencias(r.experiencias), eneagrama: eneagramaValido(r.eneagrama) ? r.eneagrama : null, palavrasChave: r.palavrasChave || [], bioAuto: r.bioAuto !== false }; }
+    try { const r = await consultar("perfil/promotor/inteligente"); perfilIA = { experiencias: normalizarExperiencias(r.experiencias), eneagrama: eneagramaValido(r.eneagrama) ? r.eneagrama : null, palavrasChave: r.palavrasChave || [], bioAuto: r.bioAuto !== false, eneagramaTravado: !!r.eneagramaTravado, eneagramaOrigem: r.eneagramaOrigem || "" }; }
     catch (e) { console.warn(e); }
     pintarFormIA(); renderOfertas();
     // resultado do teste recebido por link (?eneagrama=PM-3w2-SO) e ainda não salvo no perfil
@@ -856,6 +894,11 @@ function desenharEnea() {
     $("en-inst").value = e?.instinto || ""; $("en-inst").disabled = !e;
     const r = $("en-resumo"); r.hidden = !e;
     if (e) { const d = ENEAGRAMA[e.tipo]; r.innerHTML = `<strong>Tipo ${e.tipo} — ${esc(d.nome)}</strong>${e.asa ? ` · asa ${e.asa}` : ""}${e.instinto ? ` · ${INSTINTOS[e.instinto]}` : ""}<br><span class="muted">Pontos fortes no trabalho: ${esc(d.tracos.join(", "))}.</span><br><span class="muted small">Código: ${esc(codigoEneagrama(e))}</span>`; }
+    if (perfilIA.eneagramaTravado && e) {                               // resultado vindo do teste: sem digitação nem edição
+        for (const id of ["en-tipo", "en-asa", "en-inst", "en-codigo", "en-aplicar"]) { const el = $(id); if (el) el.disabled = true; }
+        $("btn-teste-enea").hidden = true;
+        r.innerHTML += `<br><span class="muted small">✔ Resultado do teste PRATICAMENTE, vinculado automaticamente ao seu cadastro.</span>`;
+    }
 }
 function pintarKw(l) { kwAtual = l; $("kw-chips").innerHTML = l.map((k) => `<span>${esc(k)}</span>`).join(""); }
 const contarBio = () => { $("bio-cont").textContent = `(${$("d-bio").value.length}/300)`; };
@@ -881,7 +924,7 @@ async function salvarIA({ silencioso = false } = {}) {
     const corpo = { experiencias: formIA.experiencias, eneagrama: formIA.eneagrama ? { tipo: formIA.eneagrama.tipo, asa: formIA.eneagrama.asa || 0, instinto: formIA.eneagrama.instinto || "" } : null, palavrasChave: kwAtual, bio: $("d-bio").value.trim(), bioAuto: formIA.bioAuto };
     try {
         const r = await chamarFuncao("perfil/promotor/inteligente", corpo, "PUT");
-        perfilIA = { experiencias: r.experiencias, eneagrama: r.eneagrama, palavrasChave: r.palavrasChave, bioAuto: r.bioAuto }; Object.assign(pub, { bio: r.bio, palavrasChave: r.palavrasChave });
+        perfilIA = { experiencias: r.experiencias, eneagrama: r.eneagrama, palavrasChave: r.palavrasChave, bioAuto: r.bioAuto, eneagramaTravado: !!r.eneagramaTravado, eneagramaOrigem: perfilIA.eneagramaOrigem }; Object.assign(pub, { bio: r.bio, palavrasChave: r.palavrasChave });
         renderOfertas(); return true;
     } catch (e) { console.error(e); if (!silencioso) erro(e.message || "Não foi possível salvar seu perfil."); return false; }
 }
@@ -935,17 +978,6 @@ function renderCursos() {
         }).join("")}</div></details>`).join("") : vazio("📚", "Nenhum curso publicado", "A equipe ainda vai publicar os cursos. Volte em breve.");
 }
 
-// ---------- check-in / check-out (horário gravado pelo servidor; localização é opcional) ----------
-async function ponto(id, tipo) {
-    const t = turnos.find((x) => x.id === id); if (!t) return;
-    if (tipo === "checkout" && !confirm(`Encerrar o turno em ${t.loja}?`)) return;
-    const pos = await new Promise((r) => { if (!navigator.geolocation) return r(null); navigator.geolocation.getCurrentPosition((p) => r({ lat: p.coords.latitude, lng: p.coords.longitude, prec: Math.round(p.coords.accuracy) }), () => r(null), { enableHighAccuracy: true, timeout: 8000 }); });
-    try {
-        const r = await chamarFuncao(`turnos/${encodeURIComponent(id)}/${tipo}`, pos || {});
-        ok(tipo === "checkin" ? (r.atrasoMin > 15 ? `Check-in registrado (${r.atrasoMin} min de atraso).` : "Check-in registrado ✓") : "Check-out registrado ✓");
-    } catch (e) { erro(e.message || "Não foi possível registrar agora."); }
-}
-
 // ---------- cliques globais (delegação) ----------
 document.addEventListener("click", async (e) => {
     const g = (a) => e.target.closest(`[${a}]`);
@@ -953,12 +985,14 @@ document.addEventListener("click", async (e) => {
     if ((el = g("data-aceitar"))) aceitar(el.dataset.aceitar, el);
     else if ((el = g("data-qr"))) { const t = turnos.find((x) => x.id === el.dataset.qr); if (t) abrirQR(t); }
     else if ((el = g("data-chat"))) { const t = turnos.find((x) => x.id === el.dataset.chat); if (t) abrirChat(t); }
-    else if ((el = g("data-checkin"))) ponto(el.dataset.checkin, "checkin");
-    else if ((el = g("data-checkout"))) ponto(el.dataset.checkout, "checkout");
     else if ((el = g("data-desistir"))) {
-        const t = turnos.find((x) => x.id === el.dataset.desistir); if (!t || !confirm(`Desistir do turno em ${t.loja}? Ele volta para a fila de ofertas.`)) return;
-        try { await chamarFuncao("desistirTurno", { solicitacaoId: t.id }); ok("Você saiu do turno. Ele voltou para a fila."); } catch (err) { erro("Não foi possível desistir agora."); }
+        const t = turnos.find((x) => x.id === el.dataset.desistir); if (!t || !confirm(`Desistir do turno em ${t.loja}? Ele volta para a fila de ofertas.${tardio(t) ? `\n\n⚠️ Faltam menos de ${rep?.regras?.cancelamentoTardioHoras || 12} h para o início: você receberá uma ADVERTÊNCIA (perde 1 vida) e uma multa.` : ""}`)) return;
+        try { const r = await chamarFuncao("desistirTurno", { solicitacaoId: t.id }); ok("Você saiu do turno. Ele voltou para a fila."); if (r.infracao) { await carregarRep(); if (!rep.banido) animarPerdaVida(r.infracao); } } catch (err) { erro(err.code === "servico-em-andamento" ? "Você já fez check-in. Finalize o serviço ou reporte a loja." : "Não foi possível desistir agora."); }
     }
+    if ((el = g("data-checkin"))) { const t = turnos.find((x) => x.id === el.dataset.checkin); if (t) abrirCheckin(t); }
+    if ((el = g("data-checkout"))) { const t = turnos.find((x) => x.id === el.dataset.checkout); if (t) abrirCheckout(t); }
+    if ((el = g("data-faltaloja"))) { const t = turnos.find((x) => x.id === el.dataset.faltaloja); if (t) abrirFaltaLoja(t); }
+    if ((el = g("data-foto"))) abrirFoto(`execucao/foto/${encodeURIComponent(el.dataset.foto)}`, el.dataset.legenda);
     if ((el = g("data-video"))) abrirVideo(el.dataset.video);
     if ((el = g("data-det")) && !e.target.closest("[data-aceitar]")) abrirDetalhe(el.dataset.det);
     if ((el = g("data-prova"))) abrirProva(el.dataset.prova);
@@ -980,3 +1014,5 @@ function irPara(id) {
     if (id === "tab-ofertas") iniciarGeo(); else pararDeAcompanhar();          // GPS só liga enquanto a pessoa está vendo as ofertas
 }
 $("nav-personal").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });
+
+setInterval(() => { document.querySelectorAll("[data-expira]").forEach((e) => { const r = Number(e.dataset.expira) - Date.now(); if (r <= 0) { renderOfertas(); return; } e.textContent = r >= 60000 ? `${Math.ceil(r / 60000)} min` : `${Math.ceil(r / 1000)} s`; }); }, 1000);

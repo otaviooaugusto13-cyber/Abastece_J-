@@ -41,15 +41,18 @@ async function semear({ uid = "prom1", nascimento = "1995-05-20", status = "ativ
 }
 async function modulo(id = "m1", ordem = 1, dur = 100) { await set("treinamento_modulos", id, { ordem, titulo: "Módulo " + id, provedor: "youtube", videoRef: "abcdefghijk", duracaoSeg: dur, ativo: true }); }
 async function concluirTreino(uid) { await modulo(); await set("treinamento_progresso", `${uid}_m1`, { uid, moduloId: "m1", validoSeg: 100, concluido: true }); }
-async function lojaComCartao(uid = "lojaA") { await set("contratantes", uid, { uid, razaoSocial: "Mercado " + uid }); await set("cartoes", uid, { uid, status: "ativo", ultimos4: "1234" }); }
+const LOJA_LAT = -22.4358, LOJA_LNG = -46.8216;
+async function lojaComCartao(uid = "lojaA") { await set("contratantes", uid, { uid, razaoSocial: "Mercado " + uid, localizacao: { lat: LOJA_LAT, lng: LOJA_LNG, cidade: "Itapira", uf: "SP" } }); await set("cartoes", uid, { uid, status: "ativo", ultimos4: "1234" }); }
 async function pedido(over = {}) {
   await lojaComCartao();
   const r = await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia", ...over } });
   ok(r, "criarPedido"); return r.json.id;
 }
+/** marca o serviço como executado (check-in/out) sem passar pela API: usado nos testes financeiros, que não são sobre geofence */
+async function executar(sid) { await ctx.db.collection("solicitacoes").doc(sid).update({ fase: "executada", checkin: { em: new E.Timestamp(Date.now()), noRaio: true }, checkout: { em: new E.Timestamp(Date.now()), gondola: "cheia" } }); }
 const mpMock = (map) => { global.fetch = async (url, init = {}) => { const k = `${init.method || "GET"} ${String(url).replace("https://api.mercadopago.com", "")}`; const h = map[k] ?? Object.entries(map).find(([p]) => k.startsWith(p))?.[1]; if (!h) return { ok: false, status: 404, json: async () => ({}) }; const v = typeof h === "function" ? h(init) : h; return { ok: true, status: 200, json: async () => v }; }; };
 const pgMP = (sid, over = {}) => ({ id: 777, status: "approved", external_reference: sid, currency_id: "BRL", transaction_amount: 200, payment_type_id: "credit_card", fee_details: [{ type: "mercadopago_fee", amount: 7.9 }], ...over });
-async function pagar(sid, over = {}) { mpMock({ "GET /v1/payments/777": pgMP(sid, over) }); return chamar("POST", "/confirmarPagamento", { token: "lojaA", body: { solicitacaoId: sid, paymentId: "777" } }); }
+async function pagar(sid, over = {}) { await executar(sid); mpMock({ "GET /v1/payments/777": pgMP(sid, over) }); return chamar("POST", "/confirmarPagamento", { token: "lojaA", body: { solicitacaoId: sid, paymentId: "777" } }); }
 /** pedido aceito e pago: profissional aprovado, treinado, adulto */
 async function cenarioPago() {
   await semear({ treinado: true }); const sid = await pedido();
@@ -133,7 +136,7 @@ t("estorno depois do saque deixa a carteira negativa (sinalizada) e continua con
   const c = await chamar("GET", "/admin/conciliacao", { token: "adm" }); assert.equal(c.json.ok, true); assert.ok(c.json.divergencias.some((d) => d.tipo === "saldo_negativo" && d.informativo));
 });
 t("webhook: assinatura inválida 401; válida processa; reembolso estorna", async () => {
-  await semear({ treinado: true }); const sid = await pedido(); ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: sid } }));
+  await semear({ treinado: true }); const sid = await pedido(); ok(await chamar("POST", "/aceitarTurno", { token: "prom1", body: { solicitacaoId: sid } })); await executar(sid);
   mpMock({ "GET /v1/payments/777": pgMP(sid), "POST /v1/payments/777/refunds": { id: 9 } });
   const assinar = (id, reqId, ts) => `ts=${ts},v1=${crypto.createHmac("sha256", "segredo-webhook").update(`id:${id};request-id:${reqId};ts:${ts};`).digest("hex")}`;
   const hook = (h) => chamar("POST", "/webhookMP?data.id=777&type=payment", { headers: h, body: {} });
@@ -341,7 +344,7 @@ t("regras do Firestore: deny-by-default, sem escrita aberta, campos sensíveis p
   for (const col of ["profissionais_privado", "pagamentos_internos", "carteiras", "lancamentos", "saques", "treinamento_progresso", "habilitacao_categorias", "habilitacao_sessoes", "auditoria"]) assert.ok(new RegExp("match \\/" + col + "\\/\\{\\w+\\}\\s*\\{ allow read, write: if false;").test(rules), col);
   const upd = /match \/profissionais\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
   for (const proibido of ["status", "treinamentoOk", "habilitacoes", "role", "ratingMedia", "refCode"]) assert.ok(!upd.includes(`'${proibido}'`), `cliente não pode alterar ${proibido}`);
-  assert.match(rules, /treinado\(\) && resource\.data\.status == 'aberta'/);
+  assert.match(rules, /treinado\(\) && !banido\(\) && resource\.data\.status == 'aberta'/);
   assert.match(rules, /match \/solicitacoes\/\{id\} \{[\s\S]*?allow write: if false;/);
 });
 
@@ -390,27 +393,34 @@ t("perfil inteligente: validação rígida (área, asa não vizinha, tipo, palav
   const p = await get("profissionais", "prom1"); assert.equal(p.treinamentoOk, false); assert.equal(p.ratingMedia, undefined);
   falha(await chamar("PUT", "/perfil/promotor/inteligente", { token: "lojaA", body: {} }), 403, "sem-permissao");
 });
-t("vaga herda cidade e coordenadas da loja (servidor); o cliente não consegue forçar coordenadas no pedido", async () => {
-  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", cidade: "Itapira", uf: "SP", lat: -22.4358, lng: -46.8231 }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
+t("vaga herda a localização da loja (servidor): local/regiao; campos soltos do cliente são ignorados", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", localizacao: { lat: -22.4358, lng: -46.8231, cidade: "Itapira", uf: "SP" } }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
   const r = await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia", lat: 0, lng: 0, cidade: "Outra" } }); ok(r);
-  const v = await get("solicitacoes", r.json.id); assert.deepEqual([v.cidade, v.uf, v.lat, v.lng], ["Itapira", "SP", -22.4358, -46.8231]);
+  const v = await get("solicitacoes", r.json.id); assert.deepEqual([v.local.lat, v.local.lng, v.regiao.cidade, v.regiao.uf], [-22.4358, -46.8231, "Itapira", "SP"]);
+  assert.equal(v.lat, undefined, "coordenadas soltas do cliente não entram no pedido"); assert.equal(v.cidade, undefined);
 });
-t("vaga sem localização válida da loja é criada sem coordenadas (coordenada fora do Brasil é descartada)", async () => {
-  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", cidade: "Lugar", lat: 48.85, lng: 2.35 }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
-  const r = await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia" } }); ok(r);
-  const v = await get("solicitacoes", r.json.id); assert.equal(v.lat, undefined); assert.equal(v.cidade, undefined);
+t("loja sem localização cadastrada não consegue pedir (o check-in precisa do ponto exato da loja)", async () => {
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A" }); await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
+  falha(await chamar("POST", "/criarPedido", { token: "lojaA", body: { loja: "Mercado A — Rua 1", data: dia(2), entrada: "08:00", saida: "12:00", foco: "Mercearia" } }), 409, "localizacao-obrigatoria");
 });
-t("regras do Firestore: loja grava localização só com números dentro do Brasil; promotor continua sem poder gravar perfil inteligente", async () => {
+t("regras do Firestore: loja e promotor NÃO gravam localização nem perfil inteligente direto (só o servidor valida)", async () => {
   const fs = require("node:fs"), rules = fs.readFileSync(require("node:path").join(__dirname, "../firestore.rules"), "utf8");
   const lojaUpd = /match \/contratantes\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
-  for (const c of ["cidade", "uf", "lat", "lng"]) assert.ok(lojaUpd.includes(`'${c}'`), c);
-  assert.match(rules, /lat is number && request\.resource\.data\.lat >= -34/); assert.match(rules, /lng is number && request\.resource\.data\.lng >= -74/);
+  for (const c of ["cidade", "uf", "lat", "lng", "localizacao"]) assert.ok(!lojaUpd.includes(`'${c}'`), `loja não grava ${c} direto`);
   const promUpd = /match \/profissionais\/\{uid\}[\s\S]*?allow update:[\s\S]*?soMuda\(\[([^\]]*)\]\)/.exec(rules)[1];
-  for (const c of ["eneagrama", "experiencias", "palavrasChave", "areasExperiencia"]) assert.ok(!promUpd.includes(`'${c}'`), c);
+  for (const c of ["eneagrama", "experiencias", "palavrasChave", "areasExperiencia", "nivel", "vidas"]) assert.ok(!promUpd.includes(`'${c}'`), c);
 });
-t("cabeçalhos: geolocalização liberada só para a própria origem; câmera e microfone seguem bloqueados", async () => {
+t("conta de marca (B2B) não vira loja/promotor por engano e /sessao a orienta ao painel da marca", async () => {
+  await semear(); E.tokens.marca1 = { uid: "marca1", email: "mk1@x.com", email_verified: true }; E.claimsStore.marca1 = { role: "marca" };
+  const marca = await chamar("POST", "/sessao", { token: "marca1", body: {} });
+  ok(marca); assert.equal(marca.json.estado, "outro-perfil"); assert.equal(marca.json.destino, "/marca.html");
+  falha(await chamar("POST", "/cadastro/loja", { token: "marca1", body: { termos: true } }), 409, "papel-conflito");
+  falha(await chamar("POST", "/cadastro/promotor", { token: "marca1", body: { termos: true, nascimento: "1990-01-01", cpf: "52998224725" } }), 409, "papel-conflito");
+  assert.equal((await get("contratantes", "marca1")), undefined, "nenhum cadastro foi criado");
+});
+t("cabeçalhos: geolocalização e câmera liberadas só para a própria origem; microfone segue bloqueado", async () => {
   const Seg = ctx.Seg || require("../server/lib/seguranca.js"), hs = {}; Seg.cabecalhos()({}, { setHeader: (k, v) => (hs[k] = v), removeHeader() {} }, () => {});
-  const pp = hs["Permissions-Policy"]; assert.match(pp, /geolocation=\(self\)/); assert.match(pp, /camera=\(\)/); assert.match(pp, /microphone=\(\)/);
+  const pp = hs["Permissions-Policy"]; assert.match(pp, /geolocation=\(self\)/); assert.match(pp, /camera=\(self\)/); assert.match(pp, /microphone=\(\)/);
 });
 
 // =================== 5. MULTI-PERFIL / TROCA DE PORTAL (/sessao) ===================
@@ -914,24 +924,7 @@ t("prova: o admin cadastra módulo com perguntas e a validação barra dados rui
 const spMin = () => { const [h, m] = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour12: false, hour: "2-digit", minute: "2-digit" }).split(":").map(Number); return (h % 24) * 60 + m; };
 const hhmm = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 async function turnoHoje(id, extra = {}) { const ini = Math.max(0, spMin() - 5); await set("solicitacoes", id, { uid: "lojaA", loja: "Loja X", promotorUid: "prom1", status: "aceita", data: V.hojeSP(), entrada: hhmm(ini), saida: hhmm(Math.min(1439, ini + 240)), minutos: 240, ...extra }); }
-t("check-in/out: só o promotor do turno, só no dia; horário do servidor; marca divergência", async () => {
-  await semear({ uid: "prom1" }); await semear({ uid: "prom2", cpfn: 1 }); await turnoHoje("s1");
-  falha(await chamar("POST", "/turnos/s1/checkin", { body: {} }), 401);
-  falha(await chamar("POST", "/turnos/s1/checkin", { token: "lojaA", body: {} }), 403);
-  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom2", body: {} }), 404, "nao-encontrado");
-  falha(await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }), 409, "sem-checkin");
-  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: { lat: 999, lng: 0 } }), 400, "geo-invalida");
-  const ci = await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: { lat: -22.43, lng: -46.82, prec: 12 } }); ok(ci);
-  assert.ok(ci.json.atrasoMin >= 0 && ci.json.atrasoMin <= 6, "atraso medido pelo servidor: " + ci.json.atrasoMin);
-  falha(await chamar("POST", "/turnos/s1/checkin", { token: "prom1", body: {} }), 409, "ja-registrado");
-  const co = await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }); ok(co);
-  assert.ok(co.json.divergencias.includes("saida-antecipada"), "saiu logo após entrar: divergência");
-  const d = await get("solicitacoes", "s1"); assert.ok(d.checkinEm && d.checkoutEm && d.checkinGeo.lat === -22.43 && d.divergencias.includes("saida-antecipada"));
-  falha(await chamar("POST", "/turnos/s1/checkout", { token: "prom1", body: {} }), 409, "ja-registrado");
-  await turnoHoje("s2", { data: dia(1) }); falha(await chamar("POST", "/turnos/s2/checkin", { token: "prom1", body: {} }), 409, "fora-do-dia");
-  await turnoHoje("s3", { status: "aberta" }); falha(await chamar("POST", "/turnos/s3/checkin", { token: "prom1", body: {} }), 409, "estado-invalido");
-});
-
+// (o check-in/out por /turnos foi substituído pelo check-in com geofence e foto de test/jogo.test.cjs)
 // ---------- Painel admin: resumo financeiro e auditoria de exportações ----------
 t("admin: resumo financeiro (saques parados, sem dados de Pix) e registro de exportação na auditoria", async () => {
   await set("saques", "q1", { uid: "prom1", status: "solicitado", valorCentavos: 5000, criadoEm: new E.Timestamp(Date.now() - 3 * 3600_000), pixEnc: "x" });
@@ -945,6 +938,48 @@ t("admin: resumo financeiro (saques parados, sem dados de Pix) e registro de exp
   falha(await chamar("POST", "/admin/auditar-exportacao", { token: "prom1", body: { tipo: "missoes" } }), 403);
   const aud = await chamar("GET", "/admin/auditoria?limite=50", { token: "adm" }); ok(aud);
   assert.ok(aud.json.some((a) => a.acao === "admin.exportar" && a.alvo === "missoes"), "a exportação ficou no log");
+});
+
+// ---------- Suporte: perfil 360 do atendente ----------
+t("suporte: perfil 360 da loja e do promotor (só admin), CPF mascarado, histórico, pré-carga leve sem auditoria", async () => {
+  await semear({ uid: "prom1", status: "ativo", treinado: true });
+  await set("usuarios", "prom1", { email: "p@x.com" });
+  await set("profissionais", "prom1", { uid: "prom1", nome: "Profissional prom1", status: "ativo", cidade: "Itapira", ratingMedia: 4.8 });
+  await set("contratantes", "lojaA", { uid: "lojaA", razaoSocial: "Mercado A", documento: "12345678000190", ramo: "Mercado", endereco: "Rua 1", criadoEm: new E.Timestamp(Date.now()) });
+  await set("cartoes", "lojaA", { uid: "lojaA", status: "ativo", ultimos4: "1234" });
+  await set("solicitacoes", "s1", { uid: "lojaA", promotorUid: "prom1", promotorNome: "Profissional prom1", loja: "Mercado A", status: "concluida", data: dia(-1), foco: "Mercearia", criadoEm: new E.Timestamp(Date.now() - 1000) });
+  await set("solicitacoes", "s2", { uid: "lojaA", status: "aberta", data: dia(3), foco: "Bebidas", criadoEm: new E.Timestamp(Date.now()) });
+  ok(await chamar("POST", "/suporte/mensagem", { token: "lojaA", body: { texto: "Preciso de ajuda." } }));
+  ok(await chamar("POST", "/suporte/mensagem", { token: "prom1", body: { texto: "Não consigo aceitar turno." } }));
+
+  // RBAC: só admin
+  falha(await chamar("GET", "/admin/suporte/lojaA/perfil", { token: "lojaA" }), 403); falha(await chamar("GET", "/admin/suporte/prom1/perfil", { token: "prom1" }), 403);
+  falha(await chamar("GET", "/admin/suporte/naoexiste/perfil", { token: "adm" }), 404);
+
+  const l = await chamar("GET", "/admin/suporte/lojaA/perfil", { token: "adm" }); ok(l);
+  assert.equal(l.json.tipo, "loja"); assert.equal(l.json.cadastro.nome, "Mercado A"); assert.equal(l.json.cadastro.cartao, "ativo");
+  assert.equal(l.json.historico.total, 2); assert.equal(l.json.historico.porStatus.concluida, 1); assert.equal(l.json.historico.ultimos[0].status, "aberta", "mais recente primeiro");
+  assert.ok(!JSON.stringify(l.json).includes("ultimos4"), "não expõe dados do cartão além do status");
+
+  const p = await chamar("GET", "/admin/suporte/prom1/perfil", { token: "adm" }); ok(p);
+  assert.equal(p.json.tipo, "promotor"); assert.equal(p.json.email, "p@x.com"); assert.equal(p.json.cadastro.cidade, "Itapira"); assert.equal(p.json.historico.total, 1);
+  assert.ok(p.json.cadastro.cpfMascarado && !p.json.cadastro.cpfMascarado.includes(cpf(0)), "CPF vem mascarado"); assert.equal(p.json.parcial, false);
+  assert.equal(p.json.conversa.mensagens, 1);
+
+  const antes = [...E.store.keys()].filter((k) => k.startsWith("auditoria/")).length;
+  const leve = await chamar("GET", "/admin/suporte/prom1/perfil?leve=1", { token: "adm" }); ok(leve);
+  assert.equal(leve.json.parcial, true); assert.equal(leve.json.cadastro.cpfMascarado, ""); assert.equal(leve.json.cadastro.telefone, "", "pré-carga não decifra dados pessoais");
+  assert.equal([...E.store.keys()].filter((k) => k.startsWith("auditoria/")).length, antes, "pré-carga não gera auditoria");
+  const aud = [...E.store.values()].filter((v) => v.acao === "admin.suporte.ver_perfil"); assert.equal(aud.length, 2, "abrir o perfil (não a pré-carga) é auditado");
+});
+
+t("cadastro de promotor: sem CPF/nascimento → 400; dados já gravados são reaproveitados; conta já cadastrada não dá erro", async () => {
+  const corpo = { termos: true, nome: "Fulano", telefone: "19999990000" };
+  falha(await chamar("POST", "/cadastro/promotor", { token: "novo", body: corpo }), 400, "dados-invalidos");
+  await set("profissionais_privado", "novo1", { uid: "novo1", cpfEnc: enc("novo1", "cpf", cpf(0)), cpfIdx: Cripto.indiceCego(cpf(0)), nascimentoEnc: enc("novo1", "nascimento", "1995-05-20") });   // cadastro interrompido antes
+  const r = await chamar("POST", "/cadastro/promotor", { token: "novo", body: corpo }); ok(r, "reaproveita dados gravados");
+  assert.equal((await get("profissionais", "novo1")).status, "pendente");
+  const r2 = await chamar("POST", "/cadastro/promotor", { token: "novo", body: { termos: true } }); ok(r2); assert.equal(r2.json.jaCadastrado, true);   // sem CPF no corpo, mas já cadastrado
 });
 
 (async () => {

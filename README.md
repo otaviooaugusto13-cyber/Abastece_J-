@@ -18,4 +18,6 @@ npm test                      # paridade navegador×servidor + 31 testes de back
 MODO_TESTE=1 npm start        # sandbox local: contas fictícias e pagamento simulado (proibido em produção)
 ```
 
+**Painel de TI** (`/painel-ti`): operadores, auditoria encadeada, chamados, métricas e usuários online — veja **TI-MODULO.md**.
+
 Leia **MUDANCAS.md** (decisões e deploy) e **SEGURANCA.md** (modelo de ameaças, OWASP, checklist de pentest).

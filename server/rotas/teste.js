@@ -16,7 +16,7 @@ module.exports = (app, x) => {
     if (!["loja", "promotor"].includes(perfil)) throw new Falha(400, "perfil inválido");
     const uid = perfil === "loja" ? LOJA : PROM;
     if (perfil === "loja") {
-      await db.collection("contratantes").doc(uid).set({ uid, email: "loja.teste@abastece.ja", nome: "Loja Teste", razaoSocial: "Mercadinho Teste Ltda", documento: "11222333000181", endereco: "Rua dos Testes, 100 — Itapira/SP", ramo: "Supermercado", teste: true, termosEm: FieldValue.serverTimestamp() }, { merge: true });
+      await db.collection("contratantes").doc(uid).set({ uid, email: "loja.teste@abastece.ja", nome: "Loja Teste", razaoSocial: "Mercadinho Teste Ltda", documento: "11222333000181", endereco: "Rua dos Testes, 100 — Itapira/SP", ramo: "Supermercado", teste: true, localizacao: { lat: -22.4358, lng: -46.8216, cidade: "Itapira", uf: "SP", fonte: "manual", precisaoM: null }, termosEm: FieldValue.serverTimestamp() }, { merge: true });
     } else {
       await db.collection("profissionais").doc(uid).set({ uid, nome: "Promotor Teste", email: "promotor.teste@abastece.ja", status: "ativo", treinamentoOk: true, teste: true, especialidade: "Reposição geral", cidade: "Itapira - SP", refCode: "teste01", habilitacoes: { mercearia: { em: FieldValue.serverTimestamp(), tentativas: 1, elite: true }, flv: { em: FieldValue.serverTimestamp(), tentativas: 2, elite: false } }, criadoEm: FieldValue.serverTimestamp() }, { merge: true });
       const e = (campo, v) => Cripto.cifrar(v, `profissionais_privado/${campo}/${uid}`);
@@ -49,8 +49,8 @@ module.exports = (app, x) => {
     const ids = new Set();
     for (const [campo, uid] of [["uid", LOJA], ["promotorUid", PROM]]) (await db.collection("solicitacoes").where(campo, "==", uid).get()).docs.forEach((d) => ids.add(d.id));
     const lote = db.batch();
-    for (const id of ids) for (const col of ["solicitacoes", "solicitacoes_financeiro", "pagamentos_internos", "estornos", "lancamentos"]) lote.delete(db.collection(col).doc(col === "lancamentos" ? `pg_${id}_prof` : id));
-    for (const id of ids) { lote.delete(db.collection("lancamentos").doc(`pg_${id}_com`)); lote.delete(db.collection("lancamentos").doc(`lib_pg_${id}_prof`)); }
+    for (const id of ids) for (const col of ["fotos_checkout", "solicitacoes", "solicitacoes_financeiro", "pagamentos_internos", "estornos", "lancamentos"]) lote.delete(db.collection(col).doc(col === "lancamentos" ? `pg_${id}_prof` : id));
+    for (const id of ids) { lote.delete(db.collection("presencas").doc(`${id}_in`)); lote.delete(db.collection("presencas").doc(`${id}_out`)); lote.delete(db.collection("lancamentos").doc(`pg_${id}_com`)); lote.delete(db.collection("lancamentos").doc(`lib_pg_${id}_prof`)); }
     (await db.collection("notas").where("contratanteUid", "==", LOJA).get()).docs.forEach((d) => lote.delete(d.ref));
     (await db.collection("saques").where("uid", "==", PROM).get()).docs.forEach((d) => lote.delete(d.ref));
     lote.delete(db.collection("cartoes").doc(LOJA)); lote.delete(db.collection("carteiras").doc(PROM));

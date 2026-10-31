@@ -33,3 +33,16 @@ services:
         value: "1"
       - key: LIBERACAO_DIAS
         value: "2"
+
+  # Manutenção horária: libera carência, detecta faltas, expira chamados relâmpago e aplica inatividade de nível.
+  - type: cron
+    name: abastece-manutencao
+    runtime: node
+    schedule: "0 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$APP_URL/interno/manutencao"'
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false

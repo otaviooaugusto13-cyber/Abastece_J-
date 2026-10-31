@@ -50,6 +50,10 @@ Não editável pelo admin: chave Pix, saldos e e-mail de login (Google).
 Firebase Hosting: `firebase.json` ganhou os rewrites das rotas limpas. Hospedagem estática sem rewrites: `ROTAS_LIMPAS = false` em `config.js`.
 
 ---
+
+
+## Atualização: execução, níveis, vidas, relâmpago e B2B
+Veja `NOVAS-FUNCIONALIDADES.md`. Cron agora: `POST /interno/manutencao` (a cada hora).
 # Habilitação por categoria (vídeo + cronômetro + questionário 100%)
 - **Categorias:** Mercearia, Frios, Padaria, FLV, Depósito, Degustação (`server/lib/config.js` → `CATEGORIAS`, espelho em `core.js`). Setores novos de pedido: Padaria, Depósito, Degustação.
 - **Servidor:** `server/lib/categorias.js` + `server/rotas/categorias.js` (`/habilitacoes`, `/iniciar`, `/ping`, `/questionario`, `/responder`). Gabarito e cronômetro só no servidor. Aprovado → `profissionais/{uid}.habilitacoes[categoria]`.

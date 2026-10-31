@@ -37,6 +37,10 @@
       {
         "source": "/painel-admin",
         "destination": "/admin.html"
+      },
+      {
+        "source": "/painel-ti",
+        "destination": "/ti.html"
       }
     ]
   },

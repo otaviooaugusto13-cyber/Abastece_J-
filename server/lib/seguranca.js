@@ -18,7 +18,7 @@ function cabecalhos({ extraConnect = [] } = {}) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com",
-    "media-src 'self' https:",
+    "media-src 'self' https: blob:",
     `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
     `frame-src https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),
     "upgrade-insecure-requests"
@@ -29,7 +29,7 @@ function cabecalhos({ extraConnect = [] } = {}) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self), payment=(self), fullscreen=(self)");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(self), payment=(self), fullscreen=(self)");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); // necessário para o login Google em popup
     res.setHeader("Cross-Origin-Resource-Policy", "same-site");
     res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
@@ -107,25 +107,33 @@ function perfisDasClaims(c = {}) {
 // ---------- Autenticação / RBAC / auditoria ----------
 function criarAuth({ admin, db, FieldValue, modoTeste = false }) {
   /** Verifica o ID token (assinatura, expiração E revogação). O token só é aceito no cabeçalho Authorization. */
-  async function autenticar(req) {
+  async function autenticar(req, checarRevogacao = true) {
     const h = req.get("authorization") || "";
     if (!/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/.test(h)) throw new Falha(401, "login necessário", "nao-autenticado");
     try {
-      const u = await admin.auth().verifyIdToken(h.slice(7), true);   // checkRevoked = true
+      const u = await admin.auth().verifyIdToken(h.slice(7), checarRevogacao);   // checkRevoked = true (padrão): consulta o Auth a cada chamada
       const teste = modoTeste && u.teste === true;
       if (!teste && u.email_verified !== true && u.firebase?.sign_in_provider !== "custom") throw new Error("email nao verificado");
       return u;
     } catch { throw new Falha(401, "sessão inválida ou expirada", "sessao-invalida"); }
   }
-  /** Middleware: exige login e um dos papéis (RBAC). Papel vem de custom claim assinada — só o servidor a define. */
-  const exigir = (...papeis) => async (req, res, next) => {
+  /** Só assinatura + validade (verificação LOCAL, sem ida ao Auth). Para chamadas de altíssima frequência e baixo risco, como o ping de presença. */
+  const autenticarLeve = (req) => autenticar(req, false);
+  /**
+   * Middleware: exige login e um dos papéis (RBAC). Papel vem de custom claim assinada — só o servidor a define.
+   * Conta banida (claim "banido", definida pelo servidor na 3ª advertência) é recusada em TODAS as rotas, exceto nas que
+   * usam `exigirMesmoBanido` (ver o motivo do bloqueio). O banimento também revoga as sessões, então o token antigo nem chega aqui.
+   */
+  const construir = (permitirBanido) => (...papeis) => async (req, res, next) => {
     try {
       const u = await autenticar(req);
       if (papeis.length && !papeis.includes(u.role)) throw new Falha(403, "Você não tem permissão para esta ação.", "sem-permissao");
+      if (u.banido === true && !permitirBanido) throw new Falha(403, "Conta bloqueada permanentemente por advertências. Veja o motivo na tela inicial.", "conta-banida");
       if (u.role === "admin" && C.ADMIN_EXIGE_MFA && !u.firebase?.sign_in_second_factor) throw new Falha(403, "Administradores precisam de verificação em duas etapas.", "mfa-obrigatorio");
       req.usuario = u; next();
     } catch (e) { next(e); }
   };
+  const exigir = construir(false), exigirMesmoBanido = construir(true);
   /** Operações sensíveis (Pix, saque, estorno) exigem autenticação recente. */
   const exigirRecente = (u, seg = C.AUTH_RECENTE_SEG) => {
     if (!u.auth_time || Date.now() / 1000 - u.auth_time > seg) throw new Falha(401, "Por segurança, entre novamente para continuar.", "reautenticar");
@@ -148,7 +156,7 @@ function criarAuth({ admin, db, FieldValue, modoTeste = false }) {
     const atual = await claimsDe(uid), tem = new Set([...perfisDasClaims(atual), ...conhecidos.filter((p) => PERFIS.includes(p)), role]);
     await admin.auth().setCustomUserClaims(uid, { ...atual, role, perfis: PERFIS.filter((p) => tem.has(p)), ...extra });
   }
-  return { autenticar, exigir, exigirRecente, auditar, definirPapel, claimsDe };
+  return { autenticar, autenticarLeve, exigir, exigirMesmoBanido, exigirRecente, auditar, definirPapel, claimsDe };
 }
 
 /** Converte qualquer erro em JSON seguro (sem stack/detalhes internos). */

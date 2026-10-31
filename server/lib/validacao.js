@@ -29,7 +29,11 @@ const booleano = (x, campo) => { if (typeof x !== "boolean") throw invalido(camp
 const soDigitos = (s) => String(s ?? "").replace(/\D/g, "");
 
 // ---------- datas ----------
-const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+const hojeSP = (ms = Date.now()) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+/** "HH:MM" em São Paulo. */
+const horaSP = (ms = Date.now()) => new Date(ms).toLocaleTimeString("sv-SE", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false });
+/** Instante (ms) de um turno: data + "HH:MM" no horário de Brasília (UTC-3 fixo: o Brasil não tem mais horário de verão). */
+const instanteSP = (dataIso, hhmm) => Date.parse(`${dataIso}T${hhmm}:00-03:00`);
 const dataIsoValida = (iso) => {
   if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
   const d = new Date(iso + "T00:00:00Z");
@@ -116,6 +120,6 @@ const mascararChave = (c) => { const s = String(c || ""); return s.length <= 6 ?
 const somente = (obj, chaves) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => chaves.includes(k)));
 
 module.exports = {
-  Falha, texto, idDoc, opcao, inteiro, booleano, soDigitos, hojeSP, dataIsoValida, calcularIdade, validarNascimento,
+  Falha, horaSP, instanteSP, texto, idDoc, opcao, inteiro, booleano, soDigitos, hojeSP, dataIsoValida, calcularIdade, validarNascimento,
   cpfValido, cpf, cnpjValido, documento, hhmm, telefone, chavePix, mascararCPF, mascararTelefone, mascararEmail, mascararChave, somente
 };

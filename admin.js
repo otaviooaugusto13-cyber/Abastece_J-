@@ -5,6 +5,7 @@ import { collection, query, where, orderBy, limit, onSnapshot, getCountFromServe
 import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
 import { resolverAcesso } from "./acesso.js";
 import { ativarPush, desativarPush } from "./push.js";
+import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { NOME_SUPORTE } from "./config.js";
 import { brl, esc, fmtDataHora, fmtData, hojeLocal, soDigitos, mascaraDoc, mascaraTelefone, mascaraCPF, reaisParaCentavos } from "./core.js";
 
@@ -13,7 +14,7 @@ const dt = (v) => fmtDataHora(v) || "—";
 const msg = (t = "") => { $("ax-msg").textContent = t; };
 const S = { sup: [], supUid: "", supMsgs: [], supUn: null, vista: "visao", ut: "promotor", us: "pendente", fa: "pag", missoes: [], lojas: [], pend: [], promo: [], mods: [], aud: [], pagos: [], conc: [], ativos: null, totLojas: null };
 const unsubs = [];
-const TITULOS = { visao: "Visão geral", usuarios: "Usuários", missoes: "Missões", financeiro: "Financeiro", treino: "Treinamento", habil: "Habilitações", moderacao: "Moderação e logs", config: "Configurações", suporte: "Suporte" };
+const TITULOS = { visao: "Visão geral", usuarios: "Usuários", missoes: "Missões", financeiro: "Financeiro", treino: "Treinamento", habil: "Habilitações", infracoes: "Infrações e multas", marcas: "Marcas (B2B)", moderacao: "Moderação e logs", config: "Configurações", suporte: "Suporte" };
 const ST = { aberta: ["Aguardando", "b"], aceita: ["Aceita", "y"], paga: ["Paga", "g"], concluida: ["Concluída", "g"], cancelada: ["Cancelada", "r"] };
 const badge = (s) => { const [t, c] = ST[s] || [s || "—", ""]; return `<span class="ax-badge ${c}">${esc(t)}</span>`; };
 const td = (l, h, c = "") => `<td data-l="${esc(l)}"${c ? ` class="${c}"` : ""}>${h}</td>`;
@@ -95,7 +96,7 @@ const menu = (o) => { $("ax-side").classList.toggle("open", o); $("ax-veil").hid
 $("ax-burger").addEventListener("click", () => menu(!$("ax-side").classList.contains("open")));
 $("ax-veil").addEventListener("click", () => menu(false));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu(false); });
-const CARGA = { suporte: () => renderSuporte(), visao: () => renderVisao(), usuarios: () => carregarUsuarios(), missoes: () => renderMissoes(), financeiro: () => finAba(S.fa), treino: () => carregarModulos(), habil: () => carregarHab(), moderacao: () => { renderAlertas(); return carregarAuditoria(); }, config: () => carregarConfig() };
+const CARGA = { suporte: () => renderSuporte(), visao: () => renderVisao(), usuarios: () => carregarUsuarios(), missoes: () => renderMissoes(), financeiro: () => finAba(S.fa), treino: () => carregarModulos(), habil: () => carregarHab(), infracoes: () => carregarInfracoes(), marcas: () => carregarMarcas(), moderacao: () => { renderAlertas(); return carregarAuditoria(); }, config: () => carregarConfig() };
 function ir(v) { if (location.hash === "#" + v) abrir(v); else location.hash = v; }
 function abrir(v) {
     if (!(v in TITULOS)) v = "visao";
@@ -127,7 +128,7 @@ function ouvir() {
     unsubs.push(() => { S.supUn?.(); S.supUn = null; });
     escutar(query(collection(db, "suporte_conversas"), orderBy("ultimaEm", "desc"), limit(100)), (s, p) => {
         S.sup = s.docs.map((d) => ({ uid: d.id, ...d.data() }));
-        if (p) s.docChanges().forEach((c) => { const x = c.doc.data(); if ((c.type === "added" || c.type === "modified") && x.ultimaDe === "usuario" && x.naoLidasSuporte > 0 && !(S.vista === "suporte" && S.supUid === c.doc.id && !document.hidden)) avisarSuporte(x); });
+        if (p) s.docChanges().forEach((c) => { const x = c.doc.data(); if ((c.type === "added" || c.type === "modified") && x.ultimaDe === "usuario" && x.naoLidasSuporte > 0) { preCarregar(c.doc.id); if (!(S.vista === "suporte" && S.supUid === c.doc.id && !document.hidden)) avisarSuporte(x); } });
         badges(); if (S.vista === "suporte") renderSuporte();
     });
     escutar(query(collection(db, "solicitacoes"), orderBy("criadoEm", "desc"), limit(400)), (s) => {
@@ -359,9 +360,10 @@ function abrirConversa(uid) {
         pintarMensagens(); if (!document.hidden) marcarSuporteLido(uid);
     }, (e) => msg("Conversa indisponível: " + (e.code || e.message)));
     renderSuporte(); $("sp-msgs").scrollTop = $("sp-msgs").scrollHeight; $("sp-txt").focus(); marcarSuporteLido(uid);
+    mostrarPerfil(uid);                                         // perfil instantâneo (cache/esqueleto) + revalidação
 }
 $("sp-lista").addEventListener("click", (e) => { const b = e.target.closest("[data-conv]"); if (b) abrirConversa(b.dataset.conv); });
-$("sp-voltar").addEventListener("click", () => { S.supUn?.(); S.supUn = null; S.supUid = ""; renderSuporte(); });
+$("sp-voltar").addEventListener("click", () => { S.supUn?.(); S.supUn = null; S.supUid = ""; perfilReq++; $("sp-perfil").innerHTML = '<p class="ax-mut ax-sm">O perfil de quem está falando aparece aqui assim que você abrir a conversa.</p>'; renderSuporte(); });
 $("sp-modelos").addEventListener("click", (e) => { const b = e.target.closest("[data-modelo]"); if (b) { $("sp-txt").value = MODELOS[b.dataset.modelo][1]; $("sp-txt").focus(); } });
 $("sp-notif").addEventListener("click", async () => { if ("Notification" in window && (await Notification.requestPermission()) === "granted") await ativarPush(); renderSuporte(); });
 $("sp-form").addEventListener("submit", seguro(async (e) => {
@@ -369,6 +371,79 @@ $("sp-form").addEventListener("submit", seguro(async (e) => {
     $("sp-enviar").disabled = true;
     try { await chamarFuncao(`admin/suporte/${encodeURIComponent(S.supUid)}/mensagem`, { texto }); $("sp-txt").value = ""; } finally { $("sp-enviar").disabled = !S.supUid; }
 }));
+
+
+// ---------- perfil 360 do usuário em atendimento ----------
+// Estratégia "instantâneo": (1) PRÉ-CARGA — assim que chega mensagem nova (snapshot) ou o atendente passa o mouse/foco na conversa,
+// o perfil já é buscado e guardado no cache; (2) ao abrir a conversa, pinta NA HORA do cache (ou dos dados que já estão em memória,
+// como nome/tipo/lojas) e revalida em segundo plano; (3) um contador de requisição descarta respostas de conversas já trocadas.
+const PERFIL_TTL = 60_000;                       // depois disso, abrir a conversa revalida (mostra o cache e atualiza por cima)
+const perfis = new Map();                         // uid -> { dados, em } | { promessa }
+let perfilReq = 0;
+const iniciais = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((x) => x[0]?.toUpperCase() || "").join("") || "?";
+const ROT_ST = { aberta: ["Aguardando", "b"], aceita: ["Aceita", "y"], paga: ["Paga", "g"], concluida: ["Concluída", "g"], cancelada: ["Cancelada", "r"] };
+const COR_USU = { ativo: "g", pendente: "y", bloqueado: "r" };
+
+/** Busca (com cache e deduplicação de chamadas simultâneas). `forcar` ignora o cache. */
+function carregarPerfil(uid, { forcar = false, leve = false } = {}) {
+    const c = perfis.get(uid);
+    if (c?.promessa && (leve || !c.leve)) return c.promessa;                                   // já há busca em andamento que serve
+    if (!forcar && c?.dados && !(c.dados.parcial && !leve) && Date.now() - c.em < PERFIL_TTL) return Promise.resolve(c.dados);
+    const promessa = consultar(`admin/suporte/${encodeURIComponent(uid)}/perfil${leve ? "?leve=1" : ""}`)
+        .then((dados) => { const atual = perfis.get(uid)?.dados; if (leve && atual && !atual.parcial) { perfis.set(uid, { dados: atual, em: Date.now() }); return atual; } perfis.set(uid, { dados, em: Date.now() }); return dados; })
+        .catch((e) => { if (c?.dados) perfis.set(uid, c); else perfis.delete(uid); throw e; });
+    perfis.set(uid, { ...(c || {}), promessa, leve });
+    return promessa;
+}
+const preCarregar = (uid) => { if (uid && !perfis.has(uid)) carregarPerfil(uid, { leve: true }).catch(() => {}); };   // silencioso e "leve": só aquece o cache, sem CPF/telefone nem auditoria
+
+/** Esqueleto imediato com o que já sabemos (nome/tipo vêm da lista de conversas) — nunca tela em branco. */
+function perfilEsqueleto(uid) {
+    const c = S.sup.find((x) => x.uid === uid) || {};
+    return `<div class="pf-head"><div class="pf-av">${esc(iniciais(nomeConv(c)))}</div><div><h3>${esc(nomeConv(c))}</h3><div class="ax-row"><span class="ax-badge ${c.tipo === "loja" ? "b" : ""}">${c.tipo === "loja" ? "loja" : "promotor"}</span></div></div></div>
+        <div class="pf-skel ax-mt" aria-busy="true"><i style="width:80%"></i><i style="width:60%"></i><i style="width:90%"></i><i style="width:45%"></i></div>`;
+}
+
+function perfilHtml(p) {
+    const c = p.cadastro, h = p.historico, loja = p.tipo === "loja";
+    const st = (s) => { const [t, k] = ROT_ST[s] || [s || "—", ""]; return `<span class="ax-badge ${k}">${esc(t)}</span>`; };
+    const kpi = (n, l) => `<div class="pf-kpi"><b>${esc(n)}</b><span>${esc(l)}</span></div>`;
+    const linhas = loja
+        ? [["Documento", c.documento], ["Ramo", c.ramo], ["E-mail", p.email], ["Telefone", c.telefone], ["Endereço", c.endereco], ["Cartão", c.cartao], ["Cadastro", c.criadoEm ? dt(c.criadoEm) : ""]]
+        : [["E-mail", p.email], ["Telefone", c.telefone], ["CPF", c.cpfMascarado], ["Cidade", c.cidade], ["Nascimento", c.nascimento ? `${c.nascimento}${c.idade != null ? ` (${c.idade} anos)` : ""}` : ""], ["Nota média", c.ratingMedia], ["Treinamento", `${c.treinamento.concluidos}/${c.treinamento.total}`], ["Cadastro", c.criadoEm ? dt(c.criadoEm) : ""]];
+    const alertas = [
+        !loja && c.menor ? '<div class="ax-alert w"><span>⚠️</span><div><strong>Menor de 18.</strong> Regras de proteção ao adolescente se aplicam.</div></div>' : "",
+        !loja && !c.nascimento ? '<div class="ax-alert w"><span>⚠️</span><div>Sem data de nascimento: só aceita turnos depois de completar o cadastro.</div></div>' : "",
+        !loja && c.pendencias.length ? `<div class="ax-alert w"><span>📋</span><div><strong>Pendências:</strong> ${esc(c.pendencias.join(", "))}</div></div>` : "",
+        c.status === "bloqueado" && c.statusMotivo ? `<div class="ax-alert e"><span>⛔</span><div><strong>Bloqueado:</strong> ${esc(c.statusMotivo)}</div></div>` : ""
+    ].join("");
+    const por = h.porStatus || {};
+    const acoes = loja
+        ? `<button class="ax-btn sm" data-acao="ficha-loja" data-uid="${esc(p.uid)}">Ficha completa</button><button class="ax-btn sm" data-acao="recado" data-tipo="loja" data-uid="${esc(p.uid)}">Recado</button><button class="ax-btn sm" data-acao="editar" data-tipo="loja" data-uid="${esc(p.uid)}">Editar</button>`
+        : `<button class="ax-btn sm" data-acao="ficha" data-uid="${esc(p.uid)}">Ficha completa</button><button class="ax-btn sm" data-acao="recado" data-tipo="promotor" data-uid="${esc(p.uid)}">Recado</button><button class="ax-btn sm" data-acao="editar" data-tipo="promotor" data-uid="${esc(p.uid)}">Editar</button>${c.status !== "ativo" ? `<button class="ax-btn sm ok" data-acao="aprovar" data-uid="${esc(p.uid)}">${c.status === "bloqueado" ? "Reativar" : "Aprovar"}</button>` : ""}${c.status !== "bloqueado" ? `<button class="ax-btn sm danger" data-acao="bloquear" data-uid="${esc(p.uid)}">Bloquear</button>` : ""}`;
+    return `<div class="pf-head"><div class="pf-av">${esc(iniciais(c.nome))}</div><div><h3>${esc(c.nome || "Sem nome")}</h3><div class="ax-row"><span class="ax-badge ${loja ? "b" : ""}">${loja ? "loja" : "promotor"}</span><span class="ax-badge ${COR_USU[c.status] || ""}">${esc(c.status || "—")}</span></div></div></div>
+        <div class="ax-mt">${alertas}</div>
+        <div class="pf-sec"><h4>Cadastro</h4><dl class="ax-dl">${linhas.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v || "—")}</dd>`).join("")}</dl></div>
+        <div class="pf-sec"><h4>Histórico de turnos</h4>
+            <div class="pf-kpis">${kpi(h.total, "total")}${kpi((por.aceita || 0) + (por.paga || 0), "em andamento")}${kpi(por.concluida || 0, "concluídos")}</div>
+            ${h.ultimos.length ? `<ul class="pf-list ax-mt">${h.ultimos.map((t) => `<li><span>${esc(t.data ? fmtData(t.data) : "—")} · ${esc(t.foco || t.contraparte || "turno")}</span>${st(t.status)}</li>`).join("")}</ul>` : '<p class="ax-mut ax-sm">Nenhum turno ainda.</p>'}</div>
+        <div class="pf-sec"><h4>Conversa</h4><dl class="ax-dl"><dt>Mensagens</dt><dd>${esc(p.conversa.mensagens)}</dd><dt>1º contato</dt><dd>${esc(p.conversa.desde ? dt(p.conversa.desde) : "—")}</dd></dl></div>
+        ${p.acoes.length ? `<div class="pf-sec"><h4>Últimas ações da equipe</h4><ul class="pf-list">${p.acoes.map((a) => `<li><span>${esc(ROT[a.acao] || a.acao)}</span><span class="ax-xs ax-mut">${esc(dt(a.em))}</span></li>`).join("")}</ul></div>` : ""}
+        <div class="pf-sec"><div class="pf-acts">${acoes}</div><p class="pf-ts">Atualizado às ${esc(hm(p.carregadoEm))}</p></div>`;
+}
+
+/** Chamada por abrirConversa: pinta já (cache ou esqueleto) e atualiza quando a resposta chegar. */
+async function mostrarPerfil(uid) {
+    const el = $("sp-perfil"), minha = ++perfilReq, cache = perfis.get(uid);
+    el.innerHTML = cache?.dados ? perfilHtml(cache.dados) : perfilEsqueleto(uid);
+    if (cache?.dados && !cache.dados.parcial && Date.now() - cache.em < PERFIL_TTL) return;   // cache completo e fresco: nada a buscar
+    try { const p = await carregarPerfil(uid, { forcar: !!cache?.dados }); if (minha === perfilReq && S.supUid === uid) el.innerHTML = perfilHtml(p); }
+    catch (e) { if (minha === perfilReq && S.supUid === uid && !cache?.dados) el.innerHTML = `${perfilEsqueleto(uid).split('<div class="pf-skel')[0]}<div class="ax-alert e ax-mt"><span>!</span><div>Não foi possível carregar o perfil (${esc(e.message || "erro")}). <button class="ax-btn sm" id="pf-tentar" type="button">Tentar de novo</button></div></div>`; }
+}
+$("sp-perfil").addEventListener("click", (e) => { if (e.target.closest("#pf-tentar") && S.supUid) { perfis.delete(S.supUid); mostrarPerfil(S.supUid); } });
+// pré-carga ao passar o mouse / focar / tocar numa conversa da lista
+const aquecer = (e) => { const b = e.target.closest?.("[data-conv]"); if (b) preCarregar(b.dataset.conv); };
+$("sp-lista").addEventListener("pointerenter", aquecer, true); $("sp-lista").addEventListener("focusin", aquecer); $("sp-lista").addEventListener("touchstart", aquecer, { passive: true });
 
 // ---------- missões ----------
 const listaMissoes = () => {
@@ -573,7 +648,7 @@ function alertas() {
 const htmlAlerta = (x) => `<div class="ax-alert ${x.n}"><span>${x.n === "e" ? "⛔" : x.n === "w" ? "⚠️" : "ℹ️"}</span><div><strong>${esc(x.t)}</strong><br><span class="ax-sm ax-mut">${esc(x.d)}</span></div></div>`;
 function renderAlertas() { const a = alertas(); $("a-lista").innerHTML = a.length ? a.slice(0, 60).map(htmlAlerta).join("") + (a.length > 60 ? `<p class="ax-xs ax-mut">+ ${a.length - 60} alerta(s) não exibidos.</p>` : "") : '<p class="ax-mut ax-sm">Nenhum alerta no momento.</p>'; }
 $("a-conc").addEventListener("click", seguro(async () => { const r = await conciliar(false); renderAlertas(); toast(r.ok ? "Conciliação sem divergências." : "Há divergências financeiras.", r.ok ? "ok" : "err"); }));
-const ROT = { "admin.exportar": "Exportou relatório", "admin.promotor.ver_ficha": "Abriu ficha de cadastro", "admin.promotor.status": "Mudou status de cadastro", "admin.sessoes.revogar": "Derrubou sessões", "admin.treinamento.criar": "Criou módulo de treinamento", "admin.treinamento.editar": "Editou módulo de treinamento", "admin.pagamento.estornar": "Estornou pagamento", "admin.saques.listar_com_pix": "Consultou saques (com Pix)", "admin.saque.pagar": "Pagou saque", "admin.saque.rejeitar": "Rejeitou saque", "admin.conciliacao": "Rodou conciliação", "admin.liberar_saldos": "Liberou saldos", "admin.aviso.salvar": "Salvou aviso global", "carteira.saque.solicitar": "Profissional pediu saque", "perfil.pix.alterar": "Profissional trocou chave Pix", "perfil.privado.atualizar": "Profissional atualizou dados" };
+const ROT = { "admin.exportar": "Exportou relatório", "admin.promotor.ver_ficha": "Abriu ficha de cadastro", "admin.promotor.status": "Mudou status de cadastro", "admin.sessoes.revogar": "Derrubou sessões", "admin.treinamento.criar": "Criou módulo de treinamento", "admin.treinamento.editar": "Editou módulo de treinamento", "admin.pagamento.estornar": "Estornou pagamento", "admin.saques.listar_com_pix": "Consultou saques (com Pix)", "admin.saque.pagar": "Pagou saque", "admin.saque.rejeitar": "Rejeitou saque", "admin.conciliacao": "Rodou conciliação", "admin.liberar_saldos": "Liberou saldos", "admin.aviso.salvar": "Salvou aviso global", "carteira.saque.solicitar": "Profissional pediu saque", "perfil.pix.alterar": "Profissional trocou chave Pix", "perfil.privado.atualizar": "Profissional atualizou dados", "admin.suporte.ver_perfil": "Abriu perfil no atendimento", "admin.suporte.responder": "Respondeu no suporte", "admin.recado.enviar": "Enviou recado" };
 const catAud = (a = "") => (a.startsWith("admin.exportar") ? "exp" : /pagamento|saque|conciliacao|liberar|carteira/.test(a) ? "fin" : a.startsWith("admin.treinamento") ? "trei" : a.startsWith("admin.aviso") ? "cfg" : /promotor|sessoes|perfil/.test(a) ? "cad" : "");
 const detalhes = (d) => { const t = Object.entries(d || {}).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · "); return t.length > 140 ? t.slice(0, 140) + "…" : t; };
 const listaAud = () => { const q = $("a-busca").value.trim().toLowerCase(), c = S.catAud || ""; return S.aud.filter((a) => (!c || catAud(a.acao) === c) && buscaOk([a.acao, ROT[a.acao], a.alvo, a.uid, a.papel, a.ip], q)); };
@@ -590,6 +665,41 @@ $("a-auto").addEventListener("change", () => { $("a-live").textContent = $("a-au
 $("a-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (!b) return; S.catAud = b.dataset.c; for (const x of document.querySelectorAll("#a-cats .ax-pill")) x.classList.toggle("sel", x === b); renderAuditoria(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && S.vista === "moderacao" && $("a-auto").checked) seguro(carregarAuditoria)(); });
 $("a-csv").addEventListener("click", () => baixarLinhas("auditoria", ["Quando", "Papel", "UID", "Ação", "Alvo", "Detalhes", "IP"], listaAud().map((a) => [dt(a.em), a.papel, a.uid, ROT[a.acao] || a.acao, a.alvo, detalhes(a.detalhes), a.ip]), "auditoria"));
+
+// ---------- infrações, multas e banimentos ----------
+const TIPO_INF = { desistencia_tardia: "Desistência tardia", falta_promotor: "Falta do promotor", cancelamento_tardio_loja: "Cancelamento tardio (loja)", falta_loja: "Loja ausente" };
+async function carregarInfracoes() {
+    const [l, b] = await Promise.all([consultar(`admin/infracoes?status=${$("i-st").value}`), consultar("admin/banidos")]);
+    $("i-ban-b").innerHTML = b.length ? b.map((x) => `<tr>${td("Conta", `<code>${esc(x.uid)}</code>`)}${td("Papel", esc(x.papel))}${td("Motivo", esc(x.motivo))}${td("Quando", dt(x.em))}${td("Ação", `<button class="ax-btn sm" data-desbanir="${esc(x.uid)}">Desbanir</button>`)}</tr>`).join("") : vazio(5, "Nenhuma conta bloqueada.");
+    $("i-b").innerHTML = l.length ? l.map((i) => `<tr>${td("Quando", dt(i.em))}${td("Conta", `<code>${esc(i.uid)}</code><br><span class="ax-xs ax-mut">${esc(i.papel)}</span>`)}${td("Tipo", esc(TIPO_INF[i.tipo] || i.rotulo || i.tipo))}${td("Detalhe", `<span class="ax-xs">${esc(i.detalhe || "")}</span>`)}`
+        + `${td("Multa", i.multaCentavos ? `R$ ${(i.multaCentavos / 100).toFixed(2).replace(".", ",")}<br><span class="ax-xs ax-mut">${esc(i.multaStatus || "")}</span>` : "—")}${td("Adv.", esc(String(i.advertenciaNum || "")))}`
+        + `${td("Ação", i.status === "ativa" ? `${i.papel === "loja" && i.multaCentavos && i.multaStatus === "pendente" ? `<button class="ax-btn sm" data-multa="${esc(i.id)}">Multa cobrada</button> ` : ""}<button class="ax-btn sm" data-revogar="${esc(i.id)}">Revogar</button>` : "revogada")}</tr>`).join("") : vazio(7, "Nada por aqui.");
+}
+$("i-st").addEventListener("change", seguro(carregarInfracoes)); $("i-atualizar").addEventListener("click", seguro(carregarInfracoes));
+document.addEventListener("click", seguro(async (e) => {
+    let b;
+    if ((b = e.target.closest("[data-revogar]"))) {
+        const motivo = await pedir({ titulo: "Revogar infração", texto: "Devolve a multa e a vida do usuário. Será auditado.", rotulo: "Motivo da revogação", min: 5, ok: "Revogar", perigo: true }); if (!motivo) return;
+        await sensivel(() => chamarFuncao(`admin/infracoes/${encodeURIComponent(b.dataset.revogar)}/revogar`, { motivo })); toast("Infração revogada (multa e vida devolvidas).", "ok"); await carregarInfracoes();
+    } else if ((b = e.target.closest("[data-multa]"))) {
+        await chamarFuncao(`admin/infracoes/${encodeURIComponent(b.dataset.multa)}/multa-cobrada`, {}); toast("Multa marcada como cobrada.", "ok"); await carregarInfracoes();
+    } else if ((b = e.target.closest("[data-desbanir]"))) {
+        const motivo = await pedir({ titulo: "Desbanir conta", texto: "A conta volta a operar e as advertências são zeradas. Será auditado.", rotulo: "Motivo do desbloqueio", min: 5, ok: "Desbanir" }); if (!motivo) return;
+        await sensivel(() => chamarFuncao(`admin/contas/${encodeURIComponent(b.dataset.desbanir)}/desbanir`, { motivo, zerar: true })); toast("Conta desbloqueada e advertências zeradas.", "ok"); await carregarInfracoes();
+    }
+}));
+
+// ---------- marcas (B2B) ----------
+async function carregarMarcas() {
+    const l = await consultar("admin/marcas");
+    $("mk-b").innerHTML = l.length ? l.map((m) => `<tr>${td("Marca", esc(m.nome))}${td("Acessos", esc(String(m.acessos)))}${td("Vincular e-mail", `<input class="ax-inp" data-mk-email="${esc(m.id)}" placeholder="email@empresa.com" maxlength="120"> <button class="ax-btn sm" data-mk-add="${esc(m.id)}">Vincular</button> <button class="ax-btn sm" data-mk-rem="${esc(m.id)}">Remover</button>`)}</tr>`).join("") : vazio(3, "Nenhuma marca cadastrada.");
+}
+$("mk-criar").addEventListener("click", seguro(async () => { await chamarFuncao("admin/marcas", { nome: $("mk-nome").value.trim() }); $("mk-nome").value = ""; toast("Marca criada.", "ok"); await carregarMarcas(); }));
+document.addEventListener("click", seguro(async (e) => {
+    const add = e.target.closest("[data-mk-add]"), rem = e.target.closest("[data-mk-rem]"), b = add || rem; if (!b) return;
+    const id = b.dataset.mkAdd || b.dataset.mkRem, email = document.querySelector(`[data-mk-email="${CSS.escape(id)}"]`).value.trim();
+    await chamarFuncao(`admin/marcas/${encodeURIComponent(id)}/acesso`, { email, remover: !!rem }); toast(rem ? "Acesso removido." : "Acesso vinculado.", "ok"); await carregarMarcas();
+}));
 
 // ---------- configurações ----------
 // ---------- taxas da plataforma (editáveis) ----------

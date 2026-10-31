@@ -31,6 +31,8 @@
       <button class="ax-nav" data-v="financeiro"><span class="ic">$</span>Financeiro</button>
       <button class="ax-nav" data-v="treino"><span class="ic">▶</span>Treinamento</button>
       <button class="ax-nav" data-v="habil"><span class="ic">★</span>Habilitações</button>
+      <button class="ax-nav" data-v="infracoes"><span class="ic">⚖</span>Infrações e multas</button>
+      <button class="ax-nav" data-v="marcas"><span class="ic">◈</span>Marcas (B2B)</button>
       <button class="ax-nav" data-v="moderacao"><span class="ic">⚑</span>Moderação e logs<span class="n ax-badge r" id="n-alert" hidden></span></button>
       <button class="ax-nav" data-v="config"><span class="ic">⚙</span>Configurações</button>
     </nav>
@@ -76,6 +78,7 @@
             <div class="ax-row ax-mt" id="sp-modelos"></div>
             <form class="ax-row ax-mt" id="sp-form"><textarea class="ax-ta ax-grow" id="sp-txt" maxlength="1000" rows="2" placeholder="Escreva a resposta…" style="min-height:56px" disabled></textarea><button class="ax-btn pri" id="sp-enviar" disabled>Enviar</button></form>
           </div>
+          <aside class="ax-card" id="sp-perfil-card" aria-label="Perfil do usuário em atendimento" aria-live="polite"><div id="sp-perfil"><p class="ax-mut ax-sm">O perfil de quem está falando aparece aqui assim que você abrir a conversa.</p></div></aside>
         </div>
       </section>
 
@@ -193,6 +196,21 @@
       </section>
 
       <!-- CONFIGURAÇÕES -->
+      <!-- INFRAÇÕES, MULTAS E BANIMENTOS -->
+      <section id="v-infracoes" hidden>
+        <div class="ax-card ax-mb"><div class="ax-row"><div class="ax-grow"><h2>Infrações</h2><p class="ax-xs ax-mut">Desistência tardia, falta e cancelamento tardio geram advertência/multa conforme as regras do app. Revogar devolve multa e vida.</p></div>
+          <select class="ax-sel" id="i-st" aria-label="Situação"><option value="ativa">Ativas</option><option value="revogada">Revogadas</option></select><button class="ax-btn sm" id="i-atualizar">Atualizar</button></div></div>
+        <div class="ax-card ax-mb"><h2>Contas bloqueadas</h2><div class="ax-tw ax-mt"><table class="ax-tbl"><thead><tr><th>Conta</th><th>Papel</th><th>Motivo</th><th>Quando</th><th></th></tr></thead><tbody id="i-ban-b"></tbody></table></div></div>
+        <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Quando</th><th>Conta</th><th>Tipo</th><th>Detalhe</th><th>Multa</th><th>Adv.</th><th></th></tr></thead><tbody id="i-b"></tbody></table></div></div>
+      </section>
+
+      <!-- MARCAS (B2B) -->
+      <section id="v-marcas" hidden>
+        <div class="ax-card ax-mb"><h2>Nova marca</h2><div class="ax-row ax-mt"><input class="ax-inp ax-grow" id="mk-nome" placeholder="Nome da marca/indústria" maxlength="80"><button class="ax-btn pri" id="mk-criar">Criar</button></div>
+          <p class="ax-xs ax-mut ax-mt">Depois de criar, vincule o e-mail Google de quem vai acompanhar o painel (a pessoa precisa ter entrado uma vez em <code>marca.html</code>).</p></div>
+        <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Marca</th><th>Acessos</th><th>Vincular e-mail</th></tr></thead><tbody id="mk-b"></tbody></table></div></div>
+      </section>
+
       <section id="v-config" hidden>
         <div class="ax-grid ax-g2">
           <div class="ax-card" id="tx-card">

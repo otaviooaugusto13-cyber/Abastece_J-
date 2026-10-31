@@ -445,7 +445,11 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); p
 .curso .progress { margin: 8px 0; height: 6px; }
 @media (max-width: 380px) { .grid-3 { grid-template-columns: 1fr 1fr; } .grid-3 .field:last-child { grid-column: 1 / -1; } .exp-add { grid-template-columns: 1fr 1fr; } .exp-add button { grid-column: 1 / -1; } .sug-card { flex-basis: 88%; } }
 /* ---------- chat com o suporte ---------- */
-.btn-suporte { position: fixed; right: 14px; bottom: calc(var(--nav-h) + 78px + var(--safe-b)); width: 50px; height: 50px; border-radius: 50%; border: 0; cursor: pointer; background: linear-gradient(180deg, var(--gold), color-mix(in srgb, var(--gold) 82%, #000)); color: var(--gold-ink); display: grid; place-items: center; z-index: 40; box-shadow: 0 8px 20px -6px var(--gold); }
+/* Botão do chat: ancorado DENTRO da folha "Ajuda e suporte" (sticky), nunca fixo na janela.
+   A folha só aparece quando aberta, então o botão some de todas as outras telas. Sem animação de deslocamento. */
+.btn-suporte { position: sticky; bottom: 0; float: right; margin: 12px 0 0 auto; width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; background: linear-gradient(180deg, var(--gold), color-mix(in srgb, var(--gold) 82%, #000)); color: var(--gold-ink); display: grid; place-items: center; z-index: 2; box-shadow: 0 8px 20px -6px var(--gold); transform: none; transition: none; }
+.sheet:has(> .btn-suporte)::after { content: ""; display: block; clear: both; }
+.menu-item.com-novidade .seta::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--red); vertical-align: middle; }
 .btn-suporte:active { transform: scale(.95); }
 .sup-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--red); color: #fff; font-size: 11.5px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--bg); }
 .sup-badge[hidden] { display: none; }

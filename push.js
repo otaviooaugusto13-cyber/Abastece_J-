@@ -29,3 +29,17 @@ export async function desativarPush() {
     if (!t) return;
     try { await chamarFuncao("push/remover", { token: t }); localStorage.removeItem(CHAVE); } catch (e) { console.warn("push:", e); }
 }
+
+// ---- Push para chamados relâmpago (melhor esforço: sem chave VAPID ou sem permissão, o app continua avisando em tempo real enquanto aberto) ----
+/** Pede permissão e devolve o token FCM (ou null). Usa o service worker do app (sw.js). */
+export async function obterTokenPush() {
+    try {
+        if (!FCM_VAPID_KEY || !("Notification" in window) || !("serviceWorker" in navigator)) return null;
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission !== "granted") return null;
+        const { getMessaging, getToken, isSupported } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
+        if (!(await isSupported())) return null;
+        const reg = await navigator.serviceWorker.ready;
+        return (await getToken(getMessaging(app), { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg })) || null;
+    } catch (e) { console.warn("push indisponível:", e.message); return null; }
+}

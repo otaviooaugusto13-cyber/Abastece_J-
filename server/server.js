@@ -10,6 +10,11 @@
 //   rotas/carteira.js     carteira digital, saque, extrato e CSV (profissional e loja)
 //   rotas/taxas.js        taxas e regras de turno editáveis pelo admin (GET /config/taxas público, PUT /admin/taxas)
 //   rotas/admin.js        aprovação, módulos, estornos, saques, conciliação, auditoria (papel admin)
+//   rotas/ti.js           módulo de TI: operadores, trilha de auditoria, chamados, dashboard, tempo real, presença (papel ti) — ver TI-MODULO.md
+//   rotas/execucao.js     check-in (geofence 100 m), check-out com foto, falta da loja, auditoria da foto, local da loja
+//   rotas/ruptura.js      chamado relâmpago + alertas por proximidade (push)
+//   rotas/reputacao.js    níveis/vidas/infrações, admin e cron de manutenção
+//   rotas/b2b.js          painel das marcas e administração de marcas
 //   rotas/teste.js        sandbox (só com MODO_TESTE=1 e fora de produção)
 // ============================================================
 const express = require("express");
@@ -23,12 +28,15 @@ const { Falha } = require("./lib/erros");
 const Seg = require("./lib/seguranca");
 const Cripto = require("./lib/cripto");
 const V = require("./lib/validacao");
+const G = require("./lib/geo");
+const { criarReputacao } = require("./lib/reputacao");
 const { criarCarteira } = require("./lib/carteira");
 const { criarTreinamento } = require("./lib/treinamento");
 const { criarHabilitacao } = require("./lib/habilitacao");
 const { criarTaxas } = require("./lib/taxas");
 const { criarSuporte } = require("./lib/suporte");
 const { criarCategorias } = require("./lib/categorias");
+const { criarTI } = require("./lib/ti");
 
 // ---------- Ambiente ----------
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
@@ -91,12 +99,14 @@ const categorias = criarCategorias({ db, FieldValue });
 const habilitacao = criarHabilitacao({ db, treinamento, categorias });
 const taxas = criarTaxas({ db, FieldValue, S });          // taxas/regras de turno dinâmicas (configuracoes/taxas)
 const suporte = criarSuporte({ db, admin, FieldValue });
+const ti = criarTI({ db, admin, FieldValue, Timestamp, V, auth });   // módulo de TI (operadores, auditoria, chamados, métricas, presença)
+const reputacao = criarReputacao({ db, admin, FieldValue, Timestamp, auth, carteira, taxas });   // níveis, vidas, multas e banimento
 const ctx = {
-  db, admin, FieldValue, Timestamp, S, C, V, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, categorias, habilitacao, taxas, suporte, mp,
+  db, admin, express, FieldValue, Timestamp, S, C, V, G, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, categorias, habilitacao, taxas, suporte, mp, ti, reputacao,
   envelope: Seg.envelope, MODO_TESTE, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, CRON_SECRET, APP_URL, getBaseUrl, urlPublicaHttps,
-  __reset: () => limitador._baldes.clear(),   // uso exclusivo dos testes
+  __reset: () => { limitador._baldes.clear(); ti.limparCaches(); },   // uso exclusivo dos testes
   hojeSP: V.hojeSP, reais: (c) => Number((c / 100).toFixed(2)),
-  visaoLoja: (sp) => ({ valor: sp.valor, taxaFixa: sp.taxaFixa, total: sp.total })
+  visaoLoja: (sp) => ({ valor: sp.valor, taxaFixa: sp.taxaFixa, total: sp.total, ...(sp.bonus ? { bonus: sp.bonus } : {}) })
 };
 
 // ---------- Pipeline HTTP ----------
@@ -106,22 +116,24 @@ app.disable("x-powered-by");
 const permitidas = Seg.origensPermitidas(APP_URL, process.env.ORIGENS_PERMITIDAS);
 app.use(Seg.cabecalhos());
 app.use(cors(Seg.opcoesCors(permitidas)));
-app.use(express.json({ limit: C.BODY_LIMITE }));
+const jsonPadrao = express.json({ limit: C.BODY_LIMITE });
+app.use((req, res, next) => (req.path === "/checkout" ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|turnos|teste|suporte|push|config\/taxas)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|ti\/|chamados|presenca|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "categorias", "pedidos", "turnos", "pagamentos", "carteira", "taxas", "admin", "suporte", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "carteira", "taxas", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+
 
 // ---------- Site estático (somente extensões permitidas; nada de código do servidor, regras ou segredos) ----------
 const RAIZ = path.join(__dirname, "..");
 const BLOQUEADOS = /^\/(server|functions|test|scripts|node_modules|docs)(\/|$)|(^|\/)\./i;
 // Rotas limpas dos painéis: a URL pública é /painel-loja e /painel-promotor (as páginas continuam sendo index.html e promotor.html).
 // Sem barra final (/painel-loja/ redireciona): os scripts e estilos usam caminhos relativos e quebrariam dentro de uma "pasta".
-const PAINEIS = { "painel-loja": "index.html", "painel-promotor": "promotor.html", "painel-admin": "admin.html" };
-app.get(/^\/(painel-loja|painel-promotor|painel-admin)\/?$/, (req, res) => {
+const PAINEIS = { "painel-loja": "index.html", "painel-promotor": "promotor.html", "painel-admin": "admin.html", "painel-ti": "ti.html" };
+app.get(/^\/(painel-loja|painel-promotor|painel-admin|painel-ti)\/?$/, (req, res) => {
   const nome = req.path.replace(/\//g, "");
   if (req.path.endsWith("/")) return res.redirect(302, `/${nome}${req.url.slice(req.path.length)}`);
   res.setHeader("Cache-Control", "no-cache");
@@ -138,6 +150,7 @@ app.use((req, res) => res.status(404).json({ erro: "não encontrado", codigo: "r
 app.use(Seg.tratadorErros);
 
 if (require.main === module) {
+  ti.presenca.iniciar();                                    // publica os pings desta instância (contador de usuários online)
   taxas.iniciar();                                          // listener em tempo real: a mudança do admin vale em milissegundos
   app.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}${MODO_TESTE ? " — MODO_TESTE ligado" : ""}`));
 }

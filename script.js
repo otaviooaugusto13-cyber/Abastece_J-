@@ -4,20 +4,22 @@
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, chamarFuncao, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta } from "./firebase.js";
+import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo, termosAceitos, gravarTermos } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
 import { iniciarSuporte, pararSuporte } from "./suporte.js";
+import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { ativarPush, desativarPush } from "./push.js";
 import { WHATSAPP_SUPORTE, MP_PUBLIC_KEY } from "./config.js";
 import { iniciarTaxas } from "./taxas.js";
 import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, TAXAS, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
-import { CIDADES, acharCidade, rotuloCidade, cidadeMaisProxima, capturarPosicao } from "./geo.js";
+import { iniciar as iniciarJogo, pintarReputacao, abrirLocal, abrirRuptura, abrirAuditoria, temLocal, carregarMarcas } from "./loja-jogo.js";
+import { telaBanido, esconderBanido, animarPerdaVida } from "./gamificacao-ui.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
 
 // ---------- estado ----------
-let lojaGeo = null;   // { cidade, uf, lat, lng } — vira a localização das vagas (o servidor copia para cada pedido)
+let rep = null, repTimer = null;
 let usuario = null, perfil = {}, pedidos = [], promotores = [], cartaoLoja = null, ehTeste = false;
 const fin = new Map();   // valores que a LOJA enxerga (valor + taxa fixa + total), por pedido
 let filtro = "ativos", setorSel = SETORES[0].v, preferido = "", dataCal = new Date(), diaSel = "";
@@ -26,6 +28,7 @@ const statusAnt = new Map();
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
 
 iniciarTema(); registrarSW();
+iniciarJogo({ perfil: () => perfil, setLocal: (l) => { perfil.localizacao = l; pintarLocal(); }, temCartao: () => !!cartaoLoja, setor: () => setorSel, recarregar: () => carregarRep() });
 ligarMascaras({ doc: mascaraDoc, tel: mascaraTelefone });
 
 // ---------- textos que dependem da regra de taxas (nunca desatualizam) ----------
@@ -56,10 +59,11 @@ const TXT_LOGIN = {
 const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
 const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 $("link-termos").addEventListener("click", (e) => { e.preventDefault(); abrir("sheet-termos"); });
-$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); });
+let aguardandoTermos = false;                                          // clicou em "Criar conta" sem aceitar: abrimos os Termos e, ao aceitar, seguimos para o Google
+$("btn-aceitar-termos").addEventListener("click", () => { $("check-termos").checked = true; seletor.atualizarBotao(); fechar("sheet-termos"); if (aguardandoTermos) { aguardandoTermos = false; $("btn-login").click(); } });
 $("btn-login").addEventListener("click", async () => {
     const b = $("btn-login"), criando = seletor.atual() === "criar";
-    if (criando && !$("check-termos").checked) return;
+    if (criando && !$("check-termos").checked) { aguardandoTermos = true; abrir("sheet-termos"); return; }
     gravarModo(seletor.atual()); gravarTermos(criando);                    // lembra a intenção (entrar × criar) até o fim do login
     b.dataset.ocupado = "1"; b.disabled = true; $("btn-login-txt").textContent = "Abrindo o Google…";
     try { await entrarComGoogle(); }
@@ -74,21 +78,35 @@ getRedirectResult(auth).catch((e) => { const m = msgAuth(e); if (m) erro(m); res
 $("btn-sair").addEventListener("click", async () => { if (confirm("Deseja sair da conta?")) { parar(); await desativarPush(); pararSuporte(); await sairDaConta(); } });
 
 const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
-function parar() { pedidosUn?.(); promUn?.(); cartaoUn?.(); finUn?.(); chatUn?.(); pedidosUn = promUn = cartaoUn = finUn = chatUn = null; primeira = true; statusAnt.clear(); fin.clear(); cartaoLoja = null; }
+function parar() { clearInterval(repTimer); esconderBanido(); rep = null; pedidosUn?.(); promUn?.(); cartaoUn?.(); finUn?.(); chatUn?.(); pedidosUn = promUn = cartaoUn = finUn = chatUn = null; primeira = true; statusAnt.clear(); fin.clear(); cartaoLoja = null; }
 
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
     if (!u) { parar(); pararSuporte(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
     let seguiu = false;
-    try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); erro("Não foi possível carregar seu cadastro. Tente novamente."); return; }
-    if (!seguiu) return;                                    // tela de aviso/falha já está na tela; a sessão continua de pé
+    try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); resetarLogin(); erro(e.code === "limite-requisicoes" || e.code === "termos-obrigatorios" || e.code === "dados-invalidos" ? e.message : "Não foi possível carregar seu cadastro. Tente novamente."); return; }   // reabilita o botão: antes ficava em "Abrindo o Google…" para sempre
+    if (!seguiu) { resetarLogin(); return; }                                    // tela de aviso/falha já está na tela; a sessão continua de pé
     ehTeste = await contaDeTeste(); $("btn-teste-reset").hidden = !ehTeste; $("cartao-teste-dica").hidden = !ehTeste;
     pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar(); limparGuarda(); iniciarSuporte(u);
+    pintarLocal(); pintarRep(); clearInterval(repTimer); repTimer = setInterval(() => { if (!document.hidden) carregarRep(); }, 120_000);
+    carregarMarcas().then((m) => { $("campo-marca").hidden = !m.length; $("p-marca").innerHTML = '<option value="">Nenhuma</option>' + m.map((x) => `<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join(""); });
 });
 
 const trocarConta = async () => { parar(); await desativarPush(); pararSuporte(); await sairDaConta(); };
 const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "loja", perfis: r?.perfis, email: usuario?.email, trocarConta });
 
+async function carregarRep() {
+    const antes = rep;
+    try { rep = await consultar("reputacao"); } catch (e) { if (e.code === "conta-banida" || e.status === 403) rep = { banido: true, vidas: 0, infracoes: [], banidoMotivo: "Conta bloqueada." }; else { console.warn(e); return false; } }
+    if (rep.banido) { clearInterval(repTimer); telaBanido(rep, async () => { parar(); await sairDaConta(); location.reload(); }); return true; }
+    if (antes && !antes.banido && rep.vidas < antes.vidas) { const i = (rep.infracoes || []).find((x) => x.status !== "revogada"); animarPerdaVida({ ...(i || {}), vidas: rep.vidas }); }
+    pintarReputacao(rep); return true;
+}
+const pintarRep = () => rep && !rep.banido && pintarReputacao(rep);
+function pintarLocal() {
+    const l = perfil.localizacao; $("aviso-local").hidden = temLocal(perfil);
+    $("loc-status").textContent = temLocal(perfil) ? `📍 ${l.cidade || "Local definido"}${l.uf ? "/" + l.uf : ""}` : "📍 Localização não definida";
+}
 /**
  * O perfil ativo vem do SERVIDOR (/sessao) para o portal aberto — nunca do navegador.
  * Devolve true se a loja pode abrir o painel; false se uma tela de aviso/falha foi mostrada (sem derrubar a sessão).
@@ -109,6 +127,7 @@ async function carregarPerfil(u) {
             throw e;
         }
     } else if (termosAceitos()) { gravarTermos(false); toast("Você já tinha cadastro. Entramos na sua conta!", "ok"); }   // clicou em "Criar" mas a conta já existia
+    if (await carregarRep() && rep.banido) return false;     // conta bloqueada: só a tela vermelha (a sessão não é derrubada)
     const ref = doc(db, "contratantes", u.uid), s = await getDoc(ref);
     perfil = s.exists() ? s.data() : { uid: u.uid, email: u.email || "", nome: u.displayName || "" };
     return true;
@@ -138,9 +157,6 @@ function pintarPerfil() {
     }
     $("aviso-fiscal").hidden = !!(perfil.razaoSocial && perfil.documento);
     $("f-razao").value = perfil.razaoSocial || ""; $("f-doc").value = perfil.documento ? mascaraDoc(perfil.documento) : "";
-    $("lista-cidades").innerHTML = CIDADES.map((c) => `<option value="${esc(rotuloCidade(c))}">`).join("");
-    lojaGeo = Number.isFinite(perfil.lat) && Number.isFinite(perfil.lng) ? { cidade: perfil.cidade || "", uf: perfil.uf || "", lat: perfil.lat, lng: perfil.lng, exata: true } : null;
-    $("f-cidade").value = perfil.cidade ? (perfil.uf ? `${perfil.cidade} - ${perfil.uf}` : perfil.cidade) : "";
     $("f-end").value = perfil.endereco || ""; $("f-email").value = perfil.email || usuario.email || "";
     $("f-tel").value = perfil.telefone ? mascaraTelefone(perfil.telefone) : ""; if (perfil.ramo) $("f-ramo").value = perfil.ramo;
     $("pref-setor").innerHTML = SETORES.map((s) => `<option value="${esc(s.v)}">${esc(s.label)}</option>`).join("");
@@ -195,7 +211,8 @@ function iniciarFormulario() {
 $("setor-grid").addEventListener("click", (e) => { const b = e.target.closest("[data-setor]"); if (b) { setorSel = b.dataset.setor; montarSetores(); } });
 
 const limparErros = () => document.querySelectorAll(".msg-erro").forEach((e) => (e.textContent = ""));
-const fmtHoras = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h} h ${String(mm).padStart(2, "0")} min` : `${h} h`; };
+// function (hoisted): atualizarSplit() pode rodar durante a carga do módulo (iniciarTaxas) e, como `const`, isto derrubava o script inteiro.
+function fmtHoras(m) { const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h} h ${String(mm).padStart(2, "0")} min` : `${h} h`; }
 /** Resumo ao vivo: o valor sai do horário (nunca digitado). Mostra só valor do serviço + taxa fixa + total. */
 function atualizarSplit() {
     const entrada = $("p-entrada").value, saida = $("p-saida").value, m = minutosEntre(entrada, saida), e = m ? validarTurno(entrada, saida) : "";
@@ -220,6 +237,7 @@ $("btn-enviar").addEventListener("click", async () => {
     const loja = $("p-local").value.trim(), data = $("p-data").value, entrada = $("p-entrada").value, saida = $("p-saida").value;
     let falhou = false; const e = (id, m) => { $(id).textContent = m; falhou = true; };
     if (!cartaoLoja) { abrir("sheet-cartao"); return toast("Cadastre um cartão de crédito para solicitar um promotor.", "erro"); }
+    if (!temLocal(perfil)) { abrirLocal(); return toast("Defina a localização da loja primeiro.", "erro"); }
     if (loja.length < 3) e("e-local", "Informe o nome e o endereço da loja.");
     if (!data || data < hojeLocal()) e("e-data", "Escolha hoje ou uma data futura.");
     const et = validarTurno(entrada, saida); if (et) e("e-saida", et);        // trava de 6 h também no navegador
@@ -228,14 +246,15 @@ $("btn-enviar").addEventListener("click", async () => {
 
     const b = $("btn-enviar"), html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner"></span> Enviando…';
     try {
-        await chamarFuncao("criarPedido", { loja, data, entrada, saida, foco: setorSel, promotorPreferido: preferido || undefined });   // o servidor valida tudo de novo
+        await chamarFuncao("criarPedido", { loja, data, entrada, saida, foco: setorSel, promotorPreferido: preferido || undefined, marcaId: $("p-marca").value || undefined });   // o servidor valida tudo de novo
         ok("Pedido enviado! Avisamos quando um promotor aceitar.");
         $("p-local").value = ""; definirPreferido(""); atualizarSplit();
         filtro = "ativos"; marcarFiltro(); irPara("tab-pedidos");
         if (!(perfil.razaoSocial && perfil.documento)) setTimeout(() => toast("Dica: complete os dados da empresa para a nota sair no seu nome."), 1800);
     } catch (err) {
         console.error(err);
-        if (err.code === "cartao-obrigatorio") { abrir("sheet-cartao"); erro(err.message); }
+        if (err.code === "localizacao-obrigatoria") { abrirLocal(); erro(err.message); }
+        else if (err.code === "cartao-obrigatorio") { abrir("sheet-cartao"); erro(err.message); }
         else if (err.code === "turno-invalido") { $("e-saida").textContent = err.message; erro(err.message); }
         else if (err.code === "backend-nao-configurado") erro("O servidor ainda não está configurado (FUNCTIONS_BASE em config.js).");
         else if (err.code === 404 || err.code === "rota-inexistente") erro("O servidor não respondeu (404). Confira o endereço do serviço no Render.");
@@ -274,20 +293,23 @@ function renderHome() {
     el.innerHTML = `<div class="lbl">Próximo turno</div><div class="row between"><div><h4>${esc(prox.loja)}</h4><div class="muted small">${fmtData(prox.data)} · ${esc(prox.horario || "")} · ${esc(prox.foco)}</div></div>${selo(prox)}</div>
         <div class="muted small mt">${prox.status === "aceita" ? `👷 ${esc(prox.promotorNome || "Promotor")} confirmado.` : "Aguardando um promotor aceitar."}</div>`;
 }
-const selo = (p) => { const [t, c] = p.status === "cancelada" ? ["Cancelado", "red"] : estaPago(p) ? ["Pago ✓", "green"] : p.status === "aceita" ? ["Aceito · pagar", "blue"] : ["Aguardando promotor", ""]; return `<span class="badge ${c}">${t}</span>`; };
+const selo = (p) => { if (p.status === "aceita" && p.exigeExecucao && p.fase !== "executada") return `<span class="badge blue">${p.fase === "em_andamento" ? "Em andamento" : "Aceito"}</span>`;
+     const [t, c] = p.status === "cancelada" ? ["Cancelado", "red"] : estaPago(p) ? ["Pago ✓", "green"] : p.status === "aceita" ? ["Aceito · pagar", "blue"] : ["Aguardando promotor", ""]; return `<span class="badge ${c}">${t}</span>`; };
 function linhaTempo(p) {
     const idx = estaPago(p) ? 2 : p.status === "aceita" ? 1 : 0, nomes = ["Pedido", "Aceito", "Pago"];
     return `<div class="timeline">${nomes.map((n, i) => `<div class="passo ${i < idx || (idx === 2 && i === 2) ? "ok" : i === idx ? "on" : ""}"><div class="bola"></div>${n}</div>${i < 2 ? `<div class="fio ${i < idx ? "on" : ""}"></div>` : ""}`).join("")}</div>`;
 }
 function cartao(p) {
     const s = sp(p), pago = estaPago(p), cancel = p.status === "cancelada", acoes = [];
-    if (p.status === "aceita") acoes.push(`<a class="btn btn-primary btn-sm" href="pagar.html?id=${encodeURIComponent(p.id)}">💳 Pagar agora</a>`);
+    const exec = p.exigeExecucao === true, fase = p.fase || "", pillF = fase === "em_andamento" ? '<span class="fase-pill andamento">Em andamento no local</span>' : fase === "executada" && !pago ? '<span class="fase-pill executada">Executado ✓</span>' : "";
+    if (p.status === "aceita" && (!exec || fase === "executada")) acoes.push(`<a class="btn btn-primary btn-sm" href="pagar.html?id=${encodeURIComponent(p.id)}">💳 Pagar agora</a>`);
+    if (fase === "executada") acoes.push(`<button class="btn btn-ghost btn-sm" data-foto="${p.id}">🖼 ${p.auditoriaLoja ? "Ver foto" : "Ver foto e auditar"}</button>`);
     if (pago && p.notaId) acoes.push(`<a class="btn btn-primary btn-sm" href="nota.html?id=${encodeURIComponent(p.notaId)}">🧾 Ver nota</a>`);
     if (p.status === "paga" && !p.avaliacao) acoes.push(`<button class="btn btn-ghost btn-sm" data-avaliar="${p.id}">⭐ Avaliar</button>`);
     if (p.promotorUid && !cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-chat="${p.id}">💬 Chat</button>`);
     if (pago || cancel) acoes.push(`<button class="btn btn-ghost btn-sm" data-repetir="${p.id}">🔁 Repetir</button>`);
-    if (p.status === "aberta" || p.status === "aceita") acoes.push(`<button class="btn btn-danger btn-sm" data-cancelar="${p.id}">Cancelar</button>`);
-    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(p.loja)}</h4><div class="meta">${fmtData(p.data)} · ${esc(p.horario || "")} · ${esc(p.foco)}</div>${p.promotorNome ? `<div class="meta">👷 ${esc(p.promotorNome)}${p.avaliacao ? ` · <span class="stars">${"★".repeat(p.avaliacao.estrelas)}</span>` : ""}</div>` : ""}</div>
+    if ((p.status === "aberta" || p.status === "aceita") && !fase) acoes.push(`<button class="btn btn-danger btn-sm" data-cancelar="${p.id}">Cancelar</button>`);
+    return `<article class="card pedido ${cancel ? "cancelada" : ""}"><div class="topo"><div class="grow"><h4>${esc(p.loja)}</h4><div class="meta">${p.tipo === "ruptura" ? "⚡ " : ""}${fmtData(p.data)} · ${esc(p.horario || "")} · ${esc(p.foco)}${p.bonusCentavos ? ` · bônus ${brl(p.bonusCentavos)}` : ""}</div>${pillF}${p.promotorNome ? `<div class="meta">👷 ${esc(p.promotorNome)}${p.avaliacao ? ` · <span class="stars">${"★".repeat(p.avaliacao.estrelas)}</span>` : ""}</div>` : ""}</div>
         <div class="center"><div class="valor">${brl(s.total)}</div>${selo(p)}</div></div>${cancel ? "" : linhaTempo(p)}${acoes.length ? `<div class="acoes">${acoes.join("")}</div>` : ""}</article>`;
 }
 function marcarFiltro() { document.querySelectorAll("#filtro-pedidos .pill").forEach((b) => b.classList.toggle("sel", b.dataset.f === filtro)); }
@@ -391,27 +413,13 @@ async function salvarPerfil(dados, msg, sheet) {
     try { await setDoc(doc(db, "contratantes", usuario.uid), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }); perfil = { ...perfil, ...dados }; ok(msg); if (sheet) fechar(sheet); pintarPerfil(); return true; }
     catch (e) { console.error(e); erro("Não foi possível salvar. Verifique as regras do Firestore."); return false; }
 }
-$("f-cidade").addEventListener("change", () => {
-    const c = acharCidade($("f-cidade").value);
-    if (c) { lojaGeo = { cidade: c.n, uf: c.uf, lat: c.lat, lng: c.lng, exata: false }; $("f-geo-dica").textContent = `Usando o centro de ${rotuloCidade(c)}. Para precisão de rua, use sua localização.`; }
-    else if ($("f-cidade").value.trim()) { lojaGeo = null; $("f-geo-dica").textContent = "Cidade fora da lista: escolha uma sugerida ou use sua localização."; }
-});
-$("btn-gps-loja").addEventListener("click", async () => {
-    const b = $("btn-gps-loja"); b.disabled = true;
-    try {
-        const p = await capturarPosicao({ timeout: 12_000, maxAge: 0 }), c = cidadeMaisProxima(p, 30);
-        lojaGeo = { cidade: c?.n || "", uf: c?.uf || "", lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5, exata: true };
-        if (c) $("f-cidade").value = rotuloCidade(c);
-        $("f-geo-dica").textContent = `Localização exata capturada (±${Math.round(p.precisaoM)} m). Salve para aplicar.`; ok("Localização capturada ✓");
-    } catch (e) { erro(e.message); } finally { b.disabled = false; }
-});
 $("btn-salvar-fiscal").addEventListener("click", async () => {
     $("e-doc").textContent = ""; $("f-doc").classList.remove("invalido");
     const razao = $("f-razao").value.trim(), documento = soDigitos($("f-doc").value), email = $("f-email").value.trim();
     if (razao.length < 3) return erro("Informe a razão social ou o nome da empresa.");
     if (!docValido(documento)) { $("e-doc").textContent = "CNPJ ou CPF inválido. Confira os dígitos."; $("f-doc").classList.add("invalido"); return $("f-doc").focus(); }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) return erro("E-mail inválido.");
-    await salvarPerfil({ razaoSocial: razao, documento, endereco: $("f-end").value.trim(), email, telefone: soDigitos($("f-tel").value), ramo: $("f-ramo").value, ...(lojaGeo ? { cidade: lojaGeo.cidade, uf: lojaGeo.uf, lat: lojaGeo.lat, lng: lojaGeo.lng } : {}) }, "Dados da empresa salvos ✓", "sheet-fiscal");
+    await salvarPerfil({ razaoSocial: razao, documento, endereco: $("f-end").value.trim(), email, telefone: soDigitos($("f-tel").value), ramo: $("f-ramo").value }, "Dados da empresa salvos ✓", "sheet-fiscal");
 });
 $("btn-salvar-prefs").addEventListener("click", async () => {
     if (await salvarPerfil({ prefs: { setor: $("pref-setor").value, entrada: $("pref-entrada").value, saida: $("pref-saida").value } }, "Preferências salvas ✓", "sheet-prefs")) { setorSel = $("pref-setor").value; iniciarFormulario(); }
@@ -497,11 +505,15 @@ document.addEventListener("click", async (e) => {
     else if ((el = g("data-repetir"))) { const p = achar(el.dataset.repetir); if (p) repetir(p); }
     else if ((el = g("data-cancelar"))) {
         const p = achar(el.dataset.cancelar); if (!p) return;
-        if (!confirm(p.status === "aceita" ? `Cancelar o pedido em ${p.loja}? O promotor que já aceitou será avisado.` : `Cancelar o pedido em ${p.loja}?`)) return;
+        const [hh, mm] = (p.entrada || "00:00").split(":").map(Number), faltaMs = new Date(`${p.data}T00:00:00-03:00`).getTime() + (hh * 60 + mm) * 60_000 - Date.now(), limiteH = rep?.regras?.cancelamentoTardioHoras || 12;
+        const aviso = p.status === "aceita" && faltaMs < limiteH * 3_600_000 ? `\n\n⚠️ Faltam menos de ${limiteH} h para o início: o cancelamento gera ADVERTÊNCIA (perde 1 vida) e multa.` : "";
+        if (!confirm((p.status === "aceita" ? `Cancelar o pedido em ${p.loja}? O promotor que já aceitou será avisado.` : `Cancelar o pedido em ${p.loja}?`) + aviso)) return;
         el.disabled = true;
-        try { await chamarFuncao("cancelarPedido", { solicitacaoId: p.id }); ok("Pedido cancelado."); }
-        catch (err) { console.error(err); erro("Não foi possível cancelar. Se já foi pago, fale com o suporte."); el.disabled = false; }
+        try { const r = await chamarFuncao("cancelarPedido", { solicitacaoId: p.id }); ok("Pedido cancelado."); if (r.infracao) { await carregarRep(); if (!rep.banido) animarPerdaVida(r.infracao); } }
+        catch (err) { console.error(err); erro(err.code === "servico-em-andamento" ? "O promotor já está no local. Não é possível cancelar." : "Não foi possível cancelar. Se já foi pago, fale com o suporte."); el.disabled = false; }
     }
+    else if ((el = g("data-foto"))) { const p = achar(el.dataset.foto); if (p) abrirAuditoria(p); }
+    else if (g("btn-relampago") || e.target.closest("#btn-relampago")) abrirRuptura();
 });
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") pararChat();

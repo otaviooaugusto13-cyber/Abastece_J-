@@ -62,6 +62,9 @@ assert.equal(core.esc("<img onerror=alert(1)>"), "&lt;img onerror=alert(1)&gt;")
   assert.equal(core.aplicarTaxas({ ...ok, versao: 4 }), true);
   assert.deepEqual(core.calcularDiaria(), srv.calcularDiaria({ ...ok, versao: 4 }));
   for (const m of [60, 180, 240, 510, 511]) assert.deepEqual(core.calcularTurno(m), srv.calcularTurno(m, { ...ok, versao: 4 }));
+  // taxas dinâmicas + níveis: a comissão do Bronze é a vigente e os demais níveis escalam (navegador e servidor idênticos); o split congelado se reconstrói
+  for (const n of ["bronze", "prata", "ouro", "platina"]) for (const b of [0, 3000]) { const sv = srv.calcularDiaria({ ...ok, versao: 4 }, n, b); assert.deepEqual(core.calcularDiaria(n, b), sv, `dinâmico ${n}/${b}`); assert.deepEqual(srv.calcularDiaria(srv.cfgDoSplit(sv), n, b), sv, `congelado ${n}/${b}`); assert.equal(sv.promotor + sv.app, sv.total); }
+  assert.equal(srv.calcularDiaria({ ...ok, versao: 4 }, "bronze").comissao, 6200); assert.equal(srv.calcularDiaria({ ...ok, versao: 4 }, "platina").comissao, 2480);
   for (const [e, sd] of [["08:00", "10:59"], ["08:00", "11:00"], ["08:00", "16:30"], ["08:00", "16:31"]]) assert.equal(core.validarTurno(e, sd), srv.validarTurno(e, sd, ok), `${e}-${sd}`);
   assert.equal(core.valorPromotor({}), 24800); assert.match(core.textoTermos("loja"), /310,00/); assert.match(core.textoTermos("loja"), /62,00/); assert.match(core.textoTermos("loja"), /248,00/);
   assert.equal(core.calcularDiaria().total, 31350); assert.equal(core.calcularDiaria().promotor + core.calcularDiaria().app, 31350);
@@ -75,3 +78,12 @@ assert.equal(core.esc("<img onerror=alert(1)>"), "&lt;img onerror=alert(1)&gt;")
   assert.throws(() => srv.calcularDiaria({ ...ok, repasseCentavos: 1 }), /inconsistente/);
 }
 console.log("✓ paridade navegador×servidor, diária 200/50/150, idade 16+ e termos");
+
+// 9) Camada de níveis/jogo: servidor e navegador idênticos
+assert.deepEqual(cfg.NIVEIS.map((n) => [n.id, n.comissaoPct, n.minConcluidos]), srv.NIVEIS.map((n) => [n.id, n.comissaoPct, n.minConcluidos]), "NIVEIS diverge");
+assert.deepEqual(cfg.CHAMADOS_PARA_SUBIR, srv.CHAMADOS_PARA_SUBIR);
+for (const [n, id] of [[0, "bronze"], [29, "bronze"], [30, "prata"], [89, "prata"], [90, "ouro"], [189, "ouro"], [190, "platina"]]) { assert.equal(srv.nivelPorConcluidos(n).id, id); assert.equal(core.nivelPorConcluidos(n).id, id); }
+for (const n of ["bronze", "prata", "ouro", "platina"]) for (const b of [0, 3000]) assert.deepEqual(core.calcularDiaria(n, b), srv.calcularDiaria(srv.PADRAO, n, b), `calcularDiaria ${n}/${b}`);
+assert.equal(cfg.GEO_RAIO_METROS, SC.GEO.RAIO_METROS); assert.equal(cfg.VIDAS_MAX, SC.VIDAS_MAX); assert.equal(cfg.CANCELAMENTO_TARDIO_HORAS, SC.CANCELAMENTO_TARDIO_HORAS);
+assert.deepEqual(cfg.BONUS_RUPTURA_CENTAVOS, SC.RUPTURA.BONUS_OPCOES_CENTAVOS);
+for (const perfil of ["loja", "promotor"]) { const t = core.textoTermos(perfil); assert.match(t, /Platina 10%/); assert.match(t, /advertência/); assert.match(t, /100 m|foto/); }

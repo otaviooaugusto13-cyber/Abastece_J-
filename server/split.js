@@ -80,22 +80,66 @@ const minutosEntre = (entrada, saida) => {
   return Math.max(0, h2 * 60 + m2 - (h1 * 60 + m1));
 };
 
-/** Divisão da diária. Sempre inteiros; comissão + repasse === diária (nada some, nada sobra). `cfg` = taxas vigentes. */
-function calcularDiaria(cfg = PADRAO) {
-  const { diariaCentavos: valor, comissaoCentavos: comissao, repasseCentavos: promotor, taxaFixaCentavos: taxaFixa } = cfg;
-  if (comissao + promotor !== valor) throw new Error("Configuração financeira inconsistente: comissão + repasse deve ser igual à diária.");
+// ---------- Níveis de confiabilidade (gamificação) ----------
+// Regra pedida: Bronze (início) 25% · Prata (30 chamados) 20% · Ouro (+60) 15% · Platina (+100) 10%.
+// Interpretação adotada: os números são ACRESCENTADOS a cada degrau (30 → 90 → 190 acumulados).
+// Se o negócio quiser limiares absolutos (30/60/100), basta trocar CHAMADOS_PARA_SUBIR por [30, 30, 40].
+const CHAMADOS_PARA_SUBIR = [30, 60, 100];
+const NIVEIS_BASE = [
+  { id: "bronze", nome: "Bronze", comissaoPct: 25 },
+  { id: "prata", nome: "Prata", comissaoPct: 20 },
+  { id: "ouro", nome: "Ouro", comissaoPct: 15 },
+  { id: "platina", nome: "Platina", comissaoPct: 10 }
+];
+const NIVEIS = NIVEIS_BASE.map((n, i) => ({ ...n, minConcluidos: CHAMADOS_PARA_SUBIR.slice(0, i).reduce((a, b) => a + b, 0) }));
+const nivelPorId = (id) => NIVEIS.find((n) => n.id === id) || NIVEIS[0];
+const indiceNivel = (id) => Math.max(0, NIVEIS.findIndex((n) => n.id === id));
+/** Maior nível cujo mínimo de chamados concluídos já foi atingido. */
+const nivelPorConcluidos = (n) => { const c = Math.max(0, Math.floor(Number(n) || 0)); return [...NIVEIS].reverse().find((x) => c >= x.minConcluidos); };
+/**
+ * Comissão da plataforma, em centavos, para um nível. O Bronze é a comissão vigente das taxas (editável pelo admin);
+ * os demais níveis escalam proporcionalmente (Prata = 20/25 da comissão do Bronze etc.). Com o padrão (R$ 200 / R$ 50),
+ * dá exatamente R$ 50 · 40 · 30 · 20.
+ */
+const comissaoDoNivel = (id, cfg = PADRAO) => Math.round((cfg.comissaoCentavos * nivelPorId(id).comissaoPct) / NIVEIS[0].comissaoPct);
+if (comissaoDoNivel("bronze") !== COMISSAO_PLATAFORMA_CENTAVOS) throw new Error("Configuração inconsistente: a comissão do Bronze deve ser igual à comissão padrão.");
+
+/**
+ * Divisão da diária. Sempre inteiros; comissão + repasse === diária (nada some, nada sobra).
+ * `cfg` = taxas vigentes (padrão se omitido). `nivel`: define a comissão da plataforma. `bonusCentavos`: bônus de urgência
+ * (chamado relâmpago) pago pela loja e repassado INTEGRALMENTE ao profissional (a comissão incide só sobre a diária).
+ */
+function calcularDiaria(cfg = PADRAO, nivel = "bronze", bonusCentavos = 0) {
+  const { diariaCentavos: valor, comissaoCentavos: comissaoBase, repasseCentavos: repasseBase, taxaFixaCentavos: taxaFixa } = cfg;
+  if (comissaoBase + repasseBase !== valor) throw new Error("Configuração financeira inconsistente: comissão + repasse deve ser igual à diária.");
+  const bonus = Number.isInteger(bonusCentavos) && bonusCentavos > 0 ? bonusCentavos : 0;
+  const n = nivelPorId(nivel), comissao = comissaoDoNivel(n.id, cfg);
   return {
     valor,
-    promotor,
+    promotor: valor - comissao + bonus,
     comissao,
     royalty: comissao,                 // alias de compatibilidade
     taxaFixa,
     app: comissao + taxaFixa,
-    total: valor + taxaFixa,
-    pct: 100 - (promotor * 100) / valor,
+    total: valor + taxaFixa + bonus,
+    pct: (comissao * 100) / valor,
+    bonus,
+    nivel: n.id,
+    comissaoBase,                      // comissão do Bronze nas taxas vigentes (permite reconstruir as taxas congeladas a partir do split)
     modelo: "diaria-v1",
     versaoTaxas: cfg.versao || 0       // qual versão das taxas gerou este split (rastreabilidade)
   };
+}
+
+/**
+ * Reconstrói as taxas (cfg) que geraram um split já gravado — o pedido guarda o split "congelado" e, no aceite, a comissão
+ * passa a depender do nível; este atalho devolve a base (Bronze) para recalcular sem reler as taxas vigentes. null se o split for inválido.
+ */
+function cfgDoSplit(sp) {
+  if (!sp || ![sp.valor, sp.taxaFixa].every(Number.isInteger)) return null;
+  const base = Number.isInteger(sp.comissaoBase) ? sp.comissaoBase : Math.round((sp.comissao * NIVEIS[0].comissaoPct) / nivelPorId(sp.nivel).comissaoPct);
+  if (!Number.isInteger(base) || base < 0 || base >= sp.valor) return null;
+  return { diariaCentavos: sp.valor, comissaoCentavos: base, repasseCentavos: sp.valor - base, taxaFixaCentavos: sp.taxaFixa, versao: sp.versaoTaxas || 0 };
 }
 
 /** Compatível com o código antigo: o valor não depende mais da duração (diária fixa). */
@@ -131,6 +175,8 @@ function vezesNaSemana(historico, lojaUid, dataIso, ignorarId = "") {
 
 module.exports = {
   PADRAO, LIMITES, validarTaxas,
+  CHAMADOS_PARA_SUBIR, NIVEIS, nivelPorId, indiceNivel, nivelPorConcluidos, comissaoDoNivel, cfgDoSplit,
+  CHAMADOS_PARA_SUBIR, NIVEIS, nivelPorId, indiceNivel, nivelPorConcluidos, comissaoDoNivel,
   VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS,
   HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, STATUS_QUE_CONTAM, PCT_REPASSE, PCT_COMISSAO,
   minutosEntre, calcularDiaria, calcularTurno, validarTurno, limitesSemana, vezesNaSemana

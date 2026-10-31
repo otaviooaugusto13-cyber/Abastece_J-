@@ -12,6 +12,7 @@
     <link rel="icon" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-jogo.css">
 </head>
 <body>
 
@@ -66,7 +67,16 @@
             <div><strong>Cadastre um cartão de crédito</strong><br><span class="muted small">É obrigatório ter um cartão válido para solicitar e pagar serviços.</span><br><a href="#" data-abrir="sheet-cartao">Cadastrar cartão ›</a></div>
         </div>
 
+        <div id="aviso-local" class="banner red mb" hidden>
+            <span class="ico">📍</span>
+            <div><strong>Defina a localização da loja</strong><br><span class="muted small">O promotor só faz o check-in a até 100 m dela. Sem isso não dá para pedir promotor.</span><br><a href="#" data-abrir="sheet-local">Definir agora ›</a></div>
+        </div>
+
+        <div class="glass-card mb" id="rep-loja-home" role="button" tabindex="0" data-abrir="sheet-rep-loja"></div>
+
         <div id="card-proximo" class="card flat mb" hidden></div>
+
+        <button class="btn btn-relampago mb" id="btn-relampago" type="button" style="width:100%;background:linear-gradient(90deg,#ff4d6d,#ff9f43);color:#fff;border:0;font-weight:800">⚡ Gôndola vazia? Chamado relâmpago</button>
 
         <div class="card gold" id="form-pedido">
             <div class="row between mb"><h3>🛒 Solicitar promotor</h3><span class="badge green">Pague só depois</span></div>
@@ -79,6 +89,8 @@
             <div class="field mt"><label for="p-local">2. Onde? <small>(nome e endereço da loja)</small></label>
                 <input id="p-local" type="text" placeholder="Ex: Mercado Central — Rua das Flores, 120" autocomplete="street-address" maxlength="160">
                 <span class="msg-erro" id="e-local"></span></div>
+            <div class="row between small" style="margin:-4px 0 10px"><span class="muted" id="loc-status">📍 Localização não definida</span><a href="#" data-abrir="sheet-local">Alterar</a></div>
+            <div class="field" id="campo-marca" hidden><label for="p-marca">Marca/indústria atendida <small>(opcional)</small></label><select id="p-marca"><option value="">Nenhuma</option></select></div>
             <div class="field"><label for="p-data">Dia do serviço</label><input id="p-data" type="date"><span class="msg-erro" id="e-data"></span></div>
             <div class="grid-2">
                 <div class="field"><label for="p-entrada">Entrada</label><input id="p-entrada" type="time" value="08:00"></div>
@@ -152,6 +164,8 @@
         </div>
         <div class="menu-list mb">
             <button class="menu-item" data-abrir="sheet-cartao"><span class="ico">💳</span><span>Cartão de crédito <small class="muted" id="menu-cartao"></small></span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-local"><span class="ico">📍</span><span>Localização da loja</span><span class="seta">›</span></button>
+            <button class="menu-item" data-abrir="sheet-rep-loja"><span class="ico">❤️</span><span>Vidas e advertências</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-fiscal"><span class="ico">🧾</span><span>Dados da empresa (nota)</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">💼</span><span>Preferências de pedido</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Indicar lojas</span><span class="seta">›</span></button>
@@ -185,9 +199,6 @@
     <div class="field"><label for="f-razao">Razão social / nome</label><input id="f-razao" type="text" placeholder="Mercado Central Ltda" maxlength="120"></div>
     <div class="field"><label for="f-doc">CNPJ ou CPF</label><input id="f-doc" type="text" data-mask="doc" inputmode="numeric" placeholder="00.000.000/0000-00"><span class="msg-erro" id="e-doc"></span></div>
     <div class="field"><label for="f-end">Endereço</label><input id="f-end" type="text" placeholder="Rua, número, bairro, cidade" maxlength="200"></div>
-    <div class="field"><label for="f-cidade">Cidade da loja</label><input id="f-cidade" type="text" list="lista-cidades" placeholder="Ex.: Itapira - SP" maxlength="80" autocomplete="off"><datalist id="lista-cidades"></datalist>
-        <button type="button" class="btn btn-ghost btn-sm" id="btn-gps-loja" style="margin-top:8px">📍 Usar minha localização</button>
-        <span class="muted small" id="f-geo-dica">A cidade define onde seus pedidos aparecem para os promotores (raio de 20 km).</span></div>
     <div class="field"><label for="f-email">E-mail para receber a nota</label><input id="f-email" type="email" placeholder="financeiro@suaempresa.com.br"></div>
     <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
     <div class="field"><label for="f-ramo">Ramo</label><select id="f-ramo"><option>Supermercado</option><option>Atacarejo</option><option>Distribuidora</option><option>Loja de conveniência</option><option>Indústria / marca</option></select></div>

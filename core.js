@@ -1,6 +1,6 @@
 // Funções puras (sem DOM, sem Firebase): dinheiro, validação, formatação.
 // Testadas em node: `node test/split.test.js`
-import { VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, IDADE_MAIORIDADE } from "./config.js";
+import { NIVEIS, GEO_RAIO_METROS, CANCELAMENTO_TARDIO_HORAS, VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS, HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, IDADE_MINIMA, IDADE_MAIORIDADE } from "./config.js";
 
 // ---------- Taxas vigentes (DINÂMICAS) ----------
 // Começam no padrão de config.js (o app abre mesmo offline) e são substituídas pelo que o servidor devolve em
@@ -31,11 +31,16 @@ export const minutosEntre = (entrada, saida) => {
     const [h1, m1] = entrada.split(":").map(Number), [h2, m2] = saida.split(":").map(Number);
     return Math.max(0, h2 * 60 + m2 - (h1 * 60 + m1));
 };
-/** Divisão da diária (inteiros; comissão + repasse === total). O servidor repete este cálculo — o navegador só exibe. */
-export function calcularDiaria() {
-    const { diariaCentavos: valor, comissaoCentavos: comissao, repasseCentavos: promotor, taxaFixaCentavos: taxaFixa } = TAXAS;
-    return { valor, promotor, comissao, royalty: comissao, taxaFixa, app: comissao + taxaFixa, total: valor + taxaFixa,
-        pct: 100 - (promotor * 100) / valor, modelo: "diaria-v1", versaoTaxas: TAXAS.versao };
+export const nivelPorId = (id) => NIVEIS.find((n) => n.id === id) || NIVEIS[0];
+export const nivelPorConcluidos = (n) => { const c = Math.max(0, Math.floor(Number(n) || 0)); return [...NIVEIS].reverse().find((x) => c >= x.minConcluidos); };
+/** Comissão da plataforma para um nível: o Bronze é a comissão vigente (TAXAS, editável pelo admin); os demais níveis escalam proporcionalmente. */
+export const comissaoDoNivel = (id) => Math.round((TAXAS.comissaoCentavos * nivelPorId(id).comissaoPct) / NIVEIS[0].comissaoPct);
+/** Divisão da diária por nível (+ bônus de urgência, 100% do promotor). O servidor repete este cálculo — o navegador só exibe. */
+export function calcularDiaria(nivel = "bronze", bonusCentavos = 0) {
+    const { diariaCentavos: valor, taxaFixaCentavos: taxaFixa, comissaoCentavos: comissaoBase } = TAXAS;
+    const bonus = Number.isInteger(bonusCentavos) && bonusCentavos > 0 ? bonusCentavos : 0, n = nivelPorId(nivel), comissao = comissaoDoNivel(n.id);
+    return { valor, promotor: valor - comissao + bonus, comissao, royalty: comissao, taxaFixa, app: comissao + taxaFixa, total: valor + taxaFixa + bonus,
+        pct: (comissao * 100) / valor, bonus, nivel: n.id, comissaoBase, modelo: "diaria-v1", versaoTaxas: TAXAS.versao };
 }
 /** Compatível com o código antigo: o preço é a diária fixa, independente da duração. */
 export function calcularTurno(minutos) {
@@ -69,7 +74,7 @@ export function vezesNaSemana(historico, lojaUid, dataIso, ignorarId = "") {
 
 // ---------- O que cada lado pode VER (privacidade de valores) ----------
 /** Loja: valor cobrado pelo serviço + taxa de serviço fixa. Nunca repasse, royalty ou margem. */
-export const visaoLoja = (s) => ({ valor: s.valor, taxaFixa: s.taxaFixa, total: s.total });
+export const visaoLoja = (s) => ({ valor: s.valor, taxaFixa: s.taxaFixa, total: s.total, ...(s.bonus ? { bonus: s.bonus } : {}) });
 /** Promotor: apenas o líquido que ele recebe. Nunca o total pago pela loja. */
 export const visaoPromotor = (s) => ({ liquido: s.promotor });
 /** Líquido do promotor de um pedido (pedidos antigos, sem o campo novo, caem no cálculo). */
@@ -193,20 +198,22 @@ export const categoriaDoSetor = (foco) => SETOR_CATEGORIA[foco] || null;
 // Telas, checkout, resumos e nota mostram apenas o que cada lado precisa ver.
 export function textoTermos(perfil) {
     const diaria = brl(TAXAS.diariaCentavos), com = brl(TAXAS.comissaoCentavos), rep = brl(TAXAS.repasseCentavos);
-    const comuns = `<strong>Remuneração e comissão.</strong> A diária padrão é de ${diaria} por turno. A plataforma retém automaticamente ${com} de comissão e repassa ${rep} ao profissional, creditados na carteira digital dele. O repasse fica em carência por alguns dias antes de poder ser sacado e pode ser estornado em caso de reembolso ou contestação do pagamento.<br><br>
+    const comuns = `<strong>Remuneração e comissão.</strong> A diária padrão é de ${diaria} por turno. A comissão da plataforma é <strong>progressiva</strong>, conforme o nível de confiabilidade do profissional no momento do aceite: ${NIVEIS.map((n) => `${n.nome} ${String(Math.round(calcularDiaria(n.id).pct * 10) / 10).replace(".", ",")}% (comissão de ${brl(calcularDiaria(n.id).comissao)}, repasse de ${brl(calcularDiaria(n.id).promotor)}; a partir de ${n.minConcluidos} chamados concluídos)`).join("; ")}. O valor pago pela loja é sempre o mesmo; o nível só muda a divisão. Ficando 2 meses sem concluir chamados, o nível é rebaixado. O repasse é creditado na carteira digital do profissional (início no Bronze: retenção de ${com} e repasse de ${rep}). O repasse fica em carência por alguns dias antes de poder ser sacado e pode ser estornado em caso de reembolso ou contestação do pagamento.<br><br>
   <strong>Limites de turno.</strong> Cada turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas, e o mesmo promotor pode trabalhar no máximo ${TAXAS.maxSemana} vezes por semana (segunda a domingo) na mesma loja.`;
     if (perfil === "promotor") return `<strong>1. Autonomia.</strong> Você é prestador independente; escolhe os turnos que aceita. Não há vínculo empregatício com a plataforma ou com as lojas.<br><br>
   <strong>2.</strong> ${comuns}<br><br>
   <strong>3. Idade.</strong> O cadastro é permitido a partir dos ${IDADE_MINIMA} anos. De ${IDADE_MINIMA} a ${IDADE_MAIORIDADE - 1} anos é obrigatória a autorização de um responsável legal, e há restrições de horário (apenas diurno) e de setores.<br><br>
   <strong>4. Treinamento obrigatório.</strong> Para aceitar turnos é preciso concluir todos os vídeos de capacitação do projeto PRATICAMENTE.<br><br>
   <strong>5. Aprovação.</strong> Seu cadastro passa por análise antes de liberar as ofertas.<br><br>
-  <strong>6. Compromisso.</strong> Aceitou, compareça. Se não puder, use “Desistir” com antecedência para o turno voltar à fila.<br><br>
+  <strong>6. Compromisso.</strong> Aceitou, compareça. Se não puder, use “Desistir” com antecedência para o turno voltar à fila. Desistir ou faltar com menos de ${CANCELAMENTO_TARDIO_HORAS} h do início gera advertência e multa; na 3ª advertência a conta é bloqueada permanentemente.<br><br>
+  <strong>6-A. Presença e foto.</strong> O check-in só é aceito a até ${GEO_RAIO_METROS} m da loja, pelo GPS do aparelho, e o check-out exige foto da gôndola reabastecida, guardada para auditoria da loja e da marca atendida. O pagamento só é liberado depois do serviço executado.<br><br>
   <strong>7. Obrigações fiscais.</strong> Seus ganhos podem ter obrigações tributárias. A nota emitida pela plataforma é um comprovante da loja e não substitui NFS-e.<br><br>
   <strong>8. Dados pessoais.</strong> CPF, nascimento, telefone e chave Pix são guardados cifrados e usados apenas para cadastro, pagamento e obrigações legais.`;
     return `<strong>1. O serviço.</strong> A plataforma conecta a sua loja a promotores autônomos. Eles não têm vínculo empregatício com a plataforma nem com a loja.<br><br>
   <strong>2.</strong> ${comuns}<br><br>
   <strong>3. Cartão de crédito.</strong> Para solicitar ou pagar um serviço é obrigatório manter um cartão de crédito válido cadastrado.<br><br>
   <strong>4. Pagamento.</strong> Você só paga depois do serviço, por Pix ou cartão, pelo Mercado Pago.<br><br>
-  <strong>5. Cancelamento.</strong> Pode cancelar sem custo enquanto o pedido não foi pago.<br><br>
+  <strong>5. Cancelamento e advertências.</strong> Pode cancelar sem custo com antecedência. Cancelar com menos de ${CANCELAMENTO_TARDIO_HORAS} h do início de um turno já aceito, ou não receber o promotor no horário, gera advertência e multa à loja, com registro de infração; na 3ª advertência a conta é bloqueada. Depois do check-in do promotor o pedido não pode mais ser cancelado.<br><br>
+  <strong>5-A. Auditoria.</strong> A foto do check-out fica disponível para a loja avaliar e, se houver marca/indústria vinculada ao pedido, também para ela, junto com o histórico de presença por GPS.<br><br>
   <strong>6. Nota.</strong> A cada pagamento a plataforma emite uma nota de serviço em nome da sua empresa. Ela é um comprovante e não substitui NFS-e.`;
 }

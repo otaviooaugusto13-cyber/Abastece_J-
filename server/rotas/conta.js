@@ -1,6 +1,7 @@
 // Cadastro e dados da conta. Dados sensíveis só passam por aqui (validados, cifrados) — o navegador nunca grava
 // nem lê CPF, nascimento, telefone ou Pix diretamente no Firestore.
 const crypto = require("crypto");
+const Enea = require("../lib/eneagrama");           // Eneagrama automático (resultado do teste vinculado sem digitação)
 
 module.exports = (app, x) => {
   const { db, FieldValue, auth, V, C, Cripto, Falha, envelope, limitar, habilitacao, perfisDasClaims, PERFIS } = x;
@@ -11,8 +12,13 @@ module.exports = (app, x) => {
   const novoCodigo = () => Array.from(crypto.randomBytes(6), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
 
   const DESTINO = { loja: "/painel-loja", promotor: "/painel-promotor", admin: "/admin.html" };   // rota de cada painel (espelho de ROTAS em config.js)
+  /** Conta de operador de TI não vira loja/promotor: um cadastro aqui trocaria a claim `role` e tiraria o acesso ao painel de TI. */
+  const contaTI = () => new Falha(403, "Esta é uma conta de operador de TI. Use o painel de TI (/painel-ti).", "conta-ti");
   const NOME_PERFIL = { loja: "loja", promotor: "promotor", admin: "administrador" };
   /** 409 amigável: a conta já tem o outro perfil. `detalhe.sugerido` diz ao front para onde levar o usuário. */
+  /** Conta de marca (B2B) é um acesso só de leitura ao painel marca.html: nunca vira loja/promotor (o cadastro sobrescreveria o papel e cortaria o acesso). */
+  const contaDeMarca = (u) => u.role === "marca";
+  const erroMarca = () => new Falha(409, "Esta conta Google é de acesso de marca (painel B2B). Use outra conta Google para ser loja ou promotor.", "papel-conflito", { tem: "marca" });
   const conflito = (tem, quer) => new Falha(409, `Esta conta Google já é de ${NOME_PERFIL[tem]}. Você pode abrir o painel de ${NOME_PERFIL[tem]} ou entrar com outra conta Google para ser ${NOME_PERFIL[quer]}.`, "papel-conflito", { tem, quer, sugerido: tem });
 
   /** CPF já usado por OUTRA conta ativa → 409 com dica (e-mail mascarado) de qual conta Google usar para entrar. */
@@ -67,7 +73,8 @@ module.exports = (app, x) => {
 
   // ---------- Loja ----------
   app.post("/cadastro/loja", lim, envelope(async (req, res) => {
-    const u = await auth.autenticar(req);
+    const u = await auth.autenticar(req); if (u.role === "ti") throw contaTI();
+    if (contaDeMarca(u)) throw erroMarca();
     // Conflito = a conta já TEM o perfil oposto (claims ou documento). Ser admin não é conflito.
     if (perfisDasClaims(u).includes("promotor") || (await db.collection("profissionais").doc(u.uid).get()).exists) throw conflito("promotor", "loja");
     if (req.body?.termos !== true) throw new Falha(400, "É preciso aceitar os Termos de Uso.", "termos-obrigatorios");
@@ -80,13 +87,15 @@ module.exports = (app, x) => {
 
   // ---------- Promotor / freelancer (16+) ----------
   app.post("/cadastro/promotor", lim, envelope(async (req, res) => {
-    const u = await auth.autenticar(req), b = req.body || {};
+    const u = await auth.autenticar(req), b = req.body || {}; if (u.role === "ti") throw contaTI();
+    if (contaDeMarca(u)) throw erroMarca();
     if (perfisDasClaims(u).includes("loja") || (await db.collection("contratantes").doc(u.uid).get()).exists) throw conflito("loja", "promotor");
     if (b.termos !== true) throw new Falha(400, "É preciso aceitar os Termos de Uso.", "termos-obrigatorios");
-    if (b.nascimento === undefined || b.cpf === undefined) throw new Falha(400, "Informe CPF e data de nascimento.", "dados-invalidos");
     const ref = db.collection("profissionais").doc(u.uid), existente = await ref.get();
     if (existente.exists) { await auth.definirPapel(u.uid, "promotor", { treinado: !!existente.data().treinamentoOk }); return res.json({ ok: true, role: "promotor", jaCadastrado: true }); }
     const privAtual = (await db.collection("profissionais_privado").doc(u.uid).get()).data() || {};
+    // CPF e nascimento são obrigatórios, a menos que já estejam gravados (cadastro interrompido antes): nesse caso o servidor reaproveita o que existe.
+    if ((b.nascimento === undefined && !privAtual.nascimentoEnc) || (b.cpf === undefined && !privAtual.cpfEnc)) throw new Falha(400, "Informe CPF e data de nascimento.", "dados-invalidos");
     const { novo, info } = await montarPrivado(u.uid, privAtual, { cpf: b.cpf, nascimento: b.nascimento, telefone: b.telefone, responsavel: b.responsavel, autorizacaoResponsavel: b.autorizacaoResponsavel });
     const indicado = typeof b.indicadoPor === "string" && /^[\w-]{1,40}$/.test(b.indicadoPor) ? b.indicadoPor : "";
     const lote = db.batch();
@@ -98,7 +107,11 @@ module.exports = (app, x) => {
     lote.set(db.collection("usuarios").doc(u.uid), { uid: u.uid, role: "promotor", email: u.email || "", criadoEm: FieldValue.serverTimestamp() }, { merge: true });
     await lote.commit();
     await auth.definirPapel(u.uid, "promotor", { treinado: false });
-    res.json({ ok: true, role: "promotor", idade: info.idade, menor: info.menor, status: "pendente" });
+    // Eneagrama automático: resultado importado (pelo e-mail verificado) ou link assinado (?et=). Falha aqui NUNCA derruba o cadastro.
+    let enea = null;
+    try { enea = await Enea.vincularNoCadastro({ db, FieldValue, Cripto, uid: u.uid, email: u.email, emailVerificado: u.email_verified, token: typeof b.eneagramaToken === "string" ? b.eneagramaToken : "", auditar: (a, alvo, det) => auth.auditar(req, a, alvo, det) }); }
+    catch (e) { console.error("eneagrama: não vinculou no cadastro:", e.message); }
+    res.json({ ok: true, role: "promotor", idade: info.idade, menor: info.menor, status: "pendente", eneagrama: enea ? { ...enea.eneagrama, codigo: enea.codigo, origem: enea.origem } : null });
   }));
 
   /** Completa dados que faltam (contas antigas sem nascimento/CPF). Dados já gravados ficam travados. */
@@ -169,16 +182,25 @@ module.exports = (app, x) => {
   app.put("/perfil/promotor/inteligente", lim, auth.exigir("promotor"), envelope(async (req, res) => {
     const uid = req.usuario.uid, b = V.somente(req.body, ["experiencias", "eneagrama", "palavrasChave", "bio", "bioAuto"]);
     const p = validarPerfilInteligente(b);
+    const atual = (await db.collection("profissionais_perfil").doc(uid).get()).data() || {};
+    const travado = !!(atual.eneagramaMeta && atual.eneagramaMeta.travado && atual.eneagrama);
+    if (travado) p.eneagrama = atual.eneagrama;                      // veio do teste: o usuário não digita nem altera
     const lote = db.batch();
-    lote.set(db.collection("profissionais_perfil").doc(uid), { uid, experiencias: p.experiencias, eneagrama: p.eneagrama, palavrasChave: p.palavrasChave, bioAuto: p.bioAuto, atualizadoEm: FieldValue.serverTimestamp() });
+    lote.set(db.collection("profissionais_perfil").doc(uid), { uid, experiencias: p.experiencias, eneagrama: p.eneagrama, palavrasChave: p.palavrasChave, bioAuto: p.bioAuto, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
     lote.set(db.collection("profissionais").doc(uid), { bio: p.bio, palavrasChave: p.palavrasChave, areasExperiencia: p.experiencias.map((e) => e.area), bioAuto: p.bioAuto }, { merge: true });
     await lote.commit();
     await auth.auditar(req, "perfil.inteligente.atualizar", uid, { experiencias: p.experiencias.length, eneagrama: !!p.eneagrama });
-    res.json({ ok: true, ...p });
+    res.json({ ok: true, ...p, eneagramaTravado: travado });
   }));
   app.get("/perfil/promotor/inteligente", auth.exigir("promotor"), envelope(async (req, res) => {
-    const d = (await db.collection("profissionais_perfil").doc(req.usuario.uid).get()).data() || {};
-    res.json({ experiencias: d.experiencias || [], eneagrama: d.eneagrama || null, palavrasChave: d.palavrasChave || [], bioAuto: d.bioAuto !== false });
+    const ref = db.collection("profissionais_perfil").doc(req.usuario.uid);
+    let d = (await ref.get()).data() || {};
+    if (!d.eneagrama) {                                                 // resultado importado depois do cadastro: vincula agora (e-mail verificado)
+      try { if (await Enea.vincularNoCadastro({ db, FieldValue, Cripto, uid: req.usuario.uid, email: req.usuario.email, emailVerificado: req.usuario.email_verified, auditar: (a, alvo, det) => auth.auditar(req, a, alvo, det) })) d = (await ref.get()).data() || {}; }
+      catch (e) { console.error("eneagrama: não vinculou ao abrir o perfil:", e.message); }
+    }
+    const meta = d.eneagramaMeta || {};
+    res.json({ experiencias: d.experiencias || [], eneagrama: d.eneagrama || null, eneagramaOrigem: d.eneagrama ? (meta.origem || "manual") : "", eneagramaTravado: !!(meta.travado && d.eneagrama), palavrasChave: d.palavrasChave || [], bioAuto: d.bioAuto !== false });
   }));
 
   /** "Entendi": a pessoa dispensa o recado do suporte (só o próprio, pelo papel ativo). */
@@ -201,7 +223,9 @@ module.exports = (app, x) => {
    */
   app.post("/sessao", lim, envelope(async (req, res) => {
     const u = await auth.autenticar(req), portal = req.body?.portal;
+    if (u.role === "ti") throw contaTI();
     if (portal !== undefined && !PERFIS.includes(portal)) throw new Falha(400, "Portal inválido.", "dados-invalidos");
+    if (contaDeMarca(u)) return res.json({ estado: "outro-perfil", role: "marca", perfis: [], sugerido: null, destino: "/marca.html", atualizarToken: false });
     const [claims, l, p] = await Promise.all([auth.claimsDe(u.uid), db.collection("contratantes").doc(u.uid).get(), db.collection("profissionais").doc(u.uid).get()]);
     const tem = new Set(perfisDasClaims(claims)); if (l.exists) tem.add("loja"); if (p.exists) tem.add("promotor");
     const perfis = PERFIS.filter((x) => tem.has(x));

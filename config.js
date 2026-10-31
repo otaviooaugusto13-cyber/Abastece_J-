@@ -17,6 +17,24 @@ export const HORAS_MIN_TURNO = 4;                    // suposição de negócio:
 export const HORAS_MAX_TURNO = 6;                    // limite estrito por turno
 export const MAX_VEZES_SEMANA_LOJA = 3;              // máx. de turnos do mesmo promotor na mesma loja por semana
 
+// ---- Níveis de confiabilidade (espelho de server/split.js; `npm test` falha se divergirem) ----
+// Bronze (início) 25% · Prata (30 chamados) 20% · Ouro (+60) 15% · Platina (+100) 10% de comissão da plataforma.
+export const CHAMADOS_PARA_SUBIR = [30, 60, 100];
+const NIVEIS_BASE = [
+    { id: "bronze", nome: "Bronze", comissaoPct: 25 },
+    { id: "prata", nome: "Prata", comissaoPct: 20 },
+    { id: "ouro", nome: "Ouro", comissaoPct: 15 },
+    { id: "platina", nome: "Platina", comissaoPct: 10 }
+];
+export const NIVEIS = NIVEIS_BASE.map((n, i) => ({ ...n, minConcluidos: CHAMADOS_PARA_SUBIR.slice(0, i).reduce((a, b) => a + b, 0) }));
+
+// ---- Geofencing / reputação / ruptura (o servidor decide; aqui só para exibir) ----
+export const GEO_RAIO_METROS = 100;
+export const CANCELAMENTO_TARDIO_HORAS = 12;                // espelho de server/lib/config.js
+export const VIDAS_MAX = 3;
+export const BONUS_RUPTURA_CENTAVOS = [2000, 3000, 5000];   // espelho de server/lib/config.js → RUPTURA.BONUS_OPCOES_CENTAVOS
+export const FCM_VAPID_KEY = "";                            // Firebase Console → Configurações → Cloud Messaging → Certificados push da Web. Vazio = sem push com o app fechado.
+
 // ---- Compliance de idade (o servidor valida de novo) --------
 export const IDADE_MINIMA = 16;                      // cadastro permitido a partir dos 16 anos
 export const IDADE_MAIORIDADE = 18;                  // 16–17: exige autorização do responsável legal
@@ -47,9 +65,6 @@ export const EMPRESA = {
 // ---- Contato / suporte -------------------------------------
 export const WHATSAPP_SUPORTE = "551995350637"; // só dígitos, com 55 + DDD
 export const NOME_SUPORTE = "Suporte TI";        // nome que o usuário vê nas mensagens da equipe
-// Chave pública (VAPID) das notificações push: Firebase Console → Configurações do projeto → Cloud Messaging →
-// "Certificados push da Web" → Gerar par de chaves. Vazia = sem push com o app fechado (avisos dentro do app continuam).
-export const FCM_VAPID_KEY = "";
 
 // ---- Firebase (chave pública por natureza; segurança vem das regras) ----
 export const FIREBASE_CONFIG = {
@@ -87,5 +102,5 @@ export const USAR_EMULADOR = typeof location !== "undefined" && location.hostnam
 // Hospedou o front SEM servidor/rewrites (GitHub Pages etc.)? Troque para false: usa os arquivos .html diretamente.
 export const ROTAS_LIMPAS = true;
 export const ROTAS = ROTAS_LIMPAS
-    ? { loja: "/painel-loja", promotor: "/painel-promotor", admin: "/admin.html" }
-    : { loja: "index.html", promotor: "promotor.html", admin: "admin.html" };
+    ? { loja: "/painel-loja", promotor: "/painel-promotor", admin: "/admin.html", ti: "/painel-ti" }
+    : { loja: "index.html", promotor: "promotor.html", admin: "admin.html", ti: "ti.html" };

@@ -100,3 +100,11 @@ export async function sairDaConta() {
     try { sessionStorage.removeItem("abastece_redir"); sessionStorage.removeItem("abastece_termos"); } catch (e) {}
     await signOut(auth);
 }
+
+/** Baixa um arquivo protegido (foto) e devolve uma URL local (blob:). Quem chama deve revogar com URL.revokeObjectURL. */
+export async function baixarBlobProtegido(caminho) {
+    const idToken = await auth.currentUser.getIdToken();
+    const r = await fetch(`${FUNCTIONS_BASE}/${caminho}`, { headers: { Authorization: `Bearer ${idToken}` } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.erro || "falha"), { code: j.codigo || r.status }); }
+    return URL.createObjectURL(await r.blob());
+}
