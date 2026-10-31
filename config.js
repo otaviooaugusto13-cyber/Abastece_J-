@@ -67,9 +67,13 @@ export const WHATSAPP_SUPORTE = "551995350637"; // só dígitos, com 55 + DDD
 export const NOME_SUPORTE = "Suporte TI";        // nome que o usuário vê nas mensagens da equipe
 
 // ---- Firebase (chave pública por natureza; segurança vem das regras) ----
+const AUTH_DOMAIN_FIREBASE = "abastece-ja-240d5.firebaseapp.com";
+const _hostApp = typeof location !== "undefined" && /^([\w-]+\.)*onrender\.com$/.test(location.hostname) ? location.host : null;
 export const FIREBASE_CONFIG = {
     apiKey: "AIzaSyA0Z1SEkqrtXuAjtFntv1WRvkKIuY1zilY",
-    authDomain: "abastece-ja-240d5.firebaseapp.com",
+    // signInWithRedirect: o domínio de autenticação precisa ser o MESMO do site (senão Chrome/Safari bloqueiam o armazenamento entre sites e o login "volta vazio").
+    // No Render o servidor repassa /__/auth/* ao Firebase (server/lib/auth-proxy.js), então usamos o próprio host do site.
+    authDomain: _hostApp || AUTH_DOMAIN_FIREBASE,
     projectId: "abastece-ja-240d5",
     storageBucket: "abastece-ja-240d5.firebasestorage.app",
     messagingSenderId: "1061248119348",

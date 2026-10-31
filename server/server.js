@@ -38,6 +38,7 @@ const { criarSuporte } = require("./lib/suporte");
 const { criarCategorias } = require("./lib/categorias");
 const { criarTI } = require("./lib/ti");
 const { criarBootstrapAdmin } = require("./lib/bootstrap-admin");
+const { criarAuthProxy } = require("./lib/auth-proxy");
 
 // ---------- Ambiente ----------
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
@@ -115,6 +116,7 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 const permitidas = Seg.origensPermitidas(APP_URL, process.env.ORIGENS_PERMITIDAS);
+app.use(criarAuthProxy({ projectId: process.env.FIREBASE_PROJECT_ID || "abastece-ja-240d5" }));   // /__/auth/* → Firebase (login Google por redirecionamento no mesmo domínio)
 app.use(Seg.cabecalhos());
 app.use(cors(Seg.opcoesCors(permitidas)));
 const jsonPadrao = express.json({ limit: C.BODY_LIMITE });

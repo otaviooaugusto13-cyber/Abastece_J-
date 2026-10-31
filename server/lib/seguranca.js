@@ -20,7 +20,7 @@ function cabecalhos({ extraConnect = [] } = {}) {
     "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com",
     "media-src 'self' https: blob:",
     `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
-    `frame-src https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),
+    `frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),
     "upgrade-insecure-requests"
   ].join("; ");
   return (req, res, next) => {

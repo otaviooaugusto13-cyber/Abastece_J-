@@ -15,8 +15,17 @@
 
 <div id="ax-login" class="ax-card ax-login">
   <h1>Painel administrativo</h1>
-  <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe. Use a conta Google autorizada.</p>
-  <button class="ax-btn pri" id="ax-entrar" style="width:100%">Entrar com Google</button>
+  <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe. Todas as ações são registradas.</p>
+  <form id="ax-login-f" autocomplete="on" style="text-align:left">
+    <label class="ax-lbl" for="ax-email">E-mail corporativo</label>
+    <input class="ax-in" id="ax-email" type="email" autocomplete="username" required maxlength="120">
+    <label class="ax-lbl ax-mt" for="ax-senha">Senha</label>
+    <input class="ax-in" id="ax-senha" type="password" autocomplete="current-password" required maxlength="128">
+    <button class="ax-btn pri ax-mt" style="width:100%" id="ax-entrar">Entrar</button>
+  </form>
+  <p class="ax-ou ax-xs ax-mut" aria-hidden="true">ou</p>
+  <button class="ax-btn" style="width:100%" id="ax-google" type="button">Entrar com Google</button>
+  <p class="ax-xs ax-mut ax-mt">Use o e-mail da conta de administrador.</p>
   <p class="ax-erro ax-mt" id="ax-login-erro" role="alert"></p>
 </div>
 

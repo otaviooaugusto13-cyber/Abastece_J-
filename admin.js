@@ -1,8 +1,8 @@
 // Painel administrativo. A autorização é do SERVIDOR (claim role=admin); esta tela só consome a API e lê o Firestore
 // com as permissões que as regras já concedem ao admin (profissionais, contratantes, solicitacoes).
-import { signInWithPopup, signOut, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, query, where, orderBy, limit, onSnapshot, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
+import { auth, db, googleProvider, entrarComGoogle, concluirLoginGoogle, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
 import { resolverAcesso } from "./acesso.js";
 import { iniciarEquipeTI } from "./admin-ti.js";
 import { ativarPush, desativarPush } from "./push.js";
@@ -34,13 +34,22 @@ function toast(texto, tipo = "", ms = 7000, destino = "") {
     $("ax-toasts").append(el); if (ms) setTimeout(() => el.remove(), ms);
 }
 const seguro = (fn) => async (...a) => { msg(); try { await fn(...a); } catch (e) { console.error(e); msg(e.message || "Erro"); toast(e.message || "Erro inesperado.", "err"); } };
-/** Ações de dinheiro exigem login recente: confirma com o Google e repete uma vez. */
+/** Ações de dinheiro exigem login recente: confirma com a senha (conta e-mail/senha) ou com o Google, e repete uma vez. */
 async function sensivel(fn) {
     try { return await fn(); } catch (e) {
         if (e.code !== "reautenticar") throw e;
-        await reauthenticateWithPopup(auth.currentUser, googleProvider); await renovarToken(); return fn();
+        const u = auth.currentUser, porSenha = u?.providerData?.some((p) => p.providerId === "password") && !u.providerData.some((p) => p.providerId === "google.com");
+        try {
+            if (porSenha) {
+                const s = await pedirSenha(); if (!s) throw Object.assign(new Error("Ação cancelada."), { code: "cancelado" });
+                await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, s));
+            } else await reauthenticateWithPopup(u, googleProvider);   // confirmação rápida em popup; se o navegador bloquear, cai no catch abaixo
+        } catch (e2) { throw e2.code === "cancelado" ? e2 : Object.assign(new Error(porSenha ? "Senha incorreta." : "Não foi possível confirmar sua identidade. Tente de novo."), { code: "reauth-falhou" }); }
+        await renovarToken(); return fn();
     }
 }
+/** Pede a senha atual no mesmo diálogo dos outros pedidos; null se cancelar. */
+const pedirSenha = () => { const s = window.prompt("Por segurança, digite sua senha atual para continuar."); return Promise.resolve(s || null); };
 /** Substitui prompt()/confirm(): retorna true/texto ao confirmar, null ao cancelar. */
 const MODELOS = [
     ["Conferir CPF", "Olá, tudo bem? O CPF informado no seu cadastro não confere. Fale com o suporte pelo WhatsApp informando o CPF correto para a gente corrigir e liberar seu acesso."],
@@ -81,7 +90,25 @@ function baixarLinhas(nome, cab, linhas, tipo = nome) {
 const reais = (c) => ((Number(c) || 0) / 100).toFixed(2).replace(".", ",");
 
 // ---------- login / sessão ----------
-$("ax-entrar").addEventListener("click", () => signInWithPopup(auth, googleProvider).catch(() => ($("ax-login-erro").textContent = "Falha no login.")));
+const erroLogin = (t = "") => { $("ax-login-erro").textContent = t; };
+const msgLogin = (c = "") => /too-many/.test(c) ? "Muitas tentativas. Aguarde alguns minutos."
+    : /network/.test(c) ? "Sem conexão. Confira a internet e tente de novo."
+    : /unauthorized-domain/.test(c) ? "Este endereço não está autorizado no Firebase (Authentication › Domínios autorizados)."
+    : /user-disabled/.test(c) ? "Esta conta está desativada." : "E-mail ou senha incorretos.";
+$("ax-login-f").addEventListener("submit", async (e) => {                       // e-mail + senha
+    e.preventDefault(); erroLogin(); $("ax-entrar").disabled = true;
+    try { await signInWithEmailAndPassword(auth, $("ax-email").value.trim(), $("ax-senha").value); $("ax-senha").value = ""; }
+    catch (err) { erroLogin(msgLogin(err.code)); }
+    finally { $("ax-entrar").disabled = false; }
+});
+$("ax-google").addEventListener("click", async () => {                          // Google por REDIRECT (sem popup / sem aviso de COOP)
+    erroLogin(); $("ax-google").disabled = true;
+    try { await entrarComGoogle(); }                                              // a página navega até o Google; ao voltar, o bloco abaixo conclui
+    catch (err) { console.error(err); erroLogin(/unauthorized-domain/.test(err.code || "") ? msgLogin(err.code) : "Não foi possível entrar com o Google. Tente novamente."); $("ax-google").disabled = false; }
+});
+concluirLoginGoogle().then(({ erro }) => {                                      // volta do Google: o onAuthStateChanged abaixo cuida da sessão
+    if (erro && !/no-auth-event|cancelled|popup-closed/.test(erro.code || "")) erroLogin(/unauthorized-domain/.test(erro.code || "") ? msgLogin(erro.code) : "Não foi possível concluir o login com o Google. Tente novamente.");
+});
 $("ax-sair").addEventListener("click", async () => { await desativarPush(); S.supUn?.(); await signOut(auth); });
 onAuthStateChanged(auth, async (u) => {
     unsubs.splice(0).forEach((f) => f()); clearInterval(S.timer);
@@ -91,8 +118,8 @@ onAuthStateChanged(auth, async (u) => {
     let r; try { r = await resolverAcesso("admin"); } catch (e) { $("ax-login-erro").textContent = "Não foi possível verificar suas permissões. Tente novamente."; return; }
     if (r.estado !== "ok" || (await papelAtual()) !== "admin") { $("ax-login-erro").textContent = "Esta conta não tem permissão de administrador." + (r.sugerido ? ` Ela é de ${r.sugerido === "loja" ? "loja" : "promotor"}: use o portal correspondente ou entre com outra conta.` : ""); return; }   // sem signOut: a sessão é compartilhada com os outros portais
     $("ax-login").hidden = true; $("ax-app").hidden = false; $("ax-quem").textContent = $("ax-quem2").textContent = u.email;
-    ouvir(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "visao");
-    seguro(kpiContagens)(); seguro(kpiVolume)(); seguro(carregarAviso)(); ativarPush();
+    try { ouvir(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "visao"); } catch (e) { console.error(e); toast("Parte do painel não carregou. Recarregue a página.", "err"); }
+    seguro(kpiContagens)(); seguro(kpiVolume)(); seguro(carregarAviso)(); try { ativarPush(); } catch (e) { console.error(e); }
 });
 
 // ---------- navegação (drawer no mobile) ----------

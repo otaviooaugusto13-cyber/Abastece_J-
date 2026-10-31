@@ -18,6 +18,7 @@
 /* ---------- login ---------- */
 .ax-login { max-width:420px; margin:16vh auto 0; padding:32px 24px; text-align:center; }
 .ax-login h1 { font-size:22px; margin-bottom:8px; }
+.ax-ou { text-align:center; margin:12px 0; }
 
 /* ---------- superfícies ---------- */
 .ax-card { background:var(--ax-card); border:1px solid var(--ax-line); border-radius:16px; padding:18px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 14px 34px -22px #000; }

@@ -1,7 +1,7 @@
 // Inicialização única do Firebase (antes cada página repetia a config).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { initializeAuth, getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, GoogleAuthProvider, connectAuthEmulator, signInWithCustomToken, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { initializeAuth, getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, GoogleAuthProvider, connectAuthEmulator, signInWithCustomToken, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { FIREBASE_CONFIG, FUNCTIONS_BASE, USAR_EMULADOR } from "./config.js";
 
 export const app = initializeApp(FIREBASE_CONFIG);
@@ -27,6 +27,8 @@ async function tokenAtual(forcar = false) {
     if (!auth.currentUser) throw Object.assign(new Error("Sua sessão terminou. Entre novamente."), { code: "sem-sessao", status: 401 });
     return auth.currentUser.getIdToken(forcar);
 }
+/** Mensagem legível quando o servidor não manda `erro` no corpo (antes virava só "falha"). */
+const MSG_STATUS = { 400: "Pedido inválido.", 401: "Sua sessão terminou. Entre novamente.", 403: "Você não tem permissão para esta ação.", 404: "Recurso não encontrado.", 429: "Muitas tentativas. Aguarde um instante.", 500: "Erro interno do servidor. Tente de novo." };
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -54,7 +56,7 @@ export async function chamarFuncao(nome, corpo = {}, metodo) {
         if (r.status === 401 && !renovou && (await r.clone().json().catch(() => ({}))).codigo === "sessao-invalida") { renovou = true; continue; }
         if ([502, 503, 504].includes(r.status) && idempotente && tentativa < 6) { await dormir(2500 * Math.min(tentativa + 1, 4)); continue; }
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw Object.assign(new Error(j.erro || "falha"), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
+        if (!r.ok) throw Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
         return j;
     }
 }
@@ -66,7 +68,7 @@ export const consultar = (nome) => chamarFuncao(nome, null, "GET");
 export async function baixarCSVProtegido(caminho, nomeArquivo) {
     const idToken = await tokenAtual();
     const r = await fetch(`${FUNCTIONS_BASE}/${caminho}`, { headers: { Authorization: `Bearer ${idToken}` } });
-    if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.erro || "falha"), { code: j.codigo || r.status }); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status }); }
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = nomeArquivo; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
@@ -92,10 +94,19 @@ export async function contaDeTeste() {
 }
 
 // ---------- Login / logout (um único caminho para os três portais) ----------
-/** Abre o seletor de contas do Google. Chamar DIRETO do clique (popup bloqueado cai no redirect). Resolve null se foi para o redirect. */
+/**
+ * Entra com o Google por REDIRECIONAMENTO (sem popup: elimina o aviso "Cross-Origin-Opener-Policy ... window.close" e o bloqueio de popup).
+ * A página navega até o Google e volta; quem conclui o login é `concluirLoginGoogle()` (getRedirectResult), chamado no carregamento da página.
+ * Sempre resolve null (a navegação interrompe o fluxo); lança só se não conseguiu nem iniciar o redirect.
+ */
 export async function entrarComGoogle() {
-    try { return await signInWithPopup(auth, googleProvider); }
-    catch (e) { if (e.code === "auth/popup-blocked") { await signInWithRedirect(auth, googleProvider); return null; } throw e; }
+    await signInWithRedirect(auth, googleProvider);
+    return null;
+}
+/** Conclui o login iniciado por `entrarComGoogle()`. Nunca lança: devolve { cred } (ou { cred: null } se não houve redirect) ou { erro } com o erro original. */
+export async function concluirLoginGoogle() {
+    try { return { cred: await getRedirectResult(auth) }; }
+    catch (erro) { console.error("getRedirectResult:", erro); return { cred: null, erro }; }
 }
 /** Encerra a sessão e limpa os marcadores do fluxo de entrada (modo e anti-loop), para recomeçar do zero. */
 export async function sairDaConta() {
