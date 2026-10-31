@@ -129,6 +129,23 @@ async function carregarEquipe() {
     $("a-op").innerHTML = '<option value="">Todos os operadores</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o?.nome)}</option>`).join("");
 }
 
+// ---------- perfil do solicitante (loja/promotor) ----------
+const brlC = (c) => ((Number(c) || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const linha = (r, v) => (v === "" || v == null ? "" : `<div><span class="ax-mut">${esc(r)}</span><br>${esc(String(v))}</div>`);
+async function verPerfil(uid, tipo) {
+    const p = await consultar(`ti/solicitantes/${encodeURIComponent(uid)}/perfil?tipo=${encodeURIComponent(tipo || "")}`);
+    const m = p.missoes, st = Object.entries(m.porStatus).map(([k, v]) => `${esc(k)}: ${v}`).join(" · ") || "—";
+    const campos = p.tipo === "loja"
+        ? [["Razão social", p.razaoSocial], ["Documento", p.documento], ["Telefone", p.telefone], ["Endereço", p.endereco], ["Ramo", p.ramo], ["Cartão", p.cartao]]
+        : [["CPF", p.cpfMascarado], ["Nascimento", p.nascimento ? `${p.nascimento}${p.idade != null ? ` (${p.idade} anos${p.menor ? ", menor" : ""})` : ""}` : ""], ["Telefone", p.telefone], ["Treinamento", p.treinamentoOk ? "concluído" : "pendente"],
+            ["Carteira", p.carteira ? `disponível ${brlC(p.carteira.disponivelCentavos)} · pendente ${brlC(p.carteira.pendenteCentavos)}` : ""], ["Nota média", p.notaMedia ? `${p.notaMedia} (${p.avaliacoes} avaliações)` : ""]];
+    const rec = m.recentes.map((x) => `<tr>${td("Data", esc(x.data))}${td("Horário", esc(x.horario))}${td("Local", esc(x.loja))}${td("Status", esc(x.status))}</tr>`).join("") || vazio(4, "Sem missões.");
+    await informar(`${p.nome || "Perfil"} · ${p.tipo === "loja" ? "loja" : "promotor"}`, `<div class="ti-split ax-mt ax-sm">${[["E-mail", p.email], ["Situação", p.status], ["Cidade", p.cidade], ["Nível", p.nivel], ...campos].map(([r, v]) => linha(r, v)).join("")}</div>
+        <h3 class="ax-mt">Missões (${m.total})</h3><p class="ax-xs ax-mut">${st}</p>
+        <div class="ax-tw ax-mt"><table class="ax-tbl"><thead><tr><th>Data</th><th>Horário</th><th>Local</th><th>Status</th></tr></thead><tbody>${rec}</tbody></table></div>
+        <p class="ax-xs ax-mut ax-mt">Esta consulta fica registrada na auditoria.</p>`);
+}
+
 // ---------- navegação ----------
 const menu = (o) => { $("ax-side").classList.toggle("open", o); $("ax-veil").hidden = !o; $("ax-burger").setAttribute("aria-expanded", String(o)); document.body.style.overflow = o ? "hidden" : ""; };
 $("ax-burger").addEventListener("click", () => menu(!$("ax-side").classList.contains("open"))); $("ax-veil").addEventListener("click", () => menu(false));
@@ -243,6 +260,7 @@ async function detalhe(id) {
         <div class="ax-row ax-mt" id="ti-acoes"></div></form>`;
     const A = $("ti-acoes"), btn = (txt, fn, cls = "") => { const b = document.createElement("button"); b.type = "button"; b.className = "ax-btn sm " + cls; b.textContent = txt; b.addEventListener("click", seguro(async () => { if (await fn()) { d.close(); await recarregar(); } })); A.append(b); };
     const acao = async (rota, corpo, metodo) => { await chamarFuncao(`ti/chamados/${encodeURIComponent(id)}/${rota}`, corpo, metodo); return true; };
+    if (["loja", "promotor"].includes(c.solicitante?.tipo) && c.solicitante.uid) btn("👤 Ver perfil", async () => { await verPerfil(c.solicitante.uid, c.solicitante.tipo); return false; });
     if (aberto || c.status === "resolvido") btn("💬 Comentar", async () => { const v = await formulario({ titulo: "Comentar", destino: "ti-dlg", ok: "Enviar", campos: [{ n: "texto", label: "Mensagem", tipo: "textarea", req: true, max: 1000 }, { n: "publico", label: "Visível ao solicitante (desmarcado = nota interna)", tipo: "checkbox" }] }); return v && acao("comentarios", { texto: v.texto, interno: !v.publico }); });
     if (c.status === "aberto" || (c.status === "em_atendimento" && !c.atribuidoUid)) btn("✋ Assumir", () => acao("assumir", {}), "pri");
     if (podeMexer) for (const p of prox.filter((x) => x !== "em_atendimento" || c.status !== "aberto")) {

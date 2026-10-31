@@ -5,6 +5,9 @@ const inteiro = (v, padrao) => { const n = Number.parseInt(v, 10); return Number
 module.exports = {
   PRODUCAO,
 
+  // Emitente dos comprovantes. Espelho de EMPRESA em ../../config.js (test/split.test.js confere).
+  EMPRESA: { razaoSocial: "ABASTECE JÁ INTERMEDIAÇÃO DE SERVIÇOS LTDA", cnpj: "00.000.000/0001-00", cidade: "Itapira / SP", email: "otaviooaugusto13@gmail.com" },
+
   // ---- Setores de reposição (espelho de SETORES em ../../core.js; test/split.test.js confere) ----
   SETORES: ["Mercearia", "Hortifruti / FLV", "Frios & Laticínios", "Padaria", "Depósito", "Degustação", "Bebidas", "Auditoria / Inventário", "Montagem de ilhas"],
 

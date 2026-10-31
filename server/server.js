@@ -7,6 +7,7 @@
 //   rotas/categorias.js   habilitação por categoria (vídeo + timer + questionário 100%)
 //   rotas/pedidos.js      pedidos, aceite (com todas as travas), cancelar, desistir, avaliar, cartão
 //   rotas/pagamentos.js   checkout (conta da plataforma), webhook assinado, confirmação
+//   rotas/nota.js         comprovante de serviço (layout DANFE simplificado, sem valor fiscal) + verificação pública — ver NOTA-COMPROVANTE.md
 //   rotas/carteira.js     carteira digital, saque, extrato e CSV (profissional e loja)
 //   rotas/taxas.js        taxas e regras de turno editáveis pelo admin (GET /config/taxas público, PUT /admin/taxas)
 //   rotas/admin.js        aprovação, módulos, estornos, saques, conciliação, auditoria (papel admin)
@@ -123,11 +124,11 @@ const jsonPadrao = express.json({ limit: C.BODY_LIMITE });
 app.use((req, res, next) => (req.path === "/checkout" ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|ti\/|chamados|presenca|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|ti\/|chamados|presenca|nota\/|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "carteira", "taxas", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "teste"]) require(`./rotas/${rota}`)(app, ctx);
 
 
 // ---------- Site estático (somente extensões permitidas; nada de código do servidor, regras ou segredos) ----------

@@ -982,6 +982,83 @@ t("cadastro de promotor: sem CPF/nascimento → 400; dados já gravados são rea
   const r2 = await chamar("POST", "/cadastro/promotor", { token: "novo", body: { termos: true } }); ok(r2); assert.equal(r2.json.jaCadastrado, true);   // sem CPF no corpo, mas já cadastrado
 });
 
+// ============================================================
+// COMPROVANTE DE SERVIÇO (layout DANFE simplificado)
+// ============================================================
+const DANFE = require("../server/lib/danfe");
+const EMITIR = (id, token = "lojaA") => chamar("POST", `/nota/${id}/emitir`, { token });
+const dvChave = (base43) => { let soma = 0, peso = 2; for (let i = 42; i >= 0; i--) { soma += Number(base43[i]) * peso; peso = peso === 9 ? 2 : peso + 1; } const r = soma % 11; return r < 2 ? 0 : 11 - r; };
+const chaveValida = (base = "3526040000000000000055001000000123100000123") => base + dvChave(base);
+/** decodifica as larguras de volta para texto, conferindo início, parada e dígito verificador (round-trip do código de barras) */
+function decodificarBarras(modulos) {
+  const sim = []; for (let i = 0; i < modulos.length - 7; i += 6) sim.push(DANFE.PADROES.indexOf(modulos.slice(i, i + 6).join("")));
+  assert.equal(modulos.slice(-7).join(""), "2331112", "padrão de parada"); assert.ok(sim.every((c) => c >= 0), "todos os símbolos existem");
+  const dv = sim.pop(), soma = sim.reduce((a, c, i) => a + (i === 0 ? c : c * i), 0) % 103; assert.equal(dv, soma, "dígito verificador do Code 128");
+  const [ini, ...dados] = sim; return ini === 105 ? dados.map((c) => String(c).padStart(2, "0")).join("") : dados.map((c) => String.fromCharCode(c + 32)).join("");
+}
+async function notaPaga() { const sid = await cenarioPago(); return { sid, notaId: (await get("solicitacoes", sid)).notaId }; }
+
+t("comprovante: a loja dona emite; itens fecham com o total; documento sem valor fiscal; código de barras decodifica", async () => {
+  const { sid, notaId } = await notaPaga(); assert.ok(notaId);
+  const r = await EMITIR(notaId); ok(r); const d = r.json;
+  assert.equal(d.modo, "comprovante"); assert.equal(d.semValorFiscal, true); assert.equal(d.marcaDagua, "SEM VALOR FISCAL"); assert.equal(d.codigo.rotulo, "CÓDIGO DE VERIFICAÇÃO"); assert.equal(d.via, 1); assert.equal(d.estornado, false);
+  assert.equal(d.identificacao.numeroFmt, "000001"); assert.equal(d.identificacao.serie, "A1"); assert.equal(d.emitente.cnpj, "00.000.000/0001-00");
+  const nv = (await get("notas", notaId)).valores;
+  assert.equal(d.itens.reduce((a, i) => a + i.totalCentavos, 0), d.calculo.totalCentavos); assert.equal(d.calculo.totalCentavos, 20000); assert.deepEqual(d.itens.map((i) => i.totalCentavos), [nv.valor, nv.taxaFixa].filter((v) => v > 0), JSON.stringify(nv));
+  assert.equal(d.calculo.valorServicosCentavos + d.calculo.taxaServicoCentavos, d.calculo.totalCentavos); assert.equal(d.pagamento.status, "pago");
+  assert.ok(/^\d{24}$/.test(d.codigo.valor), "24 dígitos, nunca 44 (não imita chave de acesso)"); assert.equal(decodificarBarras(d.codigo.barras.modulos), d.codigo.valor);
+  assert.equal(d.codigo.barras.total, d.codigo.barras.modulos.reduce((a, b) => a + b, 0)); assert.ok(!/"[a-zA-Z]*[uU]id"/.test(JSON.stringify(d)), "sem campos de uid no documento"); assert.ok(!/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(JSON.stringify(d)), "sem CPF completo");
+  assert.match(d.adicionais.join(" "), /NÃO substitui nota fiscal/);
+  assert.equal((await EMITIR(notaId)).json.via, 2, "2ª via"); assert.equal((await get("notas", notaId)).emissoes, 2);
+  assert.equal((await get("notas", notaId)).valores.total, 20000, "a emissão não altera o snapshot da nota");
+  assert.ok((await ctx.db.collection("auditoria").get()).docs.some((x) => x.data().acao === "nota.emitir"), "emissão auditada");
+});
+
+t("comprovante: nota alheia = 404, promotor = 403, sem login = 401, admin pode, id inválido = 400", async () => {
+  const { notaId } = await notaPaga();
+  falha(await EMITIR(notaId, "lojaB"), 404, "nao-encontrado"); falha(await EMITIR(notaId, "prom1"), 403, "sem-permissao"); falha(await chamar("POST", `/nota/${notaId}/emitir`, {}), 401);
+  falha(await EMITIR("a$b%20c", "lojaA"), 400); falha(await EMITIR("naoexisteNota123"), 404, "nao-encontrado"); assert.equal((await get("notas", notaId)).emissoes, undefined, "tentativas negadas não contam via");
+  const a = await EMITIR(notaId, "adm"); if (a.status === 200) assert.equal(a.json.identificacao.numeroFmt, "000001"); else falha(a, 403, "mfa-obrigatorio");
+});
+
+t("comprovante mostra o ESTORNO em tempo real e continua válido na verificação (marcado como estornado)", async () => {
+  const { sid, notaId } = await notaPaga(); const antes = (await EMITIR(notaId)).json; mpMock({ "POST /v1/payments/777/refunds": { id: 5 }, "GET /v1/payments/777": pgMP(sid) });
+  ok(await chamar("POST", `/admin/pedidos/${sid}/estornar`, { token: "adm", body: { motivo: "teste de estorno" } }));
+  const d = (await EMITIR(notaId)).json; assert.equal(d.estornado, true, JSON.stringify(d.pagamento) + JSON.stringify(await get("pagamentos_internos", sid))); assert.equal(d.pagamento.status, "estornado"); assert.equal(d.codigo.valor, antes.codigo.valor, "o código não muda com o estorno");
+  const v = await chamar("POST", "/nota/verificar", { body: { id: notaId, codigo: antes.codigo.verificacao } }); ok(v); assert.equal(v.json.valida, true); assert.equal(v.json.estornado, true);
+});
+
+t("verificação pública: só o código correto valida; adulteração e entradas estranhas não", async () => {
+  const { notaId } = await notaPaga(); const d = (await EMITIR(notaId)).json, V1 = (codigo, id = notaId) => chamar("POST", "/nota/verificar", { body: { id, codigo } });
+  let r = await V1(d.codigo.verificacao); ok(r); assert.equal(r.json.valida, true, JSON.stringify({ id: notaId, cod: d.codigo.verificacao })); assert.deepEqual(Object.keys(r.json).sort(), ["emitidaEm", "estornado", "numeroFmt", "serie", "valida"], JSON.stringify(r.json)); assert.equal(r.json.valida, true); assert.equal(r.json.numeroFmt, "000001");
+  assert.equal((await V1(d.codigo.valor)).json.valida, true, "aceita com ou sem espaços");
+  const trocado = d.codigo.valor.slice(0, 23) + ((Number(d.codigo.valor[23]) + 1) % 10); assert.equal((await V1(trocado)).json.valida, false);
+  assert.equal((await V1(d.codigo.valor, "outraNota12345")).json.valida, false); assert.equal((await V1("123")).json.valida, false);
+  for (const id of [{ $ne: 1 }, "../x", "", null]) { const x = await chamar("POST", "/nota/verificar", { body: { id, codigo: d.codigo.valor } }); ok(x); assert.equal(x.json.valida, false); }
+  await ctx.db.collection("notas").doc(notaId).set({ valores: { valor: 15000, taxaFixa: 5000, total: 25000 } }, { merge: true });          // adulteração no banco
+  assert.equal((await V1(d.codigo.valor)).json.valida, false, "valor alterado invalida o código");
+  falha(await EMITIR(notaId), 409, "nota-inconsistente");
+});
+
+t("documento fiscal: só com chave de 44 dígitos válida + protocolo + data de autorização; senão continua sem valor fiscal", async () => {
+  const { notaId } = await notaPaga(), base = (await get("notas", notaId)), chave = chaveValida(); assert.ok(DANFE.chaveAcessoValida(chave)); assert.ok(!DANFE.chaveAcessoValida(chave.slice(0, 43) + ((Number(chave[43]) + 1) % 10)));
+  const fisc = (f) => ctx.db.collection("notas").doc(notaId).set({ ...base, fiscal: f ? { documento: f } : { nfse: null } });
+  await fisc({ chaveAcesso: chave.slice(0, 43) + ((Number(chave[43]) + 1) % 10), protocolo: "135260000000001", autorizadaEm: new E.Timestamp(Date.now()) }); assert.equal((await EMITIR(notaId)).json.modo, "comprovante", "DV inválido não vira fiscal");
+  await fisc({ chaveAcesso: chave, protocolo: "123", autorizadaEm: new E.Timestamp(Date.now()) }); assert.equal((await EMITIR(notaId)).json.modo, "comprovante", "sem protocolo não vira fiscal");
+  await fisc({ chaveAcesso: chave, protocolo: "135260000000001" }); assert.equal((await EMITIR(notaId)).json.modo, "comprovante", "sem data de autorização não vira fiscal");
+  await fisc({ chaveAcesso: chave, protocolo: "135260000000001", autorizadaEm: new E.Timestamp(Date.now()), ambiente: "producao" });
+  let d = (await EMITIR(notaId)).json; assert.equal(d.modo, "fiscal"); assert.equal(d.semValorFiscal, false); assert.equal(d.marcaDagua, ""); assert.equal(d.codigo.rotulo, "CHAVE DE ACESSO"); assert.equal(d.codigo.valor, chave); assert.equal(decodificarBarras(d.codigo.barras.modulos), chave); assert.equal(d.codigo.protocolo, "135260000000001");
+  await fisc({ chaveAcesso: chave, protocolo: "135260000000001", autorizadaEm: new E.Timestamp(Date.now()), ambiente: "homologacao" }); d = (await EMITIR(notaId)).json; assert.equal(d.semValorFiscal, true); assert.match(d.marcaDagua, /HOMOLOGAÇÃO/);
+});
+
+t("Code 128: tabela íntegra, B e C, e limites", async () => {
+  assert.equal(DANFE.PADROES.length, 107); for (const p of DANFE.PADROES.slice(0, 106)) assert.equal(p.split("").reduce((a, b) => a + Number(b), 0), 11); assert.equal(DANFE.PADROES[106].split("").reduce((a, b) => a + Number(b), 0), 13);
+  for (const txt of ["12", "123456789012345678901234", "Hello-World 42", "123", "A1b2~"]) assert.equal(decodificarBarras(DANFE.code128(txt).modulos), txt);
+  assert.throws(() => DANFE.code128("")); assert.throws(() => DANFE.code128("ação")); assert.throws(() => DANFE.code128("1".repeat(81)));
+  assert.equal(DANFE.agrupar("123456789012"), "1234 5678 9012");
+});
+
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {

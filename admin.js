@@ -48,8 +48,8 @@ async function sensivel(fn) {
         await renovarToken(); return fn();
     }
 }
-/** Pede a senha atual no mesmo diálogo dos outros pedidos; null se cancelar. */
-const pedirSenha = () => { const s = window.prompt("Por segurança, digite sua senha atual para continuar."); return Promise.resolve(s || null); };
+/** Pede a senha atual no mesmo diálogo dos outros pedidos (campo de senha, nada fica guardado); null se cancelar. */
+const pedirSenha = () => pedir({ titulo: "Confirme sua identidade", texto: "Por segurança, digite sua senha atual para continuar.", rotulo: "Senha atual", min: 1, ok: "Confirmar", senha: true });
 /** Substitui prompt()/confirm(): retorna true/texto ao confirmar, null ao cancelar. */
 const MODELOS = [
     ["Conferir CPF", "Olá, tudo bem? O CPF informado no seu cadastro não confere. Fale com o suporte pelo WhatsApp informando o CPF correto para a gente corrigir e liberar seu acesso."],
@@ -58,8 +58,9 @@ const MODELOS = [
     ["Treinamento", "Olá! Para liberar os turnos falta concluir o treinamento PRATICAMENTE. Assim que terminar, é só nos avisar."],
     ["Só um oi", "Oi, tudo bem? Passando para falar do seu cadastro no Abastece Já. Pode nos responder pelo WhatsApp?"]
 ];
-function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", perigo = false, modelos = false }) {
-    const d = $("ax-dlg"), i = $("ax-dlg-i"), b = $("ax-dlg-ok");
+function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", perigo = false, modelos = false, senha = false }) {
+    const d = $("ax-dlg"), i = $(senha ? "ax-dlg-s" : "ax-dlg-i"), b = $("ax-dlg-ok");
+    $("ax-dlg-i").hidden = senha; $("ax-dlg-s").hidden = !senha; $("ax-dlg-l").htmlFor = i.id;
     $("ax-dlg-m")?.remove();
     if (modelos && rotulo) {                                                    // atalhos de mensagem pronta (o admin ainda pode editar)
         const m = document.createElement("div"); m.id = "ax-dlg-m"; m.className = "ax-row"; m.style.cssText = "flex-wrap:wrap;gap:6px;margin-bottom:8px";
@@ -71,7 +72,7 @@ function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", per
     return new Promise((res) => {
         const validar = (ev) => { if (rotulo && i.value.trim().length < min) { ev.preventDefault(); $("ax-dlg-e").textContent = `Informe pelo menos ${min} caracteres.`; } };
         b.addEventListener("click", validar);
-        d.addEventListener("close", () => { b.removeEventListener("click", validar); res(d.returnValue === "ok" ? (rotulo ? i.value.trim() : true) : null); }, { once: true });
+        d.addEventListener("close", () => { b.removeEventListener("click", validar); const v = i.value; i.value = ""; res(d.returnValue === "ok" ? (rotulo ? (senha ? v : v.trim()) : true) : null); }, { once: true });
         d.returnValue = ""; d.showModal();
     });
 }

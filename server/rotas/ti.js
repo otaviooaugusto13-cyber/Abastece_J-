@@ -4,12 +4,13 @@
 //   /ti/auditoria ...         trilha de auditoria: consulta, exportação CSV, verificação da cadeia     (gestor; técnico vê só a sua)
 //   /ti/chamados ...          fila e atendimento de chamados
 //   /ti/dashboard, /ti/stream métricas, ranking e tempo real (online + fila)
+//   /ti/solicitantes/:uid/perfil  perfil completo da loja/promotor que abriu o chamado (CPF mascarado; consulta auditada)
 //   /chamados ...             lado do SOLICITANTE (loja/promotor/admin): abrir, acompanhar, responder
 //   /presenca/ping            batimento do app para o contador de usuários online
 const { paraCSV } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { auth, V, Falha, envelope, limitar, suporte } = x;
+  const { auth, V, Falha, envelope, limitar, suporte, db, C, Cripto, habilitacao } = x;
   const ti = x.ti, { operadores, chamados, metricas, presenca, tempoReal, auditoria, K } = ti;
   const lim = limitar({ janelaMs: 60_000, max: 180, nome: "ti", porUsuario: true });
   const limSens = limitar({ janelaMs: 3_600_000, max: 40, nome: "ti-sens", porUsuario: true });
@@ -168,4 +169,34 @@ module.exports = (app, x) => {
   /** Batimento do app. Verificação LOCAL do token (sem ida ao Auth): é a rota mais frequente da plataforma e só alimenta um contador. */
   app.post("/presenca/ping", async (req, res, next) => { try { req.usuario = await auth.autenticarLeve(req); next(); } catch (e) { next(e); } }, limitar({ janelaMs: 60_000, max: 8, nome: "ping", porUsuario: true }),
     (req, res) => res.json({ ok: true, contado: presenca.ping(req.usuario.uid, req.usuario.role) }));
+
+  // ================= perfil do solicitante (loja/promotor) — tudo numa tela, para atender o chamado =================
+  // CPF sai SÓ mascarado; documento de loja, telefone e e-mail aparecem porque o atendimento precisa confirmar a identidade. A consulta é auditada.
+  const iso = (ts) => (ts?.toDate ? ts.toDate().toISOString() : null);
+  const decifrar = (priv, campo, uid) => { try { return priv?.[`${campo}Enc`] ? Cripto.decifrar(priv[`${campo}Enc`], `profissionais_privado/${campo}/${uid}`) : ""; } catch { return ""; } };
+  app.get("/ti/solicitantes/:uid/perfil", ...S("chamados.ler"), envelope(async (req, res) => {
+    const uid = uidParam(req), id = await suporte.identificar(uid, V.opcao(req.query.tipo || "", ["", "loja", "promotor"], "tipo") || undefined);
+    if (!id) throw new Falha(404, "Cadastro não encontrado.", "nao-encontrado");
+    const tipo = id.tipo, base = (await db.collection(tipo === "loja" ? "contratantes" : "profissionais").doc(uid).get()).data() || {};
+    const usuario = (await db.collection("usuarios").doc(uid).get()).data() || {};
+    const campo = tipo === "loja" ? "uid" : "promotorUid";
+    const ms = (await db.collection("solicitacoes").where(campo, "==", uid).limit(200).get()).docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
+    const porStatus = {}; for (const m of ms) porStatus[m.status || "?"] = (porStatus[m.status || "?"] || 0) + 1;
+    const out = {
+      uid, tipo, nome: id.nome, email: usuario.email || base.email || "", status: base.status || (tipo === "loja" ? "ativo" : ""), criadoEm: iso(base.criadoEm), cidade: base.cidade || "", nivel: base.nivel || null,
+      missoes: { total: ms.length, porStatus, recentes: ms.slice(0, 8).map((m) => ({ id: m.id, data: m.data || "", horario: m.horario || "", loja: m.loja || "", status: m.status || "" })) }
+    };
+    if (tipo === "loja") {
+      const cartao = (await db.collection("cartoes").doc(uid).get()).data();
+      Object.assign(out, { razaoSocial: base.razaoSocial || "", documento: base.documento || "", telefone: base.telefone || "", endereco: base.endereco || "", ramo: base.ramo || "", cartao: cartao?.status === "ativo" ? `${cartao.bandeira || "cartão"} •••• ${cartao.ultimos4}` : "sem cartão" });
+    } else {
+      const { priv, nascimento } = await habilitacao.perfil(uid), cpf = decifrar(priv, "cpf", uid), idade = nascimento ? V.calcularIdade(nascimento) : null, cart = (await db.collection("carteiras").doc(uid).get()).data();
+      Object.assign(out, {
+        cpfMascarado: cpf ? V.mascararCPF(cpf) : "", nascimento: nascimento || "", idade, menor: idade !== null && idade < C.IDADE_MAIORIDADE, telefone: decifrar(priv, "telefone", uid),
+        treinamentoOk: !!base.treinamentoOk, habilitacao: await habilitacao.situacao(uid), carteira: cart ? { disponivelCentavos: cart.disponivelCentavos || 0, pendenteCentavos: cart.pendenteCentavos || 0 } : null, notaMedia: base.ratingMedia || null, avaliacoes: base.ratingQtd || 0
+      });
+    }
+    await ti.auditar(req, { acao: "solicitante.perfil.ver", alvoTipo: tipo, alvoId: uid, resumo: `Abriu o perfil de ${id.nome || tipo}` });
+    res.json(out);
+  }));
 };

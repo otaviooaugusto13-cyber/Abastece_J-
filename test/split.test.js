@@ -6,6 +6,8 @@ import * as core from "../core.js";
 const require = createRequire(import.meta.url);
 const srv = require("../server/split.js"), SC = require("../server/lib/config.js");
 
+assert.deepEqual(cfg.EMPRESA, SC.EMPRESA, "EMPRESA diverge entre config.js e server/lib/config.js (emitente do comprovante)");
+
 // 1) constantes idênticas entre navegador e servidor
 for (const k of ["VALOR_DIARIA_CENTAVOS", "COMISSAO_PLATAFORMA_CENTAVOS", "REPASSE_PROFISSIONAL_CENTAVOS", "TAXA_FIXA_CENTAVOS", "HORAS_MIN_TURNO", "HORAS_MAX_TURNO", "MAX_VEZES_SEMANA_LOJA"])
   assert.equal(cfg[k], srv[k], `${k} diverge (config.js x server/split.js)`);
