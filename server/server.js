@@ -37,6 +37,7 @@ const { criarTaxas } = require("./lib/taxas");
 const { criarSuporte } = require("./lib/suporte");
 const { criarCategorias } = require("./lib/categorias");
 const { criarTI } = require("./lib/ti");
+const { criarBootstrapAdmin } = require("./lib/bootstrap-admin");
 
 // ---------- Ambiente ----------
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
@@ -150,6 +151,7 @@ app.use((req, res) => res.status(404).json({ erro: "não encontrado", codigo: "r
 app.use(Seg.tratadorErros);
 
 if (require.main === module) {
+  criarBootstrapAdmin({ admin, db, FieldValue, auth }).rodar();   // ADMIN_BOOTSTRAP_EMAIL: concede o papel de admin à conta Google informada (sem terminal)
   ti.bootstrapGestor();                                     // 1º gestor de TI via variáveis de ambiente (só se ainda não houver operadores)
   ti.presenca.iniciar();                                    // publica os pings desta instância (contador de usuários online)
   taxas.iniciar();                                          // listener em tempo real: a mudança do admin vale em milissegundos

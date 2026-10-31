@@ -1,13 +1,13 @@
 // Painel de TI. A autorização é do SERVIDOR (claim role=ti + operador ativo); esta tela só consome a API (/ti/*).
 // Nada de innerHTML com dado cru: tudo passa por esc(). Tempo real: stream SSE via fetch (token no cabeçalho, nunca na URL).
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, chamarFuncao, consultar, baixarCSVProtegido, renovarToken } from "./firebase.js";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, reauthenticateWithCredential, reauthenticateWithPopup, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { auth, googleProvider, entrarComGoogle, chamarFuncao, consultar, baixarCSVProtegido, renovarToken } from "./firebase.js";
 import { FUNCTIONS_BASE } from "./config.js";
 import { esc } from "./core.js";
 import "./presenca.js";
 
 const $ = (id) => document.getElementById(id);
-const S = { op: null, perm: [], cfg: null, vista: "dashboard", dias: 7, cv: "abertos", cproximo: null, os: "ativo", equipe: [], aproximo: null, parar: null, timer: null };
+const S = { google: false, op: null, perm: [], cfg: null, vista: "dashboard", dias: 7, cv: "abertos", cproximo: null, os: "ativo", equipe: [], aproximo: null, parar: null, timer: null };
 const pode = (p) => S.perm.includes(p);
 const TITULOS = { dashboard: "Dashboard", chamados: "Chamados", operadores: "Operadores", auditoria: "Auditoria" };
 const ST = { aberto: ["Aberto", "b"], em_atendimento: ["Em atendimento", "y"], aguardando_usuario: ["Aguardando usuário", ""], resolvido: ["Resolvido", "g"], cancelado: ["Cancelado", "r"] };
@@ -61,6 +61,10 @@ function senhaUnica(nome, senha) {
 async function sensivel(fn) {
     try { return await fn(); } catch (e) {
         if (e.code !== "reautenticar") throw e;
+        if (S.google) {   // entrou com Google: confirma com o Google, não há senha para digitar
+            try { await reauthenticateWithPopup(auth.currentUser, googleProvider); } catch { throw Object.assign(new Error("Ação cancelada."), { code: "cancelado" }); }
+            await renovarToken(); return fn();
+        }
         const v = await formulario({ titulo: "Confirme sua identidade", texto: "Por segurança, digite sua senha atual para continuar.", campos: [{ n: "s", label: "Senha atual", tipo: "password", req: true, max: 128 }], ok: "Confirmar" });
         if (!v) throw Object.assign(new Error("Ação cancelada."), { code: "cancelado" });
         try { await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, v.s)); } catch { throw new Error("Senha incorreta."); }
@@ -76,14 +80,21 @@ $("ti-login-f").addEventListener("submit", async (e) => {
     catch (err) { $("ti-login-erro").textContent = /too-many/.test(err.code || "") ? "Muitas tentativas. Aguarde alguns minutos." : "E-mail ou senha incorretos."; }
     finally { $("ti-entrar").disabled = false; }
 });
+$("ti-google").addEventListener("click", async () => {
+    $("ti-login-erro").textContent = ""; $("ti-google").disabled = true;
+    try { await entrarComGoogle(); }
+    catch (err) { if (!/popup-closed|cancelled-popup/.test(err.code || "")) $("ti-login-erro").textContent = "Não foi possível entrar com o Google. Tente novamente."; }
+    finally { $("ti-google").disabled = false; }
+});
 onAuthStateChanged(auth, async (u) => {
     pararTempoReal(); clearInterval(S.timer); $("ti-app").hidden = true; $("ti-login").hidden = false;
     if (!u) return;
+    try { S.google = (await u.getIdTokenResult()).signInProvider === "google.com"; } catch { S.google = false; }
     try {
         const r = await chamarFuncao("ti/sessao", {}); S.op = r.operador; S.perm = r.permissoes; S.cfg = r.config;
     } catch (e) {
         if (e.code === "trocar-senha") { $("ti-login").hidden = true; return trocaObrigatoria(); }
-        $("ti-login-erro").textContent = e.code === "sem-permissao" ? "Esta conta não é de operador de TI. O painel de TI usa e-mail e senha próprios, criados pelo gestor — não a conta de loja, promotor ou admin." : e.code === "operador-inativo" ? "Esta conta de operador está desativada. Fale com o gestor de TI." : "Não foi possível entrar agora. Tente novamente.";
+        $("ti-login-erro").textContent = e.code === "sem-permissao" ? (S.google ? "Esta conta Google não está liberada para o painel de TI. Peça ao administrador para cadastrar o seu e-mail (se ele já cadastrou, saia e entre de novo; contas de loja, promotor ou admin não servem)." : "Esta conta não é de operador de TI. O painel de TI usa e-mail e senha próprios, criados pelo administrador ou pelo gestor — não a conta de loja, promotor ou admin.") : e.code === "operador-inativo" ? "Esta conta de operador está desativada. Fale com o gestor de TI." : "Não foi possível entrar agora. Tente novamente.";
         await signOut(auth); return;
     }
     if (S.op?.trocarSenha) { $("ti-login").hidden = true; return trocaObrigatoria(); }
@@ -105,7 +116,7 @@ $("ti-minha-senha").addEventListener("click", () => trocarSenha(false));
 $("ti-sair").addEventListener("click", async () => { try { await chamarFuncao("ti/sessao/sair", {}); } catch { /* sai mesmo assim */ } await signOut(auth); });
 
 function iniciar() {
-    $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op?.nome} · ${S.op?.nivel}`;
+    $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op?.nome} · ${S.op?.nivel}`; $("ti-minha-senha").hidden = S.google;   // sem senha própria quando o acesso é pelo Google
     for (const sel of [$("c-pri")]) sel.innerHTML = '<option value="">Todas as prioridades</option>' + S.cfg.prioridades.map((p) => `<option value="${esc(p)}">${esc(PRI[p])}</option>`).join("");
     document.querySelector('#ax-nav [data-v="operadores"]').hidden = !pode("operadores.ler"); $("a-op").hidden = !pode("auditoria.ler"); $("a-verificar").hidden = !pode("auditoria.verificar"); $("a-csv").hidden = !pode("auditoria.ler");
     seguro(carregarEquipe)(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "dashboard"); ligarTempoReal();

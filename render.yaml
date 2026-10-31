@@ -17,6 +17,8 @@ services:
         sync: false                  # opcional: outros domínios do front (separados por vírgula)
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
+      - key: ADMIN_BOOTSTRAP_EMAIL   # opcional: e-mail(s) da conta Google que vira ADMIN ao reiniciar (sem terminal). Remova depois de entrar.
+        sync: false
       - key: TI_BOOTSTRAP_EMAIL      # opcional: cria o 1º gestor de TI (use um e-mail NOVO, sem conta anterior)
         sync: false
       - key: TI_BOOTSTRAP_NOME

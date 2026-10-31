@@ -3,7 +3,7 @@
 const { paraCSV, dinheiro, dataBR } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { db, admin, FieldValue, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, treinamento, categorias, habilitacao, suporte, mp, CRON_SECRET } = x;
+  const { db, admin, FieldValue, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, treinamento, categorias, habilitacao, suporte, mp, CRON_SECRET, ti } = x;
   const PAGINA = { loja: "index.html", promotor: "promotor.html" };
   /** Registra a mensagem no chat do usuário e avisa o aparelho dele (push é melhor esforço). */
   const avisarNoChat = async (req, uid, tipo, texto) => { await suporte.postar({ uid, de: "suporte", texto, autorUid: req.usuario.uid, dica: tipo }); await suporte.enviarPush({ uid, titulo: "Suporte Abastece Já", corpo: texto, url: `${PAGINA[tipo]}?suporte=1` }); };
@@ -71,6 +71,60 @@ module.exports = (app, x) => {
     if (status === "bloqueado") await admin.auth().revokeRefreshTokens(uid);   // derruba as sessões do bloqueado
     await auth.auditar(req, "admin.promotor.status", uid, { status, motivo, desbloqueio: desbloqueando, semNascimento: !nascimento });
     res.json({ ok: true, status });
+  }));
+
+
+  // ---------- Equipe de TI (o admin cadastra, remove e libera o acesso dos operadores do painel /painel-ti) ----------
+  // O admin é a autoridade sobre a equipe de TI: aqui NÃO vale a trava "sempre sobra um gestor" (o admin sempre pode cadastrar outro).
+  // Tudo cai em DOIS logs: o do admin (`auditoria`) e a trilha encadeada do TI (`ti_auditoria`), onde o gestor de TI enxerga o que o admin fez.
+  const RECENTE = (req, res, next) => { try { auth.exigirRecente(req.usuario); next(); } catch (e) { next(e); } };   // login recente (o painel reautentica sozinho)
+  const euAdmin = (req) => ({ uid: req.usuario.uid, nome: "Administrador", email: req.usuario.email || "", nivel: "admin", tipo: "admin" });
+  const atorTI = (req) => ({ ...euAdmin(req), ip: req.ip || "", ua: String(req.get?.("user-agent") || ""), rota: `${req.method} ${req.path}`, reqId: "" });
+  /** Registra nos dois logs. `acao` sem prefixo (ex.: "criar"). Nunca lança (auditoria é melhor esforço, como no resto do painel). */
+  const auditarTI = async (req, acao, uid, resumo, { antes = null, depois = null, meta = null } = {}) => {
+    await auth.auditar(req, `admin.ti.${acao}`, uid, { resumo, ...(meta || {}) });
+    await ti.auditoria.registrar(atorTI(req), { acao: `operador.${acao}`, alvoTipo: "operador", alvoId: uid, resumo: `[Admin] ${resumo}`, antes, depois, meta: { origem: "painel-admin", ...(meta || {}) } });
+  };
+  const uidTI = (req) => V.idDoc(req.params.uid, "uid");
+
+  app.get("/admin/ti/operadores", ...ADM, envelope(async (req, res) => {
+    res.json(await ti.operadores.listar({ status: V.opcao(req.query.status || "ativo", ["ativo", "excluido"], "status") }));
+  }));
+
+  app.post("/admin/ti/operadores", ...ADM, RECENTE, envelope(async (req, res) => {
+    const b = V.somente(req.body, ["nome", "email", "nivel", "senha", "acesso", "exigirTroca"]);
+    const r = await ti.operadores.criar({ nome: b.nome, email: b.email, nivel: b.nivel, senha: b.senha, acesso: b.acesso, exigirTroca: b.exigirTroca === true }, euAdmin(req));
+    await auditarTI(req, "criar", r.operador.uid, `Cadastrou ${r.operador.nome} (${r.operador.nivel}, acesso ${r.operador.acesso})`, { depois: { nome: r.operador.nome, email: r.operador.email, nivel: r.operador.nivel, acesso: r.operador.acesso, senhaTemporaria: !!r.senhaTemporaria } });
+    res.json(r);
+  }));
+
+  app.put("/admin/ti/operadores/:uid/nivel", ...ADM, RECENTE, envelope(async (req, res) => {
+    const uid = uidTI(req), r = await ti.operadores.alterarNivel(uid, req.body?.nivel, euAdmin(req)); ti.tempoReal.encerrarDe(uid);
+    await auditarTI(req, "nivel", uid, `Nível de ${r.operador.nome}: ${r.antes.nivel} → ${r.depois.nivel}`, { antes: r.antes, depois: r.depois });
+    res.json({ operador: r.operador });
+  }));
+
+  /** Define a senha: informada pelo admin (`senha`) ou temporária aleatória (sem `senha`). Revoga as sessões; por padrão exige trocar no próximo acesso. */
+  app.post("/admin/ti/operadores/:uid/senha", ...ADM, RECENTE, envelope(async (req, res) => {
+    const uid = uidTI(req), b = V.somente(req.body, ["senha", "exigirTroca"]), informada = typeof b.senha === "string" && b.senha !== "";
+    const r = await ti.operadores.definirSenha(uid, informada ? { senha: b.senha, forcarTroca: b.exigirTroca !== false } : { temporaria: true }); ti.tempoReal.encerrarDe(uid);
+    await auditarTI(req, "senha", uid, informada ? "Definiu uma nova senha e revogou as sessões" : "Gerou senha temporária e revogou as sessões", { depois: { trocarSenha: informada ? b.exigirTroca !== false : true } });
+    res.json(r);
+  }));
+
+  /** Remover = exclusão lógica: desativa o login, revoga as sessões e devolve os chamados dele à fila. O histórico/auditoria continuam apontando para a pessoa. */
+  app.post("/admin/ti/operadores/:uid/excluir", ...ADM, RECENTE, envelope(async (req, res) => {
+    const uid = uidTI(req), r = await ti.operadores.excluir(uid, req.body?.motivo, euAdmin(req));
+    const devolvidos = await ti.chamados.devolverFila(uid, { uid: req.usuario.uid, nome: "Administrador", nivel: "admin", tipo: "admin" }); ti.tempoReal.encerrarDe(uid);
+    await auditarTI(req, "excluir", uid, `Removeu ${r.operador.nome} (exclusão lógica)`, { antes: r.antes, depois: r.depois, meta: { motivo: r.operador.motivoExclusao, chamadosDevolvidos: devolvidos } });
+    res.json({ operador: r.operador, chamadosDevolvidos: devolvidos });
+  }));
+
+  /** Libera o acesso de volta a um operador removido (senha temporária nova, ou só Google se ele era só-Google). */
+  app.post("/admin/ti/operadores/:uid/restaurar", ...ADM, RECENTE, envelope(async (req, res) => {
+    const uid = uidTI(req), r = await ti.operadores.restaurar(uid);
+    await auditarTI(req, "restaurar", uid, `Liberou o acesso de ${r.operador.nome} novamente`, { antes: { status: "excluido" }, depois: { status: "ativo" } });
+    res.json(r);
   }));
 
   // ---------- Edição de perfis (promotor e loja) ----------

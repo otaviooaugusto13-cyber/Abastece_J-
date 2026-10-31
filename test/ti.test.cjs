@@ -353,6 +353,92 @@ t("segurança: cabeçalho de token inválido, injeção NoSQL em filtros e IDs m
   falha(await chamar("POST", "/ti/operadores/ti-gest/excluir", { token: "ruim.ruim.ruim", body: {} }), 401);
 });
 
+
+// ======================= admin gerencia a equipe de TI (/admin/ti/*) =======================
+const { criarBootstrapAdmin } = require("../server/lib/bootstrap-admin");
+const darToken = (chave, op) => { E.tokens[chave] = { uid: op.uid, email: op.email, email_verified: true }; };
+
+t("admin: só o papel admin gerencia a equipe de TI (loja, promotor, operador de TI e sem papel são barrados)", async () => {
+  await operador("gest", "gestor");
+  for (const tk of ["lojaA", "prom1", "semPapel", "gest"]) falha(await chamar("GET", "/admin/ti/operadores", { token: tk }), 403, "sem-permissao");
+  falha(await chamar("GET", "/admin/ti/operadores", {}), 401, "nao-autenticado");
+  ok(await chamar("GET", "/admin/ti/operadores", { token: "adm" }));
+});
+t("admin: cadastra operador com senha própria (troca no 1º acesso), com senha temporária e só-Google; valida, recusa duplicado e exige login recente", async () => {
+  const corpo = { nome: "Carla Souza", email: "carla@abastece.ti", nivel: "tecnico", acesso: "senha", senha: SENHA, exigirTroca: true };
+  E.tokens.velho = { ...U.adm, auth_time: Math.floor(Date.now() / 1000) - 3600 };
+  falha(await chamar("POST", "/admin/ti/operadores", { token: "velho", body: corpo }), 401, "reautenticar");
+  falha(await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { ...corpo, senha: "curta" } }), 400);
+  falha(await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { ...corpo, nivel: "dono" } }), 400);
+  falha(await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { ...corpo, acesso: "sms" } }), 400);
+  const a = await chamar("POST", "/admin/ti/operadores", { token: "adm", body: corpo }); ok(a, "com senha");
+  assert.equal(a.json.senhaTemporaria, undefined, "a senha que o admin digitou não volta na resposta");
+  assert.deepEqual(E.claimsStore[a.json.operador.uid], { role: "ti", perfis: ["ti"], tiNivel: "tecnico" });
+  const da = await get("ti_operadores", a.json.operador.uid); assert.equal(da.trocarSenha, true); assert.equal(da.acesso, "senha"); assert.equal(da.status, "ativo");
+  falha(await chamar("POST", "/admin/ti/operadores", { token: "adm", body: corpo }), 409, "email-em-uso");
+  const b = await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { nome: "Davi Lima", email: "davi@abastece.ti", nivel: "gestor" } }); ok(b, "temporária");
+  assert.ok(b.json.senhaTemporaria && b.json.senhaTemporaria.length >= 12); assert.equal((await get("ti_operadores", b.json.operador.uid)).trocarSenha, true);
+  const g = await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { nome: "Elisa Ramos", email: "elisa@gmail.com", nivel: "tecnico", acesso: "google" } }); ok(g, "google");
+  assert.equal(g.json.senhaTemporaria, undefined); const dg = await get("ti_operadores", g.json.operador.uid); assert.equal(dg.acesso, "google"); assert.equal(dg.trocarSenha, false);
+  const lista = await chamar("GET", "/admin/ti/operadores", { token: "adm" }); ok(lista); assert.equal(lista.json.length, 3);
+  // quem foi cadastrado entra no painel de TI (o login Google casa pelo e-mail → mesmo uid → mesma claim)
+  darToken("elisa", g.json.operador); const ses = await chamar("POST", "/ti/sessao", { token: "elisa", body: {} }); ok(ses, "sessão do só-Google");
+  assert.equal(ses.json.operador.trocarSenha, false); assert.equal(ses.json.operador.acesso, "google");
+  darToken("carla", a.json.operador); falha(await chamar("GET", "/ti/dashboard", { token: "carla" }), 403, "trocar-senha");   // senha definida pelo admin: troca obrigatória
+});
+t("admin: altera nível, redefine senha, remove e libera de volta; removido perde o acesso na hora; o admin pode remover o último gestor", async () => {
+  const c = await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { nome: "Gil Gestor", email: "gil@abastece.ti", nivel: "gestor", acesso: "google" } }); ok(c);
+  const uid = c.json.operador.uid; darToken("gil", c.json.operador);
+  ok(await chamar("GET", "/ti/dashboard", { token: "gil" }));
+  ok(await chamar("PUT", `/admin/ti/operadores/${uid}/nivel`, { token: "adm", body: { nivel: "tecnico" } })); assert.equal(E.claimsStore[uid].tiNivel, "tecnico");
+  falha(await chamar("PUT", `/admin/ti/operadores/${uid}/nivel`, { token: "adm", body: { nivel: "chefe" } }), 400);
+  ok(await chamar("PUT", `/admin/ti/operadores/${uid}/nivel`, { token: "adm", body: { nivel: "gestor" } }));
+  // senha: informada pelo admin → troca obrigatória; sem corpo → temporária devolvida uma vez; fraca → 400
+  falha(await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { senha: "fraca" } }), 400);
+  const r1 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { senha: SENHA } }); ok(r1); assert.equal(r1.json.senhaTemporaria, undefined);
+  const dop = await get("ti_operadores", uid); assert.equal(dop.trocarSenha, true); assert.equal(dop.acesso, "senha");
+  const r2 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: {} }); ok(r2); assert.ok(r2.json.senhaTemporaria);
+  // remover exige motivo; é o ÚNICO gestor e mesmo assim o admin consegue (a trava de "último gestor" é do TI, não do admin)
+  falha(await chamar("POST", `/admin/ti/operadores/${uid}/excluir`, { token: "adm", body: { motivo: "x" } }), 400);
+  const ex = await chamar("POST", `/admin/ti/operadores/${uid}/excluir`, { token: "adm", body: { motivo: "Saiu da empresa" } }); ok(ex, "remover");
+  assert.equal((await get("ti_operadores", uid)).status, "excluido"); assert.equal(E.contas.get(uid).disabled, true);
+  falha(await chamar("GET", "/ti/dashboard", { token: "gil" }), 401);   // login desativado/sessão revogada: o token antigo não vale mais
+  const lx = await chamar("GET", "/admin/ti/operadores?status=excluido", { token: "adm" }); ok(lx); assert.equal(lx.json.length, 1); assert.equal(lx.json[0].motivoExclusao, "Saiu da empresa");
+  falha(await chamar("POST", `/admin/ti/operadores/${uid}/excluir`, { token: "adm", body: { motivo: "de novo, sem efeito" } }), 409, "operador-excluido");
+  // liberar de volta: só-Google restaura sem senha; quem tinha senha ganha temporária
+  const rs = await chamar("POST", `/admin/ti/operadores/${uid}/restaurar`, { token: "adm", body: {} }); ok(rs, "restaurar");
+  assert.equal((await get("ti_operadores", uid)).status, "ativo"); assert.equal(E.contas.get(uid).disabled, false);
+  falha(await chamar("POST", `/admin/ti/operadores/${uid}/restaurar`, { token: "adm", body: {} }), 409, "nao-excluido");
+  falha(await chamar("POST", "/admin/ti/operadores/nao-existe/excluir", { token: "adm", body: { motivo: "teste de motivo" } }), 404);
+  falha(await chamar("POST", `/admin/ti/operadores/a..b/excluir`, { token: "adm", body: { motivo: "teste de motivo" } }), 400, "dados-invalidos");
+});
+t("admin: tudo fica nos DOIS logs (auditoria do admin e trilha de TI, com a cadeia íntegra) e sem segredos", async () => {
+  await operador("gest", "gestor");
+  const c = await chamar("POST", "/admin/ti/operadores", { token: "adm", body: { nome: "Hugo Reis", email: "hugo@abastece.ti", nivel: "tecnico", senha: SENHA } }); ok(c);
+  ok(await chamar("POST", `/admin/ti/operadores/${c.json.operador.uid}/excluir`, { token: "adm", body: { motivo: "Fim do contrato" } }));
+  const trilha = await todos("ti_auditoria"), meu = trilha.filter((a) => a.nivel === "admin");
+  assert.deepEqual(meu.map((a) => a.acao).sort(), ["operador.criar", "operador.excluir"]);
+  assert.ok(meu.every((a) => a.operadorUid === "adm1" && a.resumo.startsWith("[Admin]") && a.meta.origem === "painel-admin"));
+  assert.ok(!JSON.stringify(trilha).includes(SENHA), "a senha nunca vai para a trilha");
+  const logAdmin = await todos("auditoria"); assert.ok(logAdmin.some((a) => a.acao === "admin.ti.criar") && logAdmin.some((a) => a.acao === "admin.ti.excluir"));
+  assert.ok(!JSON.stringify(logAdmin).includes(SENHA), "nem no log do admin");
+  const v = await chamar("GET", "/ti/auditoria/verificar", { token: "gest" }); ok(v); assert.deepEqual(v.json.problemas, [], JSON.stringify(v.json)); assert.ok(v.json.verificados >= 2);
+});
+t("bootstrap do admin: ADMIN_BOOTSTRAP_EMAIL concede o papel sem terminal; idempotente; não converte conta de TI; e-mail inexistente só avisa", async () => {
+  const bs = criarBootstrapAdmin({ admin: ctx.admin, db: ctx.db, FieldValue: ctx.FieldValue, auth: ctx.auth });
+  falha(await chamar("GET", "/admin/ti/operadores", { token: "semPapel" }), 403, "sem-permissao");
+  assert.deepEqual(await bs.rodar({}), []);
+  const [r] = await bs.rodar({ ADMIN_BOOTSTRAP_EMAIL: " S@x.com " }); assert.equal(r.feito, true);
+  assert.equal(E.claimsStore.sem.admin, true); assert.equal(E.claimsStore.sem.role, "admin"); assert.ok(E.claimsStore.sem.perfis.includes("admin"));
+  assert.equal((await get("usuarios", "sem")).admin, true);
+  ok(await chamar("GET", "/admin/ti/operadores", { token: "semPapel" }), "depois do bootstrap");
+  assert.equal((await bs.rodar({ ADMIN_BOOTSTRAP_EMAIL: "s@x.com" }))[0].motivo, "ja-e-admin");
+  assert.equal((await bs.rodar({ ADMIN_BOOTSTRAP_EMAIL: "ninguem@x.com" }))[0].motivo, "conta-inexistente");
+  await operador("tec1", "tecnico"); const [t1] = await bs.rodar({ ADMIN_BOOTSTRAP_EMAIL: "ana@abastece.ti" }); assert.equal(t1.motivo, "conta-ti");
+  assert.equal(E.claimsStore["ti-tec1"].role, "ti");
+  const dois = await bs.rodar({ ADMIN_BOOTSTRAP_EMAIL: "a@x.com, b@x.com;a@x.com" }); assert.equal(dois.length, 2);   // vários e-mails, sem repetir
+});
+
 t("bootstrap: cria o 1º gestor por variáveis de ambiente, com troca de senha obrigatória, e não age de novo", async () => {
   const env = { TI_BOOTSTRAP_EMAIL: "Chefe+ti@Exemplo.com", TI_BOOTSTRAP_NOME: "Chefe", TI_BOOTSTRAP_SENHA: "Cavalo-Bateria-Grampo-42" };
   assert.equal((await ti.bootstrapGestor({})).motivo, "nao-configurado");

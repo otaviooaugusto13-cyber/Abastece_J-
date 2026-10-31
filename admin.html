@@ -34,6 +34,7 @@
       <button class="ax-nav" data-v="infracoes"><span class="ic">⚖</span>Infrações e multas</button>
       <button class="ax-nav" data-v="marcas"><span class="ic">◈</span>Marcas (B2B)</button>
       <button class="ax-nav" data-v="moderacao"><span class="ic">⚑</span>Moderação e logs<span class="n ax-badge r" id="n-alert" hidden></span></button>
+      <button class="ax-nav" data-v="ti"><span class="ic">⌘</span>Equipe de TI</button>
       <button class="ax-nav" data-v="config"><span class="ic">⚙</span>Configurações</button>
     </nav>
     <div style="margin-top:auto;padding:12px 10px"><p class="ax-xs ax-mut" id="ax-quem" style="word-break:break-all"></p><button class="ax-btn sm ax-mt" id="ax-sair" style="width:100%">Sair</button></div>
@@ -195,6 +196,18 @@
         </div>
       </section>
 
+      <!-- EQUIPE DE TI (cadastro, remoção e liberação de acesso ao painel /painel-ti) -->
+      <section id="v-ti" hidden>
+        <div class="ax-card">
+          <div class="ax-row ax-mb">
+            <div class="ax-pills ax-grow" id="ti-status"><button class="ax-pill sel" data-s="ativo">Com acesso</button><button class="ax-pill" data-s="excluido">Removidos</button></div>
+            <button class="ax-btn pri" id="ti-novo">+ Novo operador de TI</button>
+          </div>
+          <p class="ax-xs ax-mut ax-mb" id="ti-nota"></p>
+          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Nome</th><th>E-mail</th><th>Nível</th><th>Acesso</th><th>Último acesso / situação</th><th></th></tr></thead><tbody id="ti-body"></tbody></table></div>
+        </div>
+      </section>
+
       <!-- CONFIGURAÇÕES -->
       <!-- INFRAÇÕES, MULTAS E BANIMENTOS -->
       <section id="v-infracoes" hidden>
@@ -269,6 +282,7 @@
     <div class="ax-row ax-mt" style="justify-content:flex-end"><button class="ax-btn" value="cancel" id="ax-del-x">Cancelar</button><button class="ax-btn danger" value="ok" id="ax-del-ok" disabled>Excluir definitivamente</button></div>
   </form>
 </dialog>
+<dialog class="ax-dlg" id="ti-dlg" aria-label="Equipe de TI"></dialog>
 <dialog class="ax-dlg" id="ax-ficha"><div id="ax-ficha-c"></div><div class="ax-row ax-mt" id="ax-ficha-a"></div></dialog>
 
 <script type="module" src="admin.js"></script>

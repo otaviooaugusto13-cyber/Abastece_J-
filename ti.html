@@ -14,7 +14,7 @@
 </head>
 <body class="ax-body">
 
-<!-- LOGIN (e-mail + senha; contas criadas só por um gestor de TI) -->
+<!-- LOGIN (e-mail + senha, ou Google; só entra quem foi cadastrado como operador pelo administrador ou por um gestor de TI) -->
 <div id="ti-login" class="ax-card ax-login">
   <h1>Painel de TI</h1>
   <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe de TI. Todas as ações são registradas.</p>
@@ -25,6 +25,9 @@
     <input class="ax-in" id="ti-senha" type="password" autocomplete="current-password" required maxlength="128">
     <button class="ax-btn pri ax-mt" style="width:100%" id="ti-entrar">Entrar</button>
   </form>
+  <p class="ti-ou ax-xs ax-mut" aria-hidden="true">ou</p>
+  <button class="ax-btn" style="width:100%" id="ti-google" type="button">Entrar com Google</button>
+  <p class="ax-xs ax-mut ax-mt">Use o e-mail que o administrador cadastrou para você.</p>
   <p class="ax-erro ax-mt" id="ti-login-erro" role="alert"></p>
 </div>
 

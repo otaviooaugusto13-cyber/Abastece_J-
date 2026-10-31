@@ -86,3 +86,25 @@ Uma conta já usada como loja, promotor ou admin **não** vira operador: use um 
 6. Deploy das regras/índices: `firebase deploy --only firestore:rules,firestore:indexes`.
 
 Alternativa: `node scripts/criar-operador-ti.js` (exige a chave de serviço no computador).
+
+
+## Quem cadastra a equipe de TI: o administrador (aba "Equipe de TI")
+
+No painel administrativo (`/painel-admin`), aba **Equipe de TI**, o admin:
+- **Cadastra** operador: nome, e-mail, nível (técnico/gestor) e como a pessoa entra — **e-mail + senha** (senha digitada por ele ou temporária gerada, exibida uma vez; opção "exigir troca no 1º acesso") ou **só Google** (sem senha).
+- **Remove** (exclusão lógica com motivo: desativa o login, derruba as sessões e devolve os chamados dela à fila) e **libera o acesso de volta** (aba "Removidos").
+- Altera o **nível** e **redefine/define a senha** (revoga as sessões).
+O admin não está sujeito à trava "sempre sobra um gestor ativo" (essa continua valendo entre os próprios gestores de TI). Tudo que o admin faz cai no log do admin **e** na trilha de auditoria do TI (marcado `[Admin]`, nível `admin`). As rotas são `GET|POST /admin/ti/operadores`, `PUT .../:uid/nivel`, `POST .../:uid/{senha,excluir,restaurar}`; ações de escrita exigem login recente (o painel pede o Google de novo).
+
+### Login do painel de TI
+`/painel-ti` aceita **e-mail e senha** *ou* **"Entrar com Google"**. Só entra quem foi cadastrado como operador e está ativo; o e-mail da conta Google precisa ser o **mesmo** cadastrado. Operador "só Google" não tem senha (o botão "Alterar minha senha" some e as confirmações sensíveis usam o Google).
+Requisito no Firebase Console → Authentication → Settings → **User account linking**: deixe **"Link accounts that use the same email"** (padrão). Assim o login Google cai na mesma conta (mesmo uid, mesmas permissões) criada pelo admin.
+Contas já usadas como loja/promotor/admin **não** viram TI (o e-mail já existe no Auth): use um e-mail novo.
+
+## Como virar ADMIN sem terminal
+Antes só `scripts/definir-admin.js` concedia a permissão. Agora, no Render → Environment:
+1. Entre **uma vez** no app com a conta Google que será admin (qualquer portal), para ela existir no Firebase Auth.
+2. Crie `ADMIN_BOOTSTRAP_EMAIL` = e-mail dessa conta (pode listar vários, separados por vírgula) e salve (o serviço reinicia). Procure `✅ Admin: ... agora é administrador` nos logs.
+3. No painel admin, **saia e entre de novo** (o token precisa renovar). Depois **remova** `ADMIN_BOOTSTRAP_EMAIL`.
+Não converte conta de TI nem de marca; é idempotente.
+**Atenção:** com `ADMIN_EXIGE_MFA=1` (valor do `render.yaml`) toda rota `/admin/*` exige verificação em duas etapas, e o painel não tem tela para cadastrar o 2º fator: o admin entra, mas as telas falham com "Administradores precisam de verificação em duas etapas". Sem MFA configurado no Firebase, use `ADMIN_EXIGE_MFA=0`.
