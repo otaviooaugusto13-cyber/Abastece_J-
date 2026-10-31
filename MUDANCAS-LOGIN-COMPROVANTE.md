@@ -20,3 +20,9 @@
 ## Painel de TI
 - Botão **Ver perfil** no chamado (loja/promotor): `GET /ti/solicitantes/:uid/perfil` (CPF mascarado, missões, carteira, habilitação; consulta auditada).
 - Não trouxe "online agora" no perfil: a presença do nosso módulo é por instância e anônima.
+
+## Administradores criados pelo painel de TI (nova aba, só gestor)
+- Aba **Administradores** no painel de TI: criar conta de admin (e-mail + senha, e-mail já verificado), redefinir senha (encerra sessões) e remover acesso. Tudo auditado e com login recente exigido.
+- Backend: `server/lib/ti/admins.js`, rotas `/ti/administradores...`, permissão `admins.gerir` (só gestor). Não converte conta de TI/marca, não mexe na própria conta e sempre deixa ao menos um admin.
+- Atenção: com `ADMIN_EXIGE_MFA=1` (padrão do `render.yaml`) as telas do admin falham sem 2º fator, e o painel não tem tela para cadastrá-lo. Se não usa MFA no Firebase, ponha `ADMIN_EXIGE_MFA=0` no Render.
+- O painel administrativo ainda não tem tela para o admin trocar a própria senha: defina a senha final ao criar.

@@ -73,6 +73,7 @@
       <button class="ax-nav sel" data-v="dashboard"><span class="ic">◎</span>Dashboard</button>
       <button class="ax-nav" data-v="chamados"><span class="ic">✉</span>Chamados<span class="n ax-badge y" id="n-ch" hidden></span></button>
       <button class="ax-nav" data-v="operadores"><span class="ic">☰</span>Operadores</button>
+      <button class="ax-nav" data-v="admins"><span class="ic">★</span>Administradores</button>
       <button class="ax-nav" data-v="auditoria"><span class="ic">⚑</span>Auditoria</button>
     </nav>
     <div style="margin-top:auto;padding:12px 10px">
@@ -133,6 +134,15 @@
       </section>
 
       <!-- OPERADORES -->
+      <section id="v-admins" hidden>
+        <div class="ax-card">
+          <div class="ax-row ax-mb"><p class="ax-sm ax-mut ax-grow">Contas que entram no <b>Painel administrativo</b> com e-mail e senha. Só gestores de TI veem esta aba; toda ação fica na auditoria.</p>
+            <button class="ax-btn pri" id="ad-novo">+ Novo administrador</button></div>
+          <p class="ax-xs ax-mut ax-mb">Defina a senha final aqui (12+ caracteres): o painel administrativo ainda não tem tela para o próprio admin trocar a senha. Em branco gera uma temporária.</p>
+          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Nome</th><th>E-mail</th><th>Criado em</th><th>Origem</th><th></th></tr></thead><tbody id="ad-body"></tbody></table></div>
+        </div>
+      </section>
+
       <section id="v-operadores" hidden>
         <div class="ax-card">
           <div class="ax-row ax-mb">

@@ -9,7 +9,7 @@ import "./presenca.js";
 const $ = (id) => document.getElementById(id);
 const S = { google: false, op: null, perm: [], cfg: null, vista: "dashboard", dias: 7, cv: "abertos", cproximo: null, os: "ativo", equipe: [], aproximo: null, parar: null, timer: null };
 const pode = (p) => S.perm.includes(p);
-const TITULOS = { dashboard: "Dashboard", chamados: "Chamados", operadores: "Operadores", auditoria: "Auditoria" };
+const TITULOS = { dashboard: "Dashboard", chamados: "Chamados", operadores: "Operadores", admins: "Administradores", auditoria: "Auditoria" };
 const ST = { aberto: ["Aberto", "b"], em_atendimento: ["Em atendimento", "y"], aguardando_usuario: ["Aguardando usuário", ""], resolvido: ["Resolvido", "g"], cancelado: ["Cancelado", "r"] };
 const PRI = { critica: "Crítica", alta: "Alta", media: "Média", baixa: "Baixa" };
 const CAT = { acesso: "Acesso/login", pagamento: "Pagamento", app: "Aplicativo", bug: "Erro/bug", dados: "Dados", infra: "Infraestrutura", outro: "Outro" };
@@ -118,7 +118,7 @@ $("ti-sair").addEventListener("click", async () => { try { await chamarFuncao("t
 function iniciar() {
     $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op?.nome} · ${S.op?.nivel}`; $("ti-minha-senha").hidden = S.google;   // sem senha própria quando o acesso é pelo Google
     for (const sel of [$("c-pri")]) sel.innerHTML = '<option value="">Todas as prioridades</option>' + S.cfg.prioridades.map((p) => `<option value="${esc(p)}">${esc(PRI[p])}</option>`).join("");
-    document.querySelector('#ax-nav [data-v="operadores"]').hidden = !pode("operadores.ler"); $("a-op").hidden = !pode("auditoria.ler"); $("a-verificar").hidden = !pode("auditoria.verificar"); $("a-csv").hidden = !pode("auditoria.ler");
+    document.querySelector('#ax-nav [data-v="operadores"]').hidden = !pode("operadores.ler"); document.querySelector('#ax-nav [data-v="admins"]').hidden = !pode("admins.gerir"); $("a-op").hidden = !pode("auditoria.ler"); $("a-verificar").hidden = !pode("auditoria.verificar"); $("a-csv").hidden = !pode("auditoria.ler");
     seguro(carregarEquipe)(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "dashboard"); ligarTempoReal();
     S.timer = setInterval(() => { if (!document.hidden && S.vista === "dashboard") seguro(carregarDashboard)(); }, 30000);   // métricas do período; o resto vem pelo stream
 }
@@ -128,6 +128,30 @@ async function carregarEquipe() {
     $("c-resp").innerHTML = '<option value="">Qualquer responsável</option><option value="nenhum">Sem responsável</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o?.nome)}</option>`).join("");
     $("a-op").innerHTML = '<option value="">Todos os operadores</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o?.nome)}</option>`).join("");
 }
+
+// ---------- administradores (contas do painel administrativo) ----------
+async function carregarAdmins() {
+    const l = await consultar("ti/administradores");
+    $("ad-body").innerHTML = l.length ? l.map((a) => `<tr>${td("Nome", esc(a.nome || "—"))}${td("E-mail", esc(a.email))}${td("Criado em", esc(dt(a.criadoEm)))}${td("Origem", esc(a.origem))}
+        ${td("", `<div class="ax-acts"><button class="ax-btn sm" data-aa="senha" data-uid="${esc(a.uid)}" data-nome="${esc(a.nome || a.email)}">Redefinir senha</button><button class="ax-btn sm danger" data-aa="revogar" data-uid="${esc(a.uid)}" data-nome="${esc(a.nome || a.email)}">Remover acesso</button></div>`)}</tr>`).join("") : vazio(5, "Nenhum administrador encontrado.");
+}
+$("ad-novo").addEventListener("click", seguro(async () => {
+    const v = await formulario({ titulo: "Novo administrador", texto: "Cria a conta com e-mail já verificado e acesso ao Painel administrativo. Senha em branco gera uma temporária (mostrada uma única vez).", ok: "Criar", campos: [
+        { n: "nome", label: "Nome completo", req: true, min: 3, max: 100 }, { n: "email", label: "E-mail", tipo: "email", req: true, max: 120 }, { n: "senha", label: "Senha (opcional)", tipo: "password", max: 128 }] });
+    if (!v) return; if (!v.senha) delete v.senha;
+    const r = await sensivel(() => chamarFuncao("ti/administradores", v)); toast("Administrador criado.", "ok"); await carregarAdmins(); if (r.senhaTemporaria) senhaUnica(r.administrador?.nome, r.senhaTemporaria);
+}));
+$("ad-body").addEventListener("click", seguro(async (e) => {
+    const b = e.target.closest("[data-aa]"); if (!b) return; const { aa, uid, nome } = b.dataset, base = `ti/administradores/${encodeURIComponent(uid)}`; let r;
+    if (aa === "senha") {
+        const v = await formulario({ titulo: `Redefinir senha de ${nome}`, texto: "Encerra as sessões abertas dessa conta. Senha em branco gera uma temporária.", ok: "Redefinir", perigo: true, campos: [{ n: "senha", label: "Nova senha (opcional)", tipo: "password", max: 128 }] });
+        if (!v) return; if (!v.senha) delete v.senha; r = await sensivel(() => chamarFuncao(base + "/senha", v)); toast("Senha redefinida.", "ok");
+    } else if (aa === "revogar") {
+        if (!(await formulario({ titulo: `Remover o acesso de ${nome}?`, texto: "A conta deixa de ser administradora na hora (as sessões são encerradas). Ela continua existindo, sem papel.", ok: "Remover", perigo: true }))) return;
+        await sensivel(() => chamarFuncao(base + "/revogar", {})); toast("Acesso removido.", "ok");
+    }
+    await carregarAdmins(); if (r?.senhaTemporaria) senhaUnica(nome, r.senhaTemporaria);
+}));
 
 // ---------- perfil do solicitante (loja/promotor) ----------
 const brlC = (c) => ((Number(c) || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -150,9 +174,9 @@ async function verPerfil(uid, tipo) {
 const menu = (o) => { $("ax-side").classList.toggle("open", o); $("ax-veil").hidden = !o; $("ax-burger").setAttribute("aria-expanded", String(o)); document.body.style.overflow = o ? "hidden" : ""; };
 $("ax-burger").addEventListener("click", () => menu(!$("ax-side").classList.contains("open"))); $("ax-veil").addEventListener("click", () => menu(false));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu(false); });
-const CARGA = { dashboard: () => carregarDashboard(), chamados: () => carregarChamados(true), operadores: () => carregarOperadores(), auditoria: () => carregarAuditoria(true) };
+const CARGA = { dashboard: () => carregarDashboard(), chamados: () => carregarChamados(true), operadores: () => carregarOperadores(), admins: () => carregarAdmins(), auditoria: () => carregarAuditoria(true) };
 function abrir(v) {
-    if (!(v in TITULOS) || (v === "operadores" && !pode("operadores.ler"))) v = "dashboard";
+    if (!(v in TITULOS) || (v === "operadores" && !pode("operadores.ler")) || (v === "admins" && !pode("admins.gerir"))) v = "dashboard";
     S.vista = v; menu(false); $("ax-titulo").textContent = TITULOS[v]; document.title = `${TITULOS[v]} — TI Abastece Já`;
     for (const k of Object.keys(TITULOS)) $("v-" + k).hidden = k !== v;
     for (const b of document.querySelectorAll("#ax-nav .ax-nav")) b.classList.toggle("sel", b.dataset.v === v);

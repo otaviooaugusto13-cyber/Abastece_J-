@@ -4,6 +4,7 @@
 //   /ti/auditoria ...         trilha de auditoria: consulta, exportação CSV, verificação da cadeia     (gestor; técnico vê só a sua)
 //   /ti/chamados ...          fila e atendimento de chamados
 //   /ti/dashboard, /ti/stream métricas, ranking e tempo real (online + fila)
+//   /ti/administradores ...   contas de ADMIN criadas pela TI: criar, redefinir senha, remover acesso (gestor)
 //   /ti/solicitantes/:uid/perfil  perfil completo da loja/promotor que abriu o chamado (CPF mascarado; consulta auditada)
 //   /chamados ...             lado do SOLICITANTE (loja/promotor/admin): abrir, acompanhar, responder
 //   /presenca/ping            batimento do app para o contador de usuários online
@@ -11,7 +12,7 @@ const { paraCSV } = require("../lib/csv");
 
 module.exports = (app, x) => {
   const { auth, V, Falha, envelope, limitar, suporte, db, C, Cripto, habilitacao } = x;
-  const ti = x.ti, { operadores, chamados, metricas, presenca, tempoReal, auditoria, K } = ti;
+  const ti = x.ti, { operadores, admins, chamados, metricas, presenca, tempoReal, auditoria, K } = ti;
   const lim = limitar({ janelaMs: 60_000, max: 180, nome: "ti", porUsuario: true });
   const limSens = limitar({ janelaMs: 3_600_000, max: 40, nome: "ti-sens", porUsuario: true });
   const limCsv = limitar({ janelaMs: 60_000, max: 6, nome: "ti-csv", porUsuario: true });
@@ -198,5 +199,20 @@ module.exports = (app, x) => {
     }
     await ti.auditar(req, { acao: "solicitante.perfil.ver", alvoTipo: tipo, alvoId: uid, resumo: `Abriu o perfil de ${id.nome || tipo}` });
     res.json(out);
+  }));
+
+  // ================= administradores (conta de admin criada pela TI; só gestor) =================
+  app.get("/ti/administradores", ...S("admins.gerir"), envelope(async (req, res) => res.json(await admins.listar())));
+  app.post("/ti/administradores", ...S("admins.gerir", { sensivel: true }), mutar({ acao: "admin.criar", alvoTipo: "admin" }, async (req) => {
+    const b = req.body || {}, r = await admins.criar({ nome: b.nome, email: b.email, senha: b.senha }, eu(req));
+    return { resposta: r, aud: { alvoId: r.administrador.uid, resumo: `Criou o administrador ${r.administrador.email}`, depois: { nome: r.administrador.nome, email: r.administrador.email, senhaTemporaria: !!r.senhaTemporaria } } };
+  }));
+  app.post("/ti/administradores/:uid/senha", ...S("admins.gerir", { sensivel: true }), mutar((req) => ({ acao: "admin.senha.reset", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Redefinir senha de administrador" }), async (req) => {
+    const uid = uidParam(req), r = await admins.redefinirSenha(uid, { senha: req.body?.senha });
+    return { resposta: r, aud: { alvoId: uid, resumo: `Redefiniu a senha do administrador ${r.email} e encerrou as sessões`, depois: { senhaTemporaria: !!r.senhaTemporaria } } };
+  }));
+  app.post("/ti/administradores/:uid/revogar", ...S("admins.gerir", { sensivel: true }), mutar((req) => ({ acao: "admin.revogar", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Remover acesso de administrador" }), async (req) => {
+    const uid = uidParam(req), r = await admins.revogar(uid, eu(req));
+    return { resposta: { ok: true }, aud: { alvoId: uid, resumo: `Removeu o acesso de administrador de ${r.email}` } };
   }));
 };

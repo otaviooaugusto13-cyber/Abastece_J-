@@ -4,6 +4,7 @@ const { Falha } = require("../erros");
 const K = require("./constantes");
 const { criarAuditoria } = require("./auditoria");
 const { criarOperadores } = require("./operadores");
+const { criarAdmins } = require("./admins");
 const { criarMetricas } = require("./metricas");
 const { criarChamados } = require("./chamados");
 const { criarPresenca } = require("./presenca");
@@ -12,6 +13,7 @@ const { criarTempoReal } = require("./tempo-real");
 function criarTI({ db, admin, FieldValue, Timestamp, V, auth }) {
   const auditoria = criarAuditoria({ db, FieldValue, Timestamp });
   const operadores = criarOperadores({ db, admin, FieldValue, V });
+  const admins = criarAdmins({ db, admin, FieldValue, V, definirPapel: (...a) => auth.definirPapel(...a) });
   const metricas = criarMetricas({ db, FieldValue });
   const chamados = criarChamados({ db, FieldValue, Timestamp, V, metricas });
   const presenca = criarPresenca({ db, Timestamp });
@@ -67,6 +69,6 @@ function criarTI({ db, admin, FieldValue, Timestamp, V, auth }) {
 
   /** Zera caches em memória (uso dos testes). */
   const limparCaches = () => { metricas.limparCache(); chamados.invalidarCache(); presenca.limparCache(); presenca._mapa.clear(); for (const uid of [...operadores._cache.keys()]) operadores.invalidar(uid); };
-  return { auditoria, operadores, metricas, chamados, presenca, tempoReal, bootstrapGestor, exigirTI, recente, auditar, atorDe, limparCaches, K };
+  return { auditoria, operadores, admins, metricas, chamados, presenca, tempoReal, bootstrapGestor, exigirTI, recente, auditar, atorDe, limparCaches, K };
 }
 module.exports = { criarTI };

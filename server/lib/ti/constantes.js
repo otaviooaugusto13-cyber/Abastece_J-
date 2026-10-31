@@ -6,7 +6,7 @@ const { Falha } = require("../erros");
 // `gestor` administra a equipe, vê toda a auditoria e redistribui chamados; `tecnico` atende chamados e vê só a própria trilha.
 const NIVEIS = ["gestor", "tecnico"];
 const PERMISSOES = {
-  gestor: ["operadores.ler", "operadores.ler.basico", "operadores.gerir", "auditoria.ler", "auditoria.ler.proprio", "auditoria.verificar", "chamados.ler", "chamados.atender", "chamados.atribuir", "metricas.ler", "presenca.ler"],
+  gestor: ["operadores.ler", "operadores.ler.basico", "operadores.gerir", "auditoria.ler", "auditoria.ler.proprio", "auditoria.verificar", "chamados.ler", "chamados.atender", "chamados.atribuir", "metricas.ler", "presenca.ler", "admins.gerir"],
   tecnico: ["operadores.ler.basico", "auditoria.ler.proprio", "chamados.ler", "chamados.atender", "metricas.ler", "presenca.ler"]
 };
 const pode = (nivel, permissao) => (PERMISSOES[nivel] || []).includes(permissao);
