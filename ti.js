@@ -105,7 +105,7 @@ $("ti-minha-senha").addEventListener("click", () => trocarSenha(false));
 $("ti-sair").addEventListener("click", async () => { try { await chamarFuncao("ti/sessao/sair", {}); } catch { /* sai mesmo assim */ } await signOut(auth); });
 
 function iniciar() {
-    $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op.nome} · ${S.op.nivel}`;
+    $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op?.nome} · ${S.op.nivel}`;
     for (const sel of [$("c-pri")]) sel.innerHTML = '<option value="">Todas as prioridades</option>' + S.cfg.prioridades.map((p) => `<option value="${esc(p)}">${esc(PRI[p])}</option>`).join("");
     document.querySelector('#ax-nav [data-v="operadores"]').hidden = !pode("operadores.ler"); $("a-op").hidden = !pode("auditoria.ler"); $("a-verificar").hidden = !pode("auditoria.verificar"); $("a-csv").hidden = !pode("auditoria.ler");
     seguro(carregarEquipe)(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "dashboard"); ligarTempoReal();
@@ -114,8 +114,8 @@ function iniciar() {
 async function carregarEquipe() {
     S.equipe = await consultar("ti/operadores");
     const opts = S.equipe.filter((o) => o.status === "ativo");
-    $("c-resp").innerHTML = '<option value="">Qualquer responsável</option><option value="nenhum">Sem responsável</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o.nome)}</option>`).join("");
-    $("a-op").innerHTML = '<option value="">Todos os operadores</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o.nome)}</option>`).join("");
+    $("c-resp").innerHTML = '<option value="">Qualquer responsável</option><option value="nenhum">Sem responsável</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o?.nome)}</option>`).join("");
+    $("a-op").innerHTML = '<option value="">Todos os operadores</option>' + opts.map((o) => `<option value="${esc(o.uid)}">${esc(o?.nome)}</option>`).join("");
 }
 
 // ---------- navegação ----------
@@ -183,7 +183,7 @@ async function carregarDashboard() {
     pintarTick({ online: d.online, fila: d.fila, em: d.geradoEm }); const p = d.periodo;
     $("k-tma").textContent = dur(p.tmaSeg); $("k-tma-s").textContent = p.slaAtendimentoPct == null ? "até um operador assumir" : `${p.slaAtendimentoPct}% dentro do SLA`;
     $("k-tmr").textContent = dur(p.tmrSeg); $("k-res").textContent = p.resolvidos; $("k-res-s").textContent = `${p.criados} aberto(s) no período` + (p.slaResolucaoPct == null ? "" : ` · ${p.slaResolucaoPct}% no SLA`);
-    $("d-rank").innerHTML = d.ranking.length ? d.ranking.map((r) => `<tr>${td("#", r.posicao <= 3 ? ["🥇", "🥈", "🥉"][r.posicao - 1] : r.posicao)}${td("Operador", esc(r.nome))}${td("Resolvidos", `<b>${r.resolvidos}</b>`)}${td("Assumidos", r.assumidos)}${td("Atend. médio", dur(r.tmaSeg))}${td("Resol. média", dur(r.tmrSeg))}</tr>`).join("") : vazio(6, "Sem atendimentos no período.");
+    $("d-rank").innerHTML = d.ranking.length ? d.ranking.map((r) => `<tr>${td("#", r.posicao <= 3 ? ["🥇", "🥈", "🥉"][r.posicao - 1] : r.posicao)}${td("Operador", esc(r?.nome))}${td("Resolvidos", `<b>${r.resolvidos}</b>`)}${td("Assumidos", r.assumidos)}${td("Atend. médio", dur(r.tmaSeg))}${td("Resol. média", dur(r.tmrSeg))}</tr>`).join("") : vazio(6, "Sem atendimentos no período.");
     const max = Math.max(1, ...p.serie.flatMap((x) => [x.criados, x.resolvidos]));
     $("d-serie").innerHTML = p.serie.map((x) => `<div title="${esc(x.dia.split("-").reverse().join("/"))}: ${x.criados} criados, ${x.resolvidos} resolvidos"><div class="ti-bar2"><b class="c" style="height:${(x.criados / max) * 100}%"></b><b class="r" style="height:${(x.resolvidos / max) * 100}%"></b></div><span>${esc(x.dia.slice(p.dias > 31 ? 5 : 8))}</span></div>`).join("");
     $("d-fila").innerHTML = fila.itens.length ? fila.itens.map((c) => linhaChamado(c, true)).join("") : vazio(6, "Nenhum chamado em aberto. 🎉");
@@ -196,7 +196,7 @@ const prazo = (c) => {
     const ms = new Date(alvo).getTime() - Date.now(); return ms < 0 ? `<span class="ti-late">atrasado ${esc(dur(-ms / 1000))}</span>` : `em ${esc(dur(ms / 1000))}`;
 };
 const linhaChamado = (c, curta = false) => `<tr class="ti-click" data-id="${esc(c.id)}">${td("Protocolo", esc(c.protocolo))}${td("Chamado", `<b>${esc(c.titulo)}</b><br><span class="ax-xs ax-mut">${esc(CAT[c.categoria] || c.categoria)}</span>`)}${td("Prioridade", priBadge(c.prioridade))}${td("Status", stBadge(c.status))}`
-    + (curta ? "" : td("Solicitante", esc(c.solicitante.nome || "—"))) + td("Responsável", esc(c.atribuidoNome || "—")) + td("Prazo", prazo(c)) + (curta ? "" : td("Aberto", `${esc(dt(c.criadoEm))}<br><span class="ax-xs ax-mut">há ${esc(idade(c.criadoEm))}</span>`)) + "</tr>";
+    + (curta ? "" : td("Solicitante", esc(c.solicitante?.nome || "—"))) + td("Responsável", esc(c.atribuidoNome || "—")) + td("Prazo", prazo(c)) + (curta ? "" : td("Aberto", `${esc(dt(c.criadoEm))}<br><span class="ax-xs ax-mut">há ${esc(idade(c.criadoEm))}</span>`)) + "</tr>";
 async function carregarChamados(reiniciar) {
     for (const b of document.querySelectorAll("#c-visao .ax-pill")) b.classList.toggle("sel", b.dataset.v === S.cv);
     const q = new URLSearchParams({ visao: S.cv, limite: "100" }); for (const [k, id] of [["prioridade", "c-pri"], ["atribuido", "c-resp"], ["q", "c-busca"]]) if ($(id).value.trim()) q.set(k, $(id).value.trim());
@@ -226,7 +226,7 @@ async function detalhe(id) {
     d.innerHTML = `<form method="dialog"><div class="ax-row"><h2 class="ax-grow">${esc(c.protocolo)} · ${esc(c.titulo)}</h2><button class="ax-btn sm" value="x" aria-label="Fechar">✕</button></div>
         <div class="ax-row ax-mt">${priBadge(c.prioridade)} ${stBadge(c.status)} ${badge(CAT[c.categoria] || c.categoria)} ${c.reaberturas ? badge(`reaberto ${c.reaberturas}x`, "r") : ""}</div>
         <p class="ax-sm ax-mt" style="white-space:pre-wrap">${esc(c.descricao)}</p>
-        <div class="ti-split ax-mt ax-sm"><div><span class="ax-mut">Solicitante</span><br>${esc(c.solicitante.nome)} <span class="ax-mut">(${esc(c.solicitante.tipo)})</span></div><div><span class="ax-mut">Responsável</span><br>${esc(c.atribuidoNome || "—")}</div><div><span class="ax-mut">Aberto em</span><br>${esc(dt(c.criadoEm))}</div><div><span class="ax-mut">1º atendimento</span><br>${c.atendidoEm ? esc(dur(c.tempoAtendSeg)) : "ainda não"}</div><div><span class="ax-mut">Prazo</span><br>${prazo(c)}</div></div>
+        <div class="ti-split ax-mt ax-sm"><div><span class="ax-mut">Solicitante</span><br>${esc(c.solicitante?.nome)} <span class="ax-mut">(${esc(c.solicitante.tipo)})</span></div><div><span class="ax-mut">Responsável</span><br>${esc(c.atribuidoNome || "—")}</div><div><span class="ax-mut">Aberto em</span><br>${esc(dt(c.criadoEm))}</div><div><span class="ax-mut">1º atendimento</span><br>${c.atendidoEm ? esc(dur(c.tempoAtendSeg)) : "ainda não"}</div><div><span class="ax-mut">Prazo</span><br>${prazo(c)}</div></div>
         ${c.resolucao ? `<p class="ax-sm ax-mt"><b>Resolução:</b> ${esc(c.resolucao)}</p>` : ""}
         <h3 class="ax-mt">Linha do tempo</h3><div class="ti-tl ax-mt">${ev}</div>
         <div class="ax-row ax-mt" id="ti-acoes"></div></form>`;
@@ -238,7 +238,7 @@ async function detalhe(id) {
         const rot = { aguardando_usuario: "Aguardar usuário", resolvido: "Resolver", aberto: "Devolver à fila", cancelado: "Cancelar", em_atendimento: c.status === "resolvido" ? "Reabrir" : "Retomar" }[p];
         btn(rot, async () => { const exige = p === "resolvido" || p === "cancelado"; const v = await formulario({ titulo: rot, ok: rot, perigo: p === "cancelado", campos: [{ n: "nota", label: p === "resolvido" ? "O que foi feito (o solicitante verá)" : exige ? "Motivo" : "Nota (opcional)", tipo: "textarea", req: exige, min: exige ? 5 : 0, max: 1000 }] }); return v && acao("status", { status: p, nota: v.nota }); }, p === "resolvido" ? "ok" : p === "cancelado" ? "danger" : "");
     }
-    if (gestor && aberto) btn("➜ Encaminhar", async () => { const v = await formulario({ titulo: "Encaminhar chamado", ok: "Encaminhar", campos: [{ n: "operadorUid", label: "Para", tipo: "select", req: true, opcoes: S.equipe.filter((o) => o.status === "ativo" && o.uid !== c.atribuidoUid).map((o) => [o.uid, `${o.nome} (${o.nivel})`]) }] }); return v && acao("atribuir", v); });
+    if (gestor && aberto) btn("➜ Encaminhar", async () => { const v = await formulario({ titulo: "Encaminhar chamado", ok: "Encaminhar", campos: [{ n: "operadorUid", label: "Para", tipo: "select", req: true, opcoes: S.equipe.filter((o) => o.status === "ativo" && o.uid !== c.atribuidoUid).map((o) => [o.uid, `${o?.nome} (${o.nivel})`]) }] }); return v && acao("atribuir", v); });
     if (podeMexer && aberto) btn("⚑ Prioridade", async () => { const v = await formulario({ titulo: "Alterar prioridade", ok: "Salvar", campos: [{ n: "prioridade", label: "Prioridade", tipo: "select", valor: c.prioridade, opcoes: S.cfg.prioridades.map((p) => [p, PRI[p]]) }] }); return v && v.prioridade !== c.prioridade && acao("prioridade", v, "PUT"); });
     d.showModal();
 }
@@ -249,9 +249,9 @@ async function carregarOperadores() {
     for (const b of document.querySelectorAll("#o-status .ax-pill")) b.classList.toggle("sel", b.dataset.s === S.os);
     const l = await consultar(`ti/operadores?status=${S.os}`);
     $("o-nota").textContent = "Exclusão é lógica: o histórico e a auditoria continuam apontando para a pessoa. Senhas nunca ficam guardadas; reset gera uma senha temporária exibida uma única vez.";
-    $("o-body").innerHTML = l.length ? l.map((o) => `<tr>${td("Nome", esc(o.nome) + (o.uid === S.op.uid ? " (você)" : ""))}${td("E-mail", esc(o.email))}${td("Nível", badge(o.nivel, o.nivel === "gestor" ? "y" : ""))}${td("Último acesso", esc(dt(o.ultimoLoginEm)))}
+    $("o-body").innerHTML = l.length ? l.map((o) => `<tr>${td("Nome", esc(o?.nome) + (o.uid === S.op.uid ? " (você)" : ""))}${td("E-mail", esc(o.email))}${td("Nível", badge(o.nivel, o.nivel === "gestor" ? "y" : ""))}${td("Último acesso", esc(dt(o.ultimoLoginEm)))}
         ${td("Situação", o.status === "excluido" ? badge("Excluído", "r") + `<br><span class="ax-xs ax-mut">${esc(o.motivoExclusao)} — ${esc(o.excluidoPor)}</span>` : o.trocarSenha ? badge("Troca de senha pendente", "y") : badge("Ativo", "g"))}
-        ${td("", o.status === "excluido" ? `<button class="ax-btn sm ok" data-oa="restaurar" data-uid="${esc(o.uid)}" data-nome="${esc(o.nome)}">Restaurar</button>` : o.uid === S.op.uid ? "" : `<div class="ax-acts"><button class="ax-btn sm" data-oa="nivel" data-uid="${esc(o.uid)}" data-nome="${esc(o.nome)}" data-n="${esc(o.nivel)}">Nível</button><button class="ax-btn sm" data-oa="senha" data-uid="${esc(o.uid)}" data-nome="${esc(o.nome)}">Redefinir senha</button><button class="ax-btn sm danger" data-oa="excluir" data-uid="${esc(o.uid)}" data-nome="${esc(o.nome)}">Excluir</button></div>`, "acts")}</tr>`).join("") : vazio(6, "Nenhum operador.");
+        ${td("", o.status === "excluido" ? `<button class="ax-btn sm ok" data-oa="restaurar" data-uid="${esc(o.uid)}" data-nome="${esc(o?.nome)}">Restaurar</button>` : o.uid === S.op.uid ? "" : `<div class="ax-acts"><button class="ax-btn sm" data-oa="nivel" data-uid="${esc(o.uid)}" data-nome="${esc(o?.nome)}" data-n="${esc(o.nivel)}">Nível</button><button class="ax-btn sm" data-oa="senha" data-uid="${esc(o.uid)}" data-nome="${esc(o?.nome)}">Redefinir senha</button><button class="ax-btn sm danger" data-oa="excluir" data-uid="${esc(o.uid)}" data-nome="${esc(o?.nome)}">Excluir</button></div>`, "acts")}</tr>`).join("") : vazio(6, "Nenhum operador.");
 }
 $("o-status").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) { S.os = b.dataset.s; seguro(carregarOperadores)(); } });
 $("o-novo").addEventListener("click", seguro(async () => {
@@ -259,7 +259,7 @@ $("o-novo").addEventListener("click", seguro(async () => {
         { n: "nome", label: "Nome completo", req: true, min: 3, max: 100 }, { n: "email", label: "E-mail corporativo", tipo: "email", req: true, max: 120 },
         { n: "nivel", label: "Nível", tipo: "select", valor: "tecnico", opcoes: [["tecnico", "Técnico — atende chamados"], ["gestor", "Gestor — gerencia equipe, auditoria e encaminha chamados"]] }, { n: "senha", label: "Senha (opcional)", tipo: "password", max: 128 }] });
     if (!v) return; if (!v.senha) delete v.senha;
-    const r = await sensivel(() => chamarFuncao("ti/operadores", v)); toast("Operador cadastrado.", "ok"); await carregarEquipe(); await carregarOperadores(); if (r.senhaTemporaria) senhaUnica(r.operador.nome, r.senhaTemporaria);
+    const r = await sensivel(() => chamarFuncao("ti/operadores", v)); toast("Operador cadastrado.", "ok"); await carregarEquipe(); await carregarOperadores(); if (r.senhaTemporaria) senhaUnica(r.operador?.nome, r.senhaTemporaria);
 }));
 $("o-body").addEventListener("click", seguro(async (e) => {
     const b = e.target.closest("[data-oa]"); if (!b) return; const { oa, uid, nome } = b.dataset, base = `ti/operadores/${encodeURIComponent(uid)}`; let r;
