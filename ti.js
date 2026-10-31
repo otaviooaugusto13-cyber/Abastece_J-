@@ -86,7 +86,7 @@ onAuthStateChanged(auth, async (u) => {
         $("ti-login-erro").textContent = e.code === "sem-permissao" || e.code === "operador-inativo" ? "Esta conta não tem acesso ao painel de TI." : "Não foi possível entrar agora. Tente novamente.";
         await signOut(auth); return;
     }
-    if (S.op.trocarSenha) { $("ti-login").hidden = true; return trocaObrigatoria(); }
+    if (S.op?.trocarSenha) { $("ti-login").hidden = true; return trocaObrigatoria(); }
     iniciar();
 });
 /** Primeiro acesso / senha redefinida por um gestor: obriga criar a própria senha antes de qualquer coisa. */
