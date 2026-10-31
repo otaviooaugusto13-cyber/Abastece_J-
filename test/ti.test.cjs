@@ -100,9 +100,10 @@ t("reset de senha por gestor: temporária, revoga sessões, obriga troca; não v
   falha(await chamar("POST", "/ti/operadores/ti-tec1/senha", { token: "tec1" }), 403, "sem-permissao");
   falha(await chamar("POST", "/ti/operadores/ti-gest/senha", { token: "gest" }), 409, "proprio-usuario");
   E.contas.set("ti-tec1", { uid: "ti-tec1", email: "ana@abastece.ti" });
-  const r = await chamar("POST", "/ti/operadores/ti-tec1/senha", { token: "gest" }); ok(r);
+  falha(await chamar("POST", "/ti/operadores/ti-tec1/senha", { token: "gest" }), 400, "dados-invalidos");   // motivo obrigatório (e não pede mais a senha atual)
+  const r = await chamar("POST", "/ti/operadores/ti-tec1/senha", { token: "gest", body: { motivo: "Esqueceu a senha" } }); ok(r);
   assert.equal(E.contas.get("ti-tec1").password, r.json.senhaTemporaria); assert.ok(E.revogados.has("ti-tec1")); assert.equal((await get("ti_operadores", "ti-tec1")).trocarSenha, true);
-  falha(await chamar("POST", "/ti/operadores/nao-existe/senha", { token: "gest" }), 404, "nao-encontrado");
+  falha(await chamar("POST", "/ti/operadores/nao-existe/senha", { token: "gest", body: { motivo: "Esqueceu a senha" } }), 404, "nao-encontrado");
 });
 t("exclusão lógica: marca, desativa login, revoga sessões, devolve chamados à fila; mantém o registro; restaurar reativa com senha nova", async () => {
   await operador("gest", "gestor"); await operador("tec1", "tecnico");
@@ -395,9 +396,9 @@ t("admin: altera nível, redefine senha, remove e libera de volta; removido perd
   ok(await chamar("PUT", `/admin/ti/operadores/${uid}/nivel`, { token: "adm", body: { nivel: "gestor" } }));
   // senha: informada pelo admin → troca obrigatória; sem corpo → temporária devolvida uma vez; fraca → 400
   falha(await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { senha: "fraca" } }), 400);
-  const r1 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { senha: SENHA } }); ok(r1); assert.equal(r1.json.senhaTemporaria, undefined);
+  const r1 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { senha: SENHA, motivo: "Esqueceu a senha" } }); ok(r1); assert.equal(r1.json.senhaTemporaria, undefined);
   const dop = await get("ti_operadores", uid); assert.equal(dop.trocarSenha, true); assert.equal(dop.acesso, "senha");
-  const r2 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: {} }); ok(r2); assert.ok(r2.json.senhaTemporaria);
+  const r2 = await chamar("POST", `/admin/ti/operadores/${uid}/senha`, { token: "adm", body: { motivo: "Esqueceu a senha" } }); ok(r2); assert.ok(r2.json.senhaTemporaria);
   // remover exige motivo; é o ÚNICO gestor e mesmo assim o admin consegue (a trava de "último gestor" é do TI, não do admin)
   falha(await chamar("POST", `/admin/ti/operadores/${uid}/excluir`, { token: "adm", body: { motivo: "x" } }), 400);
   const ex = await chamar("POST", `/admin/ti/operadores/${uid}/excluir`, { token: "adm", body: { motivo: "Saiu da empresa" } }); ok(ex, "remover");

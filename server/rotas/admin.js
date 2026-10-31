@@ -105,15 +105,15 @@ module.exports = (app, x) => {
   }));
 
   /** Define a senha: informada pelo admin (`senha`) ou temporária aleatória (sem `senha`). Revoga as sessões; por padrão exige trocar no próximo acesso. */
-  app.post("/admin/ti/operadores/:uid/senha", ...ADM, RECENTE, envelope(async (req, res) => {
-    const uid = uidTI(req), b = V.somente(req.body, ["senha", "exigirTroca"]), informada = typeof b.senha === "string" && b.senha !== "";
+  app.post("/admin/ti/operadores/:uid/senha", ...ADM, envelope(async (req, res) => {
+    const uid = uidTI(req), b = V.somente(req.body, ["senha", "exigirTroca", "motivo"]), motivo = V.texto(b.motivo, "motivo", { min: 5, max: 200 }), informada = typeof b.senha === "string" && b.senha !== "";
     const r = await ti.operadores.definirSenha(uid, informada ? { senha: b.senha, forcarTroca: b.exigirTroca !== false } : { temporaria: true }); ti.tempoReal.encerrarDe(uid);
-    await auditarTI(req, "senha", uid, informada ? "Definiu uma nova senha e revogou as sessões" : "Gerou senha temporária e revogou as sessões", { depois: { trocarSenha: informada ? b.exigirTroca !== false : true } });
+    await auditarTI(req, "senha", uid, informada ? "Definiu uma nova senha e revogou as sessões" : "Gerou senha temporária e revogou as sessões", { depois: { trocarSenha: informada ? b.exigirTroca !== false : true }, meta: { motivo } });
     res.json(r);
   }));
 
   /** Remover = exclusão lógica: desativa o login, revoga as sessões e devolve os chamados dele à fila. O histórico/auditoria continuam apontando para a pessoa. */
-  app.post("/admin/ti/operadores/:uid/excluir", ...ADM, RECENTE, envelope(async (req, res) => {
+  app.post("/admin/ti/operadores/:uid/excluir", ...ADM, envelope(async (req, res) => {
     const uid = uidTI(req), r = await ti.operadores.excluir(uid, req.body?.motivo, euAdmin(req));
     const devolvidos = await ti.chamados.devolverFila(uid, { uid: req.usuario.uid, nome: "Administrador", nivel: "admin", tipo: "admin" }); ti.tempoReal.encerrarDe(uid);
     await auditarTI(req, "excluir", uid, `Removeu ${r.operador.nome} (exclusão lógica)`, { antes: r.antes, depois: r.depois, meta: { motivo: r.operador.motivoExclusao, chamadosDevolvidos: devolvidos } });

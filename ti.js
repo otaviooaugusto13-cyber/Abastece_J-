@@ -144,11 +144,12 @@ $("ad-novo").addEventListener("click", seguro(async () => {
 $("ad-body").addEventListener("click", seguro(async (e) => {
     const b = e.target.closest("[data-aa]"); if (!b) return; const { aa, uid, nome } = b.dataset, base = `ti/administradores/${encodeURIComponent(uid)}`; let r;
     if (aa === "senha") {
-        const v = await formulario({ titulo: `Redefinir senha de ${nome}`, texto: "Encerra as sessões abertas dessa conta. Senha em branco gera uma temporária.", ok: "Redefinir", perigo: true, campos: [{ n: "senha", label: "Nova senha (opcional)", tipo: "password", max: 128 }] });
-        if (!v) return; if (!v.senha) delete v.senha; r = await sensivel(() => chamarFuncao(base + "/senha", v)); toast("Senha redefinida.", "ok");
+        const v = await formulario({ titulo: `Redefinir senha de ${nome}`, texto: "Encerra as sessões abertas dessa conta. Senha em branco gera uma temporária. Quem fez a ação e o motivo ficam na auditoria.", ok: "Redefinir", perigo: true, campos: [
+            { n: "senha", label: "Nova senha (opcional)", tipo: "password", max: 128 }, { n: "motivo", label: "Motivo (fica na auditoria)", req: true, min: 5, max: 200 }] });
+        if (!v) return; if (!v.senha) delete v.senha; r = await chamarFuncao(base + "/senha", v); toast("Senha redefinida.", "ok");
     } else if (aa === "revogar") {
-        if (!(await formulario({ titulo: `Remover o acesso de ${nome}?`, texto: "A conta deixa de ser administradora na hora (as sessões são encerradas). Ela continua existindo, sem papel.", ok: "Remover", perigo: true }))) return;
-        await sensivel(() => chamarFuncao(base + "/revogar", {})); toast("Acesso removido.", "ok");
+        const v = await formulario({ titulo: `Remover o acesso de ${nome}?`, texto: "A conta deixa de ser administradora na hora (as sessões são encerradas). Ela continua existindo, sem papel.", ok: "Remover", perigo: true, campos: [{ n: "motivo", label: "Motivo (fica na auditoria)", req: true, min: 5, max: 200 }] });
+        if (!v) return; await chamarFuncao(base + "/revogar", v); toast("Acesso removido.", "ok");
     }
     await carregarAdmins(); if (r?.senhaTemporaria) senhaUnica(nome, r.senhaTemporaria);
 }));
@@ -317,8 +318,12 @@ $("o-novo").addEventListener("click", seguro(async () => {
 $("o-body").addEventListener("click", seguro(async (e) => {
     const b = e.target.closest("[data-oa]"); if (!b) return; const { oa, uid, nome } = b.dataset, base = `ti/operadores/${encodeURIComponent(uid)}`; let r;
     if (oa === "nivel") { const v = await formulario({ titulo: `Nível de ${nome}`, ok: "Salvar", campos: [{ n: "nivel", label: "Nível", tipo: "select", valor: b.dataset.n, opcoes: [["tecnico", "Técnico"], ["gestor", "Gestor"]] }] }); if (!v || v?.nivel === b.dataset.n) return; await sensivel(() => chamarFuncao(base + "/nivel", v, "PUT")); toast("Nível atualizado.", "ok"); }
-    else if (oa === "senha") { if (!(await formulario({ titulo: `Redefinir senha de ${nome}`, texto: "Gera uma senha temporária, encerra as sessões abertas dele(a) e exige nova senha no próximo acesso.", ok: "Redefinir", perigo: true }))) return; r = await sensivel(() => chamarFuncao(base + "/senha", {})); }
-    else if (oa === "excluir") { const v = await formulario({ titulo: `Excluir ${nome}?`, texto: "O acesso é bloqueado imediatamente e os chamados em andamento voltam para a fila. O histórico é preservado e dá para restaurar depois.", ok: "Excluir", perigo: true, campos: [{ n: "motivo", label: "Motivo (fica na auditoria)", req: true, min: 5, max: 200 }] }); if (!v) return; const x = await sensivel(() => chamarFuncao(base + "/excluir", v)); toast(`${nome} excluído(a). ${x.chamadosDevolvidos} chamado(s) devolvido(s) à fila.`, "ok"); }
+    else if (oa === "senha") {
+        const v = await formulario({ titulo: `Redefinir senha de ${nome}`, texto: "Encerra as sessões abertas dele(a) e exige trocar a senha no próximo acesso. Senha em branco gera uma temporária. Quem fez a ação e o motivo ficam na auditoria.", ok: "Redefinir", perigo: true, campos: [
+            { n: "senha", label: "Nova senha (opcional)", tipo: "password", max: 128 }, { n: "motivo", label: "Motivo (fica na auditoria)", req: true, min: 5, max: 200 }] });
+        if (!v) return; if (!v.senha) delete v.senha; r = await chamarFuncao(base + "/senha", v); toast("Senha redefinida.", "ok");
+    }
+    else if (oa === "excluir") { const v = await formulario({ titulo: `Excluir ${nome}?`, texto: "O acesso é bloqueado imediatamente e os chamados em andamento voltam para a fila. O histórico é preservado e dá para restaurar depois.", ok: "Excluir", perigo: true, campos: [{ n: "motivo", label: "Motivo (fica na auditoria)", req: true, min: 5, max: 200 }] }); if (!v) return; const x = await chamarFuncao(base + "/excluir", v); toast(`${nome} excluído(a). ${x.chamadosDevolvidos} chamado(s) devolvido(s) à fila.`, "ok"); }
     else if (oa === "restaurar") { if (!(await formulario({ titulo: `Restaurar ${nome}?`, texto: "Reativa o acesso com uma nova senha temporária.", ok: "Restaurar" }))) return; r = await sensivel(() => chamarFuncao(base + "/restaurar", {})); }
     await carregarEquipe(); await carregarOperadores(); if (r?.senhaTemporaria) senhaUnica(nome, r.senhaTemporaria);
 }));

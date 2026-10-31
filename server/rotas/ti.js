@@ -18,6 +18,8 @@ module.exports = (app, x) => {
   const limCsv = limitar({ janelaMs: 60_000, max: 6, nome: "ti-csv", porUsuario: true });
   const limAud = limitar({ janelaMs: 60_000, max: 30, nome: "ti-aud", porUsuario: true });
   /** Cadeia padrão: autoriza (permissão) → [login recente] → limite por operador. */
+  /** Motivo obrigatório das ações administrativas: vai para a auditoria junto com QUEM fez (nome, e-mail, IP). */
+  const motivoDe = (req) => V.texto(req.body?.motivo, "motivo", { min: 5, max: 200 });
   const S = (permissao, { sensivel = false, ...opc } = {}) => [ti.exigirTI(permissao, opc), ...(sensivel ? [ti.recente, limSens] : [lim])];
   const eu = (req) => ({ uid: req.usuario.uid, nome: req.operador.nome, nivel: req.operador.nivel, tipo: "ti" });
 
@@ -64,12 +66,13 @@ module.exports = (app, x) => {
     return { resposta: { operador: r.operador }, aud: { alvoId: uid, resumo: `Nível de ${r.operador.nome}: ${r.antes.nivel} → ${r.depois.nivel}`, antes: r.antes, depois: r.depois } };
   }));
   /** Reset por gestor: gera senha temporária (mostrada uma vez), revoga sessões e obriga a troca no próximo acesso. */
-  app.post("/ti/operadores/:uid/senha", ...S("operadores.gerir", { sensivel: true }), mutar((req) => ({ acao: "operador.senha.reset", alvoTipo: "operador", alvoId: req.params.uid, resumo: "Redefinir senha" }), async (req) => {
+  app.post("/ti/operadores/:uid/senha", ...S("operadores.gerir"), mutar((req) => ({ acao: "operador.senha.reset", alvoTipo: "operador", alvoId: req.params.uid, resumo: "Redefinir senha" }), async (req) => {
     const uid = uidParam(req); if (uid === req.usuario.uid) throw new Falha(409, "Para a sua própria senha, use \"Alterar minha senha\".", "proprio-usuario");
-    const r = await operadores.definirSenha(uid, { temporaria: true }); tempoReal.encerrarDe(uid);
-    return { resposta: r, aud: { alvoId: uid, resumo: "Redefiniu a senha (temporária, troca obrigatória) e revogou as sessões", depois: { trocarSenha: true } } };
+    const motivo = motivoDe(req), senha = req.body?.senha, definida = typeof senha === "string" && senha !== "";
+    const r = await operadores.definirSenha(uid, definida ? { senha, forcarTroca: true } : { temporaria: true }); tempoReal.encerrarDe(uid);
+    return { resposta: r, aud: { alvoId: uid, resumo: `Redefiniu a senha (${definida ? "definida pelo gestor" : "temporária"}, troca obrigatória) e revogou as sessões`, depois: { trocarSenha: true }, meta: { motivo } } };
   }));
-  app.post("/ti/operadores/:uid/excluir", ...S("operadores.gerir", { sensivel: true }), mutar((req) => ({ acao: "operador.excluir", alvoTipo: "operador", alvoId: req.params.uid, resumo: "Excluir operador" }), async (req) => {
+  app.post("/ti/operadores/:uid/excluir", ...S("operadores.gerir"), mutar((req) => ({ acao: "operador.excluir", alvoTipo: "operador", alvoId: req.params.uid, resumo: "Excluir operador" }), async (req) => {
     const uid = uidParam(req), r = await operadores.excluir(uid, req.body?.motivo, eu(req));
     const devolvidos = await chamados.devolverFila(uid, eu(req)); tempoReal.encerrarDe(uid);
     return { resposta: { operador: r.operador, chamadosDevolvidos: devolvidos }, aud: { alvoId: uid, resumo: `Excluiu ${r.operador.nome} (exclusão lógica)`, antes: r.antes, depois: r.depois, meta: { motivo: r.operador.motivoExclusao, chamadosDevolvidos: devolvidos } } };
@@ -207,12 +210,12 @@ module.exports = (app, x) => {
     const b = req.body || {}, r = await admins.criar({ nome: b.nome, email: b.email, senha: b.senha }, eu(req));
     return { resposta: r, aud: { alvoId: r.administrador.uid, resumo: `Criou o administrador ${r.administrador.email}`, depois: { nome: r.administrador.nome, email: r.administrador.email, senhaTemporaria: !!r.senhaTemporaria } } };
   }));
-  app.post("/ti/administradores/:uid/senha", ...S("admins.gerir", { sensivel: true }), mutar((req) => ({ acao: "admin.senha.reset", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Redefinir senha de administrador" }), async (req) => {
-    const uid = uidParam(req), r = await admins.redefinirSenha(uid, { senha: req.body?.senha });
-    return { resposta: r, aud: { alvoId: uid, resumo: `Redefiniu a senha do administrador ${r.email} e encerrou as sessões`, depois: { senhaTemporaria: !!r.senhaTemporaria } } };
+  app.post("/ti/administradores/:uid/senha", ...S("admins.gerir"), mutar((req) => ({ acao: "admin.senha.reset", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Redefinir senha de administrador" }), async (req) => {
+    const uid = uidParam(req), motivo = motivoDe(req), r = await admins.redefinirSenha(uid, { senha: req.body?.senha });
+    return { resposta: r, aud: { alvoId: uid, resumo: `Redefiniu a senha do administrador ${r.email} e encerrou as sessões`, depois: { senhaTemporaria: !!r.senhaTemporaria }, meta: { motivo } } };
   }));
-  app.post("/ti/administradores/:uid/revogar", ...S("admins.gerir", { sensivel: true }), mutar((req) => ({ acao: "admin.revogar", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Remover acesso de administrador" }), async (req) => {
-    const uid = uidParam(req), r = await admins.revogar(uid, eu(req));
-    return { resposta: { ok: true }, aud: { alvoId: uid, resumo: `Removeu o acesso de administrador de ${r.email}` } };
+  app.post("/ti/administradores/:uid/revogar", ...S("admins.gerir"), mutar((req) => ({ acao: "admin.revogar", alvoTipo: "admin", alvoId: req.params.uid, resumo: "Remover acesso de administrador" }), async (req) => {
+    const uid = uidParam(req), motivo = motivoDe(req), r = await admins.revogar(uid, eu(req));
+    return { resposta: { ok: true }, aud: { alvoId: uid, resumo: `Removeu o acesso de administrador de ${r.email}`, meta: { motivo } } };
   }));
 };

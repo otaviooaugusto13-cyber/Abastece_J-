@@ -111,8 +111,9 @@ export function iniciarEquipeTI({ sensivel, toast, seguro, pedir }) {
         const r = await formulario({
             titulo: `${o.acesso === "google" ? "Definir senha de" : "Redefinir senha de"} ${o.nome}`, ok: "Salvar senha", texto: "Todas as sessões abertas da pessoa são encerradas.",
             html: campo("ti-senha2", "Nova senha (opcional)", '<input class="ax-in" id="ti-senha2" name="senha" type="text" maxlength="128" autocomplete="off" placeholder="deixe em branco para gerar uma senha temporária">')
-                + `<p class="ax-xs ax-mut ax-mt">${esc(POLITICA)}</p><label class="ax-chk"><input type="checkbox" name="exigirTroca" checked> Exigir que a pessoa troque a senha no próximo acesso</label>`,
-            aoEnviar: (f) => sensivel(() => chamarFuncao(`admin/ti/operadores/${enc(uid)}/senha`, { ...(val(f, "senha") ? { senha: val(f, "senha") } : {}), exigirTroca: f.elements.exigirTroca.checked }))
+                + `<p class="ax-xs ax-mut ax-mt">${esc(POLITICA)}</p><label class="ax-chk"><input type="checkbox" name="exigirTroca" checked> Exigir que a pessoa troque a senha no próximo acesso</label>`
+                + campo("ti-motivo2", "Motivo (fica registrado na auditoria, com o seu usuário)", '<textarea class="ax-ta" id="ti-motivo2" name="motivo" maxlength="200" placeholder="Ex.: esqueceu a senha, suspeita de acesso indevido"></textarea>'),
+            aoEnviar: (f) => { if (val(f, "motivo").trim().length < 5) throw new Error("Informe o motivo (mínimo 5 caracteres)."); return chamarFuncao(`admin/ti/operadores/${enc(uid)}/senha`, { ...(val(f, "senha") ? { senha: val(f, "senha") } : {}), exigirTroca: f.elements.exigirTroca.checked, motivo: val(f, "motivo").trim() }); }
         });
         if (!r) return;
         if (r.senhaTemporaria) await mostrarSenha(o.nome, r.senhaTemporaria);
@@ -123,7 +124,7 @@ export function iniciarEquipeTI({ sensivel, toast, seguro, pedir }) {
         const r = await formulario({
             titulo: `Remover ${o.nome}?`, ok: "Remover acesso", perigo: true, texto: "O login é desativado na hora, as sessões são encerradas e os chamados que ela atendia voltam para a fila. O histórico fica guardado e você pode liberar o acesso de volta depois.",
             html: campo("ti-motivo", "Motivo (fica registrado na auditoria)", '<textarea class="ax-ta" id="ti-motivo" name="motivo" maxlength="200" placeholder="Ex.: saiu da empresa, mudou de função"></textarea>'),
-            aoEnviar: (f) => { if (val(f, "motivo").trim().length < 5) throw new Error("Informe o motivo (mínimo 5 caracteres)."); return sensivel(() => chamarFuncao(`admin/ti/operadores/${enc(uid)}/excluir`, { motivo: val(f, "motivo").trim() })); }
+            aoEnviar: (f) => { if (val(f, "motivo").trim().length < 5) throw new Error("Informe o motivo (mínimo 5 caracteres)."); return chamarFuncao(`admin/ti/operadores/${enc(uid)}/excluir`, { motivo: val(f, "motivo").trim() }); }
         });
         if (r) { toast(`${o.nome} removido(a).`, "ok"); await carregar(); }
     }

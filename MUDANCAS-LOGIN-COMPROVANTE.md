@@ -26,3 +26,8 @@
 - Backend: `server/lib/ti/admins.js`, rotas `/ti/administradores...`, permissão `admins.gerir` (só gestor). Não converte conta de TI/marca, não mexe na própria conta e sempre deixa ao menos um admin.
 - Atenção: com `ADMIN_EXIGE_MFA=1` (padrão do `render.yaml`) as telas do admin falham sem 2º fator, e o painel não tem tela para cadastrá-lo. Se não usa MFA no Firebase, ponha `ADMIN_EXIGE_MFA=0` no Render.
 - O painel administrativo ainda não tem tela para o admin trocar a própria senha: defina a senha final ao criar.
+
+## Redefinir senha / excluir sem pedir a senha atual
+- Painel de TI (operadores e administradores) e Painel administrativo (operadores de TI): **redefinir senha** e **excluir/remover** não pedem mais a senha atual. Pedem a **nova senha** (opcional; em branco gera temporária) e o **motivo** (obrigatório, mín. 5 caracteres).
+- A auditoria registra quem fez (nome, e-mail, IP), o alvo e o motivo. Criar conta, mudar nível e restaurar continuam exigindo login recente.
+- Testes ajustados em `test/ti.test.cjs` (motivo obrigatório).
