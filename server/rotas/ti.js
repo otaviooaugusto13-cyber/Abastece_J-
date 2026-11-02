@@ -163,6 +163,13 @@ module.exports = (app, x) => {
     const t = await chamados.criar({ titulo: b.titulo, descricao: b.descricao, categoria: b.categoria, prioridade: V.opcao(b.urgencia || "media", K.URGENCIA_USUARIO, "urgência") }, { solicitante: sol, origem: "usuario", criador: sol });
     res.json({ id: t.id, protocolo: t.protocolo, status: t.status });
   }));
+  // Chamado AUTOMÁTICO: o app captura o erro, abre o chamado e mostra o protocolo na hora. Limite próprio (o manual é 5/h) — o que evita
+  // inundar a fila é a deduplicação por impressão do erro (ver chamados.abrirAutomatico).
+  const limAuto = limitar({ janelaMs: 3_600_000, max: 30, nome: "chamado-auto", porUsuario: true });
+  app.post("/chamados/automatico", auth.exigir(...USU), limAuto, envelope(async (req, res) => {
+    const b = req.body || {}, r = await chamados.abrirAutomatico({ impressao: b.impressao, titulo: b.titulo, descricao: b.descricao }, { solicitante: await quem(req.usuario) });
+    res.json({ id: r.id, protocolo: r.protocolo, repetido: r.repetido });
+  }));
   app.get("/chamados/meus", auth.exigir(...USU), limUsu, envelope(async (req, res) => res.json(await chamados.meus(req.usuario.uid))));
   app.get("/chamados/:id", auth.exigir(...USU), limUsu, envelope(async (req, res) => res.json(await chamados.detalheDoUsuario(req.usuario.uid, req.params.id))));
   app.post("/chamados/:id/responder", auth.exigir(...USU), limUsu, envelope(async (req, res) => {

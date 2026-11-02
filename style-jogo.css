@@ -133,3 +133,4 @@ body.light-theme { --glass: rgba(255, 255, 255, .72); --glass-line: rgba(15, 23,
 .infracao.revogada { opacity: .5; text-decoration: line-through; }
 
 @media (prefers-reduced-motion: reduce) { .coracao.cheio, .radar::before, .barra-nivel i::after, .card.ruptura::after, .sirene, .fase-pill.andamento::before, .alerta-relampago .zap { animation: none !important; } .medalha.nova, .coracao.quebrando, .perda-vida .caixa, .alerta-relampago { animation-duration: .01s !important; } }
+#sheet-suporte { z-index: 1100; }   /* o suporte abre POR CIMA da tela de conta bloqueada (canal de contestação) */

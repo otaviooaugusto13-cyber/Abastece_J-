@@ -10,58 +10,51 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="admin.css">
-<link rel="stylesheet" href="login-cena.css">
+<link rel="stylesheet" href="admin-login.css">
 </head>
 <body class="ax-body">
 
-<main id="ax-login" class="lg-login">
-  <section class="lg-hero" aria-hidden="true">
-    <div class="lg-hero-bg"></div>
-    <header class="lg-logo"><img src="icons/icon-192.png" alt="" width="44" height="44"><span>Abastece Já</span></header>
-    <svg class="lg-scene" viewBox="0 0 800 560" preserveAspectRatio="xMidYMid meet" role="presentation">
-      <defs>
-        <linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#35e0ff"/><stop offset="1" stop-color="#6a7dff"/></linearGradient>
-        <radialGradient id="glow"><stop offset="0" stop-color="#35e0ff" stop-opacity=".55"/><stop offset="1" stop-color="#35e0ff" stop-opacity="0"/></radialGradient>
-        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#6fe7ff" stroke-opacity=".12"/></pattern>
-      </defs>
-      <rect width="800" height="560" fill="url(#grid)"/>
-      <!-- painel: cluster de servidores -->
-      <g class="lg-panel" transform="translate(28 120)"><rect width="230" height="150" rx="12"/><text x="14" y="26">SERVER CLUSTER</text>
-        <rect x="14" y="44" width="150" height="9" rx="4" fill="#ff9f43"/><rect x="14" y="64" width="110" height="9" rx="4" fill="#ffd166"/><rect x="14" y="84" width="170" height="9" rx="4" fill="#3ddc97"/><rect x="14" y="104" width="90" height="9" rx="4" fill="#35e0ff"/>
-        <g fill="#35e0ff" opacity=".85"><rect x="150" y="118" width="10" height="20"/><rect x="166" y="108" width="10" height="30"/><rect x="182" y="98" width="10" height="40"/><rect x="198" y="112" width="10" height="26"/></g></g>
-      <!-- nuvem + rede -->
-      <g class="lg-net" stroke="url(#g1)" fill="none" stroke-width="1.6"><path d="M400 150 L300 230M400 150 L500 230M400 150 L400 250M300 230 L400 250 L500 230M300 230 L220 300M500 230 L590 300"/></g>
-      <circle cx="400" cy="150" r="70" fill="url(#glow)"/>
-      <g class="lg-cloud" fill="#0b2a44" stroke="url(#g1)" stroke-width="2"><path d="M360 160a22 22 0 0 1 8-42 30 30 0 0 1 56-6 24 24 0 0 1 14 48z"/></g>
-      <g fill="#35e0ff" class="lg-nodes"><circle cx="300" cy="230" r="9"/><circle cx="500" cy="230" r="9"/><circle cx="400" cy="250" r="9"/><circle cx="220" cy="300" r="7"/><circle cx="590" cy="300" r="7"/></g>
-      <!-- painel: gráfico -->
-      <g class="lg-panel" transform="translate(560 100)"><rect width="212" height="150" rx="12"/><text x="14" y="26">ATENDIMENTO</text>
-        <g><rect x="16" y="90" width="16" height="40" fill="#35e0ff"/><rect x="40" y="70" width="16" height="60" fill="#3ddc97"/><rect x="64" y="82" width="16" height="48" fill="#ffd166"/><rect x="88" y="52" width="16" height="78" fill="#35e0ff"/><rect x="112" y="62" width="16" height="68" fill="#3ddc97"/><rect x="136" y="40" width="16" height="90" fill="#ff9f43"/><rect x="160" y="58" width="16" height="72" fill="#35e0ff"/></g></g>
-      <!-- mapa-múndi estilizado + mesa holográfica -->
-      <g transform="translate(70 330)"><path d="M0 120 L120 20 H640 L760 120 Z" fill="#0a2236" stroke="url(#g1)" stroke-width="2"/>
-        <g fill="#35e0ff" opacity=".55"><ellipse cx="260" cy="70" rx="60" ry="22"/><ellipse cx="400" cy="62" rx="90" ry="20"/><ellipse cx="540" cy="76" rx="50" ry="18"/><ellipse cx="170" cy="86" rx="30" ry="10"/></g>
-        <g class="lg-pulse" fill="#ffd166"><circle cx="260" cy="70" r="5"/><circle cx="420" cy="60" r="5"/><circle cx="540" cy="76" r="5"/></g></g>
+<main id="ax-login" class="axl" aria-labelledby="axl-titulo">
+  <section class="axl-hero" aria-hidden="true">
+    <svg class="axl-art" viewBox="0 0 800 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <defs><linearGradient id="axl-g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5b942" stop-opacity=".7"/><stop offset="1" stop-color="#f5b942" stop-opacity=".12"/></linearGradient></defs>
+      <path class="gr" d="M0 140H800M0 280H800M0 420H800M0 560H800M160 0V700M320 0V700M480 0V700M640 0V700"/>
+      <rect class="c" x="90" y="150" width="300" height="200" rx="22"/>
+      <rect class="b" x="122" y="270" width="28" height="52" rx="7"/><rect class="b" x="166" y="238" width="28" height="84" rx="7"/><rect class="b" x="210" y="256" width="28" height="66" rx="7"/>
+      <rect class="b" x="254" y="206" width="28" height="116" rx="7"/><rect class="b" x="298" y="226" width="28" height="96" rx="7"/><rect class="b" x="342" y="188" width="28" height="134" rx="7"/>
+      <rect class="c" x="420" y="250" width="290" height="230" rx="22"/>
+      <polyline class="ln" points="452,430 502,392 552,408 612,342 662,364 690,302"/>
+      <circle class="pt" cx="502" cy="392" r="6"/><circle class="pt" cx="612" cy="342" r="6"/><circle class="pt" cx="690" cy="302" r="6"/>
+      <rect class="c" x="150" y="400" width="230" height="170" rx="22"/>
+      <circle class="tr" cx="265" cy="485" r="42"/><circle class="dn" cx="265" cy="485" r="42" stroke-dasharray="190 264"/>
     </svg>
-    <p class="lg-hero-foot">Monitoramento · Suporte · Tempo real</p>
+    <div class="axl-foto"></div>
   </section>
-  <section class="lg-side">
-    <div class="lg-circuit" aria-hidden="true"></div>
-    <div class="ax-card ax-login lg-card">
-  <h1>Painel administrativo</h1>
-  <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe. Todas as ações são registradas.</p>
-  <form id="ax-login-f" autocomplete="on" style="text-align:left">
-    <label class="ax-lbl" for="ax-email">E-mail corporativo</label>
-    <input class="ax-in" id="ax-email" type="email" autocomplete="username" required maxlength="120">
-    <label class="ax-lbl ax-mt" for="ax-senha">Senha</label>
-    <input class="ax-in" id="ax-senha" type="password" autocomplete="current-password" required maxlength="128">
-    <button class="ax-btn pri ax-mt" style="width:100%" id="ax-entrar">Entrar</button>
-  </form>
-  <p class="ax-ou ax-xs ax-mut" aria-hidden="true">ou</p>
-  <button class="ax-btn" style="width:100%" id="ax-google" type="button">Entrar com Google</button>
-  <p class="ax-xs ax-mut ax-mt">Use o e-mail da conta de administrador.</p>
-  <p class="ax-erro ax-mt" id="ax-login-erro" role="alert"></p>
-</div>
-  </section>
+  <a class="axl-logo" href="./admin.html" aria-label="Abastece Já"><img src="icons/icon-192.png" alt="" width="40" height="40">Abastece Já</a>
+  <div class="axl-side">
+    <div class="axl-panel">
+      <span class="axl-spacer" aria-hidden="true"></span>
+      <div class="axl-card">
+        <h1 id="axl-titulo">Painel administrativo</h1>
+        <p class="axl-sub">Acesso restrito à equipe. Todas as ações são registradas.</p>
+        <form id="ax-login-f" autocomplete="on" style="text-align:left">
+          <label class="ax-lbl" for="ax-email">E-mail corporativo</label>
+          <input class="ax-in" id="ax-email" type="email" autocomplete="username" required maxlength="120">
+          <label class="ax-lbl ax-mt" for="ax-senha">Senha</label>
+          <input class="ax-in" id="ax-senha" type="password" autocomplete="current-password" required maxlength="128">
+          <button class="ax-btn pri ax-mt" style="width:100%" id="ax-entrar">Entrar</button>
+        </form>
+        <p class="ax-ou ax-xs ax-mut" aria-hidden="true">ou</p>
+        <button class="axl-google" id="ax-google" type="button">
+          <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          <span>Entrar com Google</span>
+        </button>
+        <p class="ax-xs ax-mut ax-mt">Use o e-mail da conta de administrador.</p>
+        <p class="ax-erro axl-erro" id="ax-login-erro" role="alert"></p>
+      </div>
+      <p class="axl-foot">Versão 2.3 <span aria-hidden="true">|</span> Suporte: <a href="mailto:suporte@abasteceja.com">suporte@abasteceja.com</a></p>
+    </div>
+  </div>
 </main>
 
 <div id="ax-app" hidden>

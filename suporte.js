@@ -5,35 +5,28 @@
 // ============================================================
 import { collection, doc, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db, chamarFuncao } from "./firebase.js";
-import { NOME_SUPORTE, WHATSAPP_SUPORTE } from "./config.js";
+import { NOME_SUPORTE } from "./config.js";
+import { linkWhatsApp, mensagemInicial, mensagemDeContinuacao } from "./suporte-canais.js";
 import { esc, fmtDataHora } from "./core.js";
 import { $, abrir, fechar, erro, notificar, pedirPermissaoNotificacao } from "./ui.js";
 import { ativarPush, pushDisponivel } from "./push.js";
 
 let uid = null, desligar = [], msgs = [], conv = null, anterior = null, aberto = false, enviando = false;
 
-const ICONE = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-
 /**
- * O botão do chat NÃO é mais um elemento fixo no <body> (era isso que o fazia aparecer em todas as telas).
- * Ele vive DENTRO da folha "Ajuda e suporte" (#sheet-ajuda), ancorado no canto dela com position:sticky.
- * Como a folha só existe na tela quando está aberta, o botão some sozinho de todas as outras páginas,
- * sem depender de JS para esconder. Um pontinho no item de menu "Ajuda e suporte" avisa que há resposta nova.
+ * Quem abre o chat é o botão central "Suporte" (#btn-suporte-plataforma, ver suporte-canais.js) — ele oferece WhatsApp OU este chat.
+ * Aqui só sobram os SELOS de mensagem nova: no botão central e um pontinho no item de menu "Ajuda e suporte".
  */
-function montarBotao() {
-    const folha = document.querySelector("#sheet-ajuda .sheet");
-    if (!folha || $("btn-suporte")) return;
-    const b = document.createElement("button");
-    b.id = "btn-suporte"; b.type = "button"; b.className = "btn-suporte"; b.setAttribute("aria-label", `Falar com o ${NOME_SUPORTE}`); b.title = `Falar com o ${NOME_SUPORTE}`;
-    b.innerHTML = `${ICONE}<span class="sup-badge" id="sup-badge" hidden>0</span>`;
-    b.addEventListener("click", () => { fechar("sheet-ajuda"); abrirSuporte(); });   // Ajuda → Chat (nunca os dois abertos)
-    folha.appendChild(b);
-    document.querySelector('.menu-item[data-abrir="sheet-ajuda"]')?.classList.add("tem-selo-sup");
+function pintarSelos(n) {
+    const mostrar = n > 0 && !aberto, texto = n > 9 ? "9+" : String(n);
+    for (const id of ["fab-badge"]) { const e = $(id); if (e) { e.hidden = !mostrar; e.textContent = texto; } }
+    document.querySelector('.menu-item[data-abrir="sheet-ajuda"]')?.classList.toggle("com-novidade", mostrar);   // pontinho no menu
 }
+/** Contexto do WhatsApp conforme quem é a pessoa (a conversa já sabe se é loja ou promotor). */
+const contextoAtual = () => (conv?.tipo === "promotor" ? "promotor" : "loja");
 
 function montar() {
     if ($("sheet-suporte")) return;
-    montarBotao();
     const s = document.createElement("div");
     s.id = "sheet-suporte"; s.className = "app-overlay"; s.setAttribute("aria-hidden", "true");
     s.innerHTML = `<div class="sheet" role="dialog" aria-labelledby="sup-titulo"><div class="grab"></div>
@@ -41,9 +34,11 @@ function montar() {
         <div id="sup-notif" class="banner mb" hidden><span class="ico">🔔</span><div class="grow">Receba um aviso quando o suporte responder.<br><button type="button" class="btn btn-ghost btn-sm mt" id="sup-ativar">Ativar avisos</button></div></div>
         <div class="chat-box" id="sup-box" aria-live="polite"></div>
         <form class="chat-send" id="sup-form"><input id="sup-input" type="text" maxlength="1000" placeholder="Escreva sua mensagem…" autocomplete="off" aria-label="Mensagem"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
-        <p class="muted small center mt"><a id="sup-zap" target="_blank" rel="noopener" href="#">Prefere o WhatsApp?</a></p></div>`;
+        <div class="canal-troca" role="group" aria-label="Canal de atendimento"><span class="canal-troca-atual" aria-current="true">💬 Chat da plataforma</span><a id="sup-zap" class="canal-troca-outro" target="_blank" rel="noopener noreferrer" href="#">Prefiro o WhatsApp ↗</a></div></div>`;
     document.body.appendChild(s);
-    $("sup-zap").href = `https://wa.me/${WHATSAPP_SUPORTE}?text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já.")}`;
+    atualizarLinkZap();
+    // O texto do WhatsApp leva as últimas mensagens da pessoa: é calculado NO CLIQUE (o handler roda antes da navegação), então nunca fica velho.
+    $("sup-zap").addEventListener("click", atualizarLinkZap);
     $("sup-fechar").addEventListener("click", fecharSuporte);
     s.addEventListener("click", (e) => { if (e.target === s) fecharSuporte(); });
     $("sup-form").addEventListener("submit", enviar);
@@ -53,11 +48,23 @@ function montar() {
 /** Mostra o convite para ativar avisos só quando faz sentido (ainda não decidiu e o navegador suporta). */
 function avisoNotif() { $("sup-notif").hidden = !("Notification" in window && Notification.permission === "default"); }
 
+/** Link do WhatsApp (nova aba, URL codificada) com o contexto de quem fala e, se já houve conversa, o resumo dela. */
+function atualizarLinkZap() { const a = $("sup-zap"); if (a) a.href = linkWhatsApp(mensagemDeContinuacao(msgs, contextoAtual())); }
+
+/** Primeira tela do chat: acolhe e deixa claro que dá para escolher o canal (continuar aqui ou ir para o WhatsApp). */
+function boasVindas() {
+    const zap = linkWhatsApp(mensagemInicial(contextoAtual()));
+    return `<div class="canal-boasvindas"><p><strong>Olá! Como podemos ajudar?</strong></p><p class="muted small">Escreva sua dúvida aqui embaixo — respondemos neste chat. Se preferir, também atendemos pelo WhatsApp.</p>
+        <div class="canal-boasvindas-acoes"><button type="button" class="btn btn-primary btn-sm" data-sup-continuar>Continuar neste chat</button><a class="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href="${esc(zap)}">Ir para o WhatsApp ↗</a></div></div>`;
+}
+
 function pintar() {
     const box = $("sup-box"); if (!box) return;
+    atualizarLinkZap();
     box.innerHTML = msgs.length
         ? msgs.map((m) => { const eu = m.de === "usuario"; return `<div class="msg ${eu ? "msg-me" : "msg-other"}">${eu ? "" : `<small style="margin:0 0 3px;font-weight:700">${esc(NOME_SUPORTE)}</small>`}${esc(m.texto).replace(/\n/g, "<br>")}<small>${esc(fmtDataHora(m.criadoEm))}</small></div>`; }).join("")
-        : `<p class="muted small center" style="margin:auto">Mande sua dúvida. A equipe responde por aqui.</p>`;
+        : boasVindas();
+    box.querySelector("[data-sup-continuar]")?.addEventListener("click", () => $("sup-input")?.focus());
     box.scrollTop = box.scrollHeight;
 }
 
@@ -77,21 +84,38 @@ async function enviar(e) {
 }
 
 /** Abre a conversa. Devolve false se o chat ainda não foi iniciado (quem chamou pode cair no WhatsApp). */
-export function abrirSuporte() {
+export function abrirSuporte(opcoes) {
     if (!uid) return false;
     aberto = true; pintar(); avisoNotif(); abrir("sheet-suporte"); $("sup-box").scrollTop = $("sup-box").scrollHeight; marcarLido();
+    // `rascunho` (ex.: contestação de banimento) só PREENCHE o campo, nunca envia sozinho; não sobrescreve o que a pessoa já digitou.
+    const rascunho = typeof opcoes?.rascunho === "string" ? opcoes.rascunho : "";
+    if (rascunho) { const i = $("sup-input"); if (i && !i.value.trim()) { i.value = rascunho.slice(0, 1000); i.focus(); } }
     return true;
 }
 function fecharSuporte() { aberto = false; fechar("sheet-suporte"); }
+
+/** O chat só existe depois do login (iniciarSuporte). Usado pelo botão central para habilitar/desabilitar a opção "Chat da plataforma". */
+export const chatDisponivel = () => !!uid;
+
+/**
+ * Inicia uma conversa com o TI: abre o chat e ENVIA `texto` como mensagem (usado pelo "Falar com o TI" do painel de erro, com o relatório técnico).
+ * Devolve true se a mensagem foi enviada; false se não há sessão/chat ou o envio falhou (quem chamou oferece o plano B).
+ */
+export async function iniciarConversaTI(texto) {
+    const t = String(texto || "").trim().slice(0, 1000);    // mesmo limite do servidor (suporte/mensagem)
+    if (!uid || !t) return false;
+    abrirSuporte();
+    try { await chamarFuncao("suporte/mensagem", { texto: t }); return true; }
+    catch (err) { console.warn("suporte: envio para o TI falhou", err); erro("Não conseguimos enviar agora. Tente de novo em instantes."); return false; }
+}
 
 /** Liga o chat para o usuário logado. Chame uma vez por login (depois que o painel carregou). */
 export function iniciarSuporte(u) {
     pararSuporte(); uid = u.uid; msgs = []; conv = null; anterior = null; montar();
     desligar.push(onSnapshot(doc(db, "suporte_conversas", uid), (s) => {
         conv = s.exists() ? s.data() : null;
-        const n = conv?.naoLidasUsuario || 0, selo = $("sup-badge");
-        selo.hidden = n < 1 || aberto; selo.textContent = n > 9 ? "9+" : String(n);
-        document.querySelector(".menu-item.tem-selo-sup")?.classList.toggle("com-novidade", n > 0 && !aberto);   // pontinho no menu
+        const n = conv?.naoLidasUsuario || 0;
+        pintarSelos(n);
         if (anterior !== null && n > anterior && !(aberto && !document.hidden)) notificar(NOME_SUPORTE, conv.ultimaMsg || "Nova mensagem");   // 1º snapshot só mostra o selo
         anterior = n;
         if (aberto && !document.hidden) marcarLido();
@@ -107,8 +131,8 @@ export function iniciarSuporte(u) {
 /** Desliga tudo (logout/troca de conta). */
 export function pararSuporte() {
     desligar.forEach((f) => f()); desligar = []; uid = null; aberto = false; msgs = []; conv = null; anterior = null;
-    $("btn-suporte")?.remove(); $("sheet-suporte")?.remove();
-    document.querySelector(".menu-item.tem-selo-sup")?.classList.remove("tem-selo-sup", "com-novidade");
+    $("sheet-suporte")?.remove(); pintarSelos(0);
+    document.querySelector('.menu-item[data-abrir="sheet-ajuda"]')?.classList.remove("com-novidade");
     document.body.classList.remove("no-scroll");
 }
 export { pushDisponivel };

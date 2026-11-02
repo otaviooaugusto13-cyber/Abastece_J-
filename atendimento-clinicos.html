@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Abastece Já — Atendimento para clínicos</title>
+    <meta name="description" content="Suporte especializado para clínicos no Abastece Já: escolha o assunto e fale com a equipe pelo WhatsApp ou pelo chat da plataforma.">
+    <meta name="theme-color" content="#07090e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-clinicos.css">
+</head>
+<body>
+<script type="module" src="erros-globais.js"></script>
+<a class="pular" href="#principal">Ir para o conteúdo</a>
+
+<header class="cli-topo">
+    <a class="cli-voltar" href="./" aria-label="Voltar ao início">←</a>
+    <span class="cli-marca">Abastece Já</span>
+    <label class="cli-tema" title="Tema claro/escuro"><span class="sr">Tema claro</span><input type="checkbox" id="theme-toggle"><span aria-hidden="true">◐</span></label>
+</header>
+
+<main id="principal" class="cli-pagina">
+    <section class="cli-hero">
+        <span class="cli-selo">Atendimento especializado</span>
+        <h1>Suporte para clínicos</h1>
+        <p class="muted">Conte o que você precisa e fale com a equipe pelo canal que preferir. A mensagem já vai pronta — você só confere e envia.</p>
+    </section>
+
+    <section class="card cli-passo" aria-labelledby="cli-p1">
+        <h2 id="cli-p1"><span class="cli-num" aria-hidden="true">1</span> Sobre o que é?</h2>
+        <div class="cli-assuntos" role="radiogroup" aria-labelledby="cli-p1" id="cli-assuntos"></div>
+    </section>
+
+    <section class="card cli-passo" aria-labelledby="cli-p2">
+        <h2 id="cli-p2"><span class="cli-num" aria-hidden="true">2</span> Quer adiantar algo? <small class="muted">(opcional)</small></h2>
+        <div class="field"><label for="cli-unidade">Nome da clínica ou unidade</label><input id="cli-unidade" type="text" maxlength="80" autocomplete="organization" placeholder="Ex.: Clínica Bem-Estar — unidade Centro"></div>
+        <div class="field"><label for="cli-detalhe">Em uma frase, o que está acontecendo?</label><textarea id="cli-detalhe" rows="3" maxlength="300" placeholder="Ex.: não consigo concluir meu cadastro de habilitação"></textarea><span class="muted small" id="cli-contador" aria-live="polite">0/300</span></div>
+        <p class="cli-aviso">🔒 Não envie senhas, códigos de verificação nem dados de cartão.</p>
+    </section>
+
+    <section class="card gold cli-passo" aria-labelledby="cli-p3">
+        <h2 id="cli-p3"><span class="cli-num" aria-hidden="true">3</span> Como prefere ser atendido?</h2>
+        <div class="canal-lista">
+            <a class="canal-opcao" id="cli-zap" target="_blank" rel="noopener noreferrer" href="#"><span class="canal-ico canal-ico-zap" id="cli-ico-zap"></span><span class="canal-txt"><strong>WhatsApp</strong><small>Abre em outra aba com a mensagem abaixo.</small></span><span class="seta" aria-hidden="true">↗</span></a>
+            <a class="canal-opcao" id="cli-chat" href="#"><span class="canal-ico canal-ico-chat" id="cli-ico-chat"></span><span class="canal-txt"><strong>Chat da plataforma</strong><small>Para quem já tem conta: abre o chat dentro do seu painel.</small></span><span class="seta" aria-hidden="true">›</span></a>
+        </div>
+        <p class="muted small center mt">Entrar como: <a id="cli-chat-loja" href="#">painel da loja</a> · <a id="cli-chat-prom" href="#">painel do profissional</a></p>
+        <div class="cli-previa"><span class="muted small">Mensagem que será enviada</span><pre id="cli-previa" aria-live="polite"></pre></div>
+    </section>
+
+    <section class="card cli-passo" aria-labelledby="cli-faq">
+        <h2 id="cli-faq">Para agilizar o atendimento</h2>
+        <details><summary>O que ter em mãos?</summary><p class="muted small">Nome completo, o e-mail da conta e uma descrição curta do problema. Se for sobre pagamento, o número do pedido ajuda muito.</p></details>
+        <details><summary>Como acompanho meu atendimento?</summary><p class="muted small">Pelo chat da plataforma você vê todo o histórico e recebe aviso quando a equipe responde. No WhatsApp, a conversa fica no próprio aplicativo.</p></details>
+        <details><summary>Posso trocar de canal depois?</summary><p class="muted small">Sim. Dentro do chat há um atalho para continuar no WhatsApp levando um resumo da conversa, e o botão “Suporte” do painel abre as duas opções a qualquer momento.</p></details>
+    </section>
+</main>
+
+<script type="module" src="clinicos.js"></script>
+</body>
+</html>

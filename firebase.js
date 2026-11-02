@@ -56,7 +56,13 @@ export async function chamarFuncao(nome, corpo = {}, metodo) {
         if (r.status === 401 && !renovou && (await r.clone().json().catch(() => ({}))).codigo === "sessao-invalida") { renovou = true; continue; }
         if ([502, 503, 504].includes(r.status) && idempotente && tentativa < 6) { await dormir(2500 * Math.min(tentativa + 1, 4)); continue; }
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
+        if (!r.ok) {
+            const falha = Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
+            // Erro 500 = defeito NOSSO (não validação/permissão): avisa o capturador global (erros-globais.js), que abre o chamado automático.
+            // Não dispara para a própria rota do chamado, para não criar um laço se justamente ela estiver com problema.
+            if (r.status === 500 && !/^chamados\/automatico/.test(nome)) { try { window.dispatchEvent(new CustomEvent("abastece:erro-api", { detail: { rota: `${m} ${nome}`, status: r.status, codigo: j.codigo, mensagem: falha.message } })); } catch (e) { /* sem window */ } }
+            throw falha;
+        }
         return j;
     }
 }

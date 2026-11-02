@@ -8,13 +8,14 @@ module.exports = (app, x) => {
   const PAGINA = { loja: "index.html", promotor: "promotor.html" };
 
   // ---------- lado do usuário ----------
-  app.post("/suporte/mensagem", auth.exigir(...USU), limUsuario, envelope(async (req, res) => {
+  // Conta banida (3 advertências) continua podendo falar com o suporte: é o canal de CONTESTAÇÃO. Nenhuma outra rota é liberada.
+  app.post("/suporte/mensagem", auth.exigirMesmoBanido(...USU), limUsuario, envelope(async (req, res) => {
     const texto = V.texto(req.body?.texto, "mensagem", { min: 1, max: 1000 }), uid = req.usuario.uid;
     const { nome } = await suporte.postar({ uid, de: "usuario", texto, autorUid: uid, dica: req.usuario.role });
     await suporte.enviarPush({ admins: true, titulo: `Suporte · ${nome || "nova mensagem"}`, corpo: texto, url: "admin.html#suporte" });
     res.json({ ok: true });
   }));
-  app.post("/suporte/lido", auth.exigir(...USU), limUsuario, envelope(async (req, res) => { await suporte.marcarLido(req.usuario.uid, "usuario"); res.json({ ok: true }); }));
+  app.post("/suporte/lido", auth.exigirMesmoBanido(...USU), limUsuario, envelope(async (req, res) => { await suporte.marcarLido(req.usuario.uid, "usuario"); res.json({ ok: true }); }));
 
   // ---------- lado da equipe ----------
   app.post("/admin/suporte/:uid/mensagem", auth.exigir("admin"), limAdmin, envelope(async (req, res) => {

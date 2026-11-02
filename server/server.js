@@ -124,7 +124,7 @@ const jsonPadrao = express.json({ limit: C.BODY_LIMITE });
 app.use((req, res, next) => (req.path === "/checkout" ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|ti\/|chamados|presenca|nota\/|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|ti\/|chamados|presenca|nota\/|turnos|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 

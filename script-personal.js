@@ -8,7 +8,8 @@ import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, 
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
-import { iniciarSuporte, pararSuporte } from "./suporte.js";
+import { iniciarSuporte, pararSuporte, abrirSuporte, chatDisponivel } from "./suporte.js";
+import { ligarBotaoSuporte } from "./suporte-canais.js";
 import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { ativarPush, desativarPush } from "./push.js";
 import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS, NIVEIS } from "./config.js";
@@ -32,8 +33,7 @@ iniciarTema(); registrarSW();
 iniciarJogo({ recarregar: () => { carregarRep(); carregarCarteira(); }, subiuNivel: (n) => { ok(`Você subiu para ${NIVEIS.find((x) => x.id === n.para)?.nome || n.para}! 🏆`); } });
 ligarMascaras({ cpf: mascaraCPF, tel: mascaraTelefone });
 const baseSite = () => location.origin + location.pathname.replace(/[^/]*$/, "");
-$("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
-$("ajuda-zap").href = `https://api.whatsapp.com/send?phone=${WHATSAPP_SUPORTE}&text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (promotor).")}`;
+ligarBotaoSuporte({ contexto: "promotor", abrirChat: abrirSuporte, chatDisponivel });   // botão central + "Falar com o suporte" da Ajuda: WhatsApp OU chat interno
 /** Redesenha tudo que depende das taxas. Roda ao abrir e sempre que o admin muda algo (taxas.js). */
 function textosTaxas() {
     const pct = (id) => String(Math.round(calcularDiaria(id).pct * 10) / 10).replace(".", ",");   // comissão do nível sobre a diária vigente
@@ -152,7 +152,12 @@ async function carregarRep() {
     try { rep = await consultar("reputacao"); } catch (e) {
         if (e.code === "conta-banida" || e.status === 403) { rep = { banido: true, vidas: 0, infracoes: [], banidoMotivo: "Conta bloqueada." }; } else { console.warn(e); return false; }
     }
-    if (rep.banido) { pararPosicao(); clearInterval(repTimer); telaBanido(rep, sair); return true; }
+    if (rep.banido) {
+        pararPosicao(); clearInterval(repTimer);
+        if (usuario && !chatDisponivel()) iniciarSuporte(usuario);                 // conta banida não chega ao fluxo normal: liga só o chat, que é o canal de contestação
+        telaBanido(rep, sair, () => abrirSuporte({ rascunho: `Contesto o bloqueio da minha conta. E-mail de cadastro: ${usuario?.email || ""}. Acredito que houve um engano porque: ` }));
+        return true;
+    }
     if (antes && !antes.banido) {
         if (rep.vidas < antes.vidas) { const i = (rep.infracoes || []).find((x) => x.status !== "revogada"); animarPerdaVida({ ...(i || {}), vidas: rep.vidas }); }
         if (antes.nivel && rep.nivel && rep.nivel.id !== antes.nivel.id && NIVEIS.findIndex((n) => n.id === rep.nivel.id) > NIVEIS.findIndex((n) => n.id === antes.nivel.id)) ok(`Você subiu para ${rep.nivel.nome}! 🏆`);

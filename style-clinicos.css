@@ -1,0 +1,42 @@
+/* ============================================================
+   ABASTECE JÁ — atendimento especializado a clínicos
+   Reaproveita os tokens de style.css (cores, raios, tema claro/escuro) — nada de cor "solta".
+   Mobile-first: 1 coluna até 720px; acima, assuntos em 3 colunas e passos centralizados.
+   ============================================================ */
+.pular { position: absolute; left: -9999px; top: 8px; z-index: 10; background: var(--gold); color: var(--gold-ink); padding: 8px 12px; border-radius: 8px; font-weight: 700; }
+.pular:focus { left: 8px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cli-topo { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.cli-voltar, .cli-tema { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-strong); color: var(--text); text-decoration: none; font-size: 18px; cursor: pointer; position: relative; }
+.cli-tema input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.cli-tema:focus-within, .cli-voltar:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.cli-marca { font-weight: 800; letter-spacing: .02em; color: var(--gold); }
+
+.cli-pagina { max-width: 720px; margin: 0 auto; padding: 20px 16px calc(40px + var(--safe-b)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.cli-hero { padding: 8px 2px 4px; }
+.cli-hero h1 { font-size: clamp(26px, 6.5vw, 36px); line-height: 1.1; margin: 10px 0 8px; letter-spacing: -.02em; }
+.cli-hero p { max-width: 52ch; line-height: 1.55; }
+.cli-selo { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--gold-soft); color: var(--gold); border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent); }
+
+.cli-passo h2 { font-size: 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cli-passo h2 small { font-weight: 500; font-size: 12.5px; }
+.cli-num { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--gold); color: var(--gold-ink); }
+.cli-assuntos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 720px) { .cli-assuntos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .cli-assuntos { grid-template-columns: minmax(0, 1fr); } }
+.cli-assunto { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 12px; text-align: left; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+.cli-assunto:hover { border-color: var(--gold); }
+.cli-assunto.sel { border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
+.cli-assunto:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.cli-assunto-ico { font-size: 20px; flex: none; }
+.cli-aviso { font-size: 12.5px; color: var(--muted); padding: 10px 12px; border-radius: 12px; background: var(--surface-2); line-height: 1.45; }
+.cli-previa { margin-top: 14px; display: grid; gap: 6px; }
+.cli-previa pre { margin: 0; padding: 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.cli-passo details { border-top: 1px solid var(--line); padding: 4px 0; }
+.cli-passo details:first-of-type { border-top: 0; }
+.cli-passo summary { cursor: pointer; padding: 12px 0; font-weight: 600; font-size: 14px; }
+.cli-passo summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+.cli-passo details p { padding: 0 0 12px; line-height: 1.55; }
+.cli-pagina a:not(.canal-opcao):not(.btn) { color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

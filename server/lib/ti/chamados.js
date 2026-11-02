@@ -45,6 +45,26 @@ function criarChamados({ db, FieldValue, Timestamp, V, metricas }) {
     });
   }
 
+  // ---------- abertura AUTOMÁTICA (erro capturado no app) ----------
+  const JANELA_DEDUPE_MS = 60 * 60_000;   // mesmo erro, mesmo usuário, dentro de 1 h → reaproveita o chamado (não gera fila de duplicados)
+  /**
+   * Abre um chamado de categoria "bug" a partir de um erro capturado no navegador.
+   *   `impressao`: assinatura estável do erro (calculada no cliente). A mesma assinatura do mesmo usuário reaproveita o chamado aberto
+   *   na última hora e devolve o MESMO protocolo (`repetido: true`), então um erro em loop não inunda a fila nem esgota o limite.
+   * O corte de tamanho é feito aqui (e não só no cliente) para que um relatório longo nunca vire 400 justamente na hora do erro.
+   */
+  async function abrirAutomatico({ impressao, titulo, descricao }, { solicitante }) {
+    impressao = V.texto(impressao, "impressão", { min: 6, max: 64, re: /^[a-z0-9]+$/i });
+    titulo = V.texto(String(titulo || "Erro automático no aplicativo").slice(0, 120), "título", { min: 5, max: 120 });
+    descricao = V.texto(String(descricao || "").slice(0, 2000), "descrição", { min: 10, max: 2000 });
+    const dref = db.collection("chamados_ti_dedupe").doc(crypto.createHash("sha256").update(`${solicitante.uid}|${impressao}`).digest("hex"));
+    const atual = (await dref.get()).data();
+    if (atual && atual.ateMs > Date.now()) return { id: atual.chamadoId, protocolo: atual.protocolo, repetido: true };
+    const t = await criar({ titulo, descricao, categoria: "bug", prioridade: "media" }, { solicitante, origem: "automatico", criador: solicitante });
+    await dref.set({ chamadoId: t.id, protocolo: t.protocolo, uid: solicitante.uid, ateMs: Date.now() + JANELA_DEDUPE_MS });
+    return { id: t.id, protocolo: t.protocolo, repetido: false };
+  }
+
   // ---------- transação genérica ----------
   /** `fn(t, agora)` valida e devolve { patch, evento, metrica?(tx) }; qualquer Falha cancela a transação inteira. */
   async function aplicar(id, ator, fn) {
@@ -180,6 +200,6 @@ function criarChamados({ db, FieldValue, Timestamp, V, metricas }) {
     cacheCont = { t: Date.now(), v }; return v;
   }
 
-  return { visaoTI, criar, assumir, atribuir, mudarStatus, comentar, alterarPrioridade, responderComoUsuario, devolverFila, listar, detalhe, meus, detalheDoUsuario, contagens, invalidarCache: () => { cacheCont = null; }, SISTEMA };
+  return { visaoTI, criar, abrirAutomatico, assumir, atribuir, mudarStatus, comentar, alterarPrioridade, responderComoUsuario, devolverFila, listar, detalhe, meus, detalheDoUsuario, contagens, invalidarCache: () => { cacheCont = null; }, SISTEMA };
 }
 module.exports = { criarChamados };

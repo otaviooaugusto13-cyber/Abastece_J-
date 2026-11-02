@@ -243,12 +243,12 @@ async function abrirFicha(uid) {
         <dt>Treinamento</dt><dd>${esc(p.treinamento?.concluidos)}/${esc(p.treinamento?.total)}</dd><dt>Pendências</dt><dd>${esc((t.pendencias || []).join(", ") || "nenhuma")}</dd></dl>
         ${!p.nascimento ? '<div class="ax-alert w"><span>⚠️</span><div>Sem data de nascimento. A pessoa pode ser liberada, mas só aceita turnos depois de completar o cadastro. Você pode informar a data em <strong>Editar perfil</strong>.</div></div>' : ""}
         ${r ? `<div class="ax-alert w"><div><strong>Responsável legal:</strong> ${esc(r.nome)} (${esc(r.parentesco)}) · CPF ${esc(r.cpfMascarado)} · Tel. ${esc(r.telefone)}<br><span class="ax-xs ax-mut">Autorização registrada em ${esc(dt(p.autorizacaoEm))}. Confirme com o responsável antes de aprovar.</span></div></div>` : p.menor ? '<p class="ax-bad">Falta autorização do responsável — não é possível aprovar.</p>' : ""}`,
-        `<button class="ax-btn ok" data-acao="aprovar" data-uid="${esc(uid)}">Aprovar</button><button class="ax-btn" data-acao="recado" data-tipo="promotor" data-uid="${esc(uid)}">Enviar recado</button><button class="ax-btn" data-acao="editar" data-tipo="promotor" data-uid="${esc(uid)}">Editar perfil</button><button class="ax-btn" data-acao="analise" data-uid="${esc(uid)}">Voltar p/ análise</button><button class="ax-btn danger" data-acao="bloquear" data-uid="${esc(uid)}">Bloquear</button><button class="ax-btn danger" data-acao="excluir" data-tipo="promotor" data-uid="${esc(uid)}" data-nome="${esc(p.nome)}">Excluir perfil</button>`);
+        `<button class="ax-btn ok" data-acao="aprovar" data-uid="${esc(uid)}">Aprovar</button><button class="ax-btn" data-acao="recado" data-tipo="promotor" data-uid="${esc(uid)}">Enviar recado</button><button class="ax-btn" data-acao="editar" data-tipo="promotor" data-uid="${esc(uid)}">Editar perfil</button><button class="ax-btn" data-acao="analise" data-uid="${esc(uid)}">Voltar p/ análise</button><button class="ax-btn" data-acao="sessoes" data-uid="${esc(uid)}">Encerrar sessões</button><button class="ax-btn danger" data-acao="bloquear" data-uid="${esc(uid)}">Bloquear</button><button class="ax-btn danger" data-acao="excluir" data-tipo="promotor" data-uid="${esc(uid)}" data-nome="${esc(p.nome)}">Excluir perfil</button>`);
 }
 function abrirFichaLoja(uid) {
     const x = S.lojas.find((l) => l.uid === uid); if (!x) return;
     fichaAbrir(`<h2>${esc(x.razaoSocial || x.nome || "Loja")}</h2><dl class="ax-dl"><dt>Documento</dt><dd>${esc(x.documento || "—")}</dd><dt>Ramo</dt><dd>${esc(x.ramo || "—")}</dd><dt>E-mail</dt><dd>${esc(x.email || "—")}</dd><dt>Telefone</dt><dd>${esc(x.telefone || "—")}</dd><dt>Endereço</dt><dd>${esc(x.endereco || "—")}</dd><dt>Cadastro</dt><dd>${esc(dt(x.criadoEm))}</dd><dt>UID</dt><dd>${esc(x.uid)}</dd></dl>
-        <p class="ax-xs ax-mut">Missões desta loja: ${S.missoes.filter((m) => m.uid === uid).length} (entre as 400 mais recentes).</p>`, `<button class="ax-btn" data-acao="editar" data-tipo="loja" data-uid="${esc(uid)}">Editar perfil</button><button class="ax-btn" data-acao="recado" data-tipo="loja" data-uid="${esc(uid)}">Enviar recado</button><button class="ax-btn danger" data-acao="excluir" data-tipo="loja" data-uid="${esc(uid)}" data-nome="${esc(x.razaoSocial || x.nome || "")}">Excluir perfil</button>`);
+        <p class="ax-xs ax-mut">Missões desta loja: ${S.missoes.filter((m) => m.uid === uid).length} (entre as 400 mais recentes).</p>`, `<button class="ax-btn" data-acao="editar" data-tipo="loja" data-uid="${esc(uid)}">Editar perfil</button><button class="ax-btn" data-acao="recado" data-tipo="loja" data-uid="${esc(uid)}">Enviar recado</button><button class="ax-btn" data-acao="sessoes" data-uid="${esc(uid)}">Encerrar sessões</button><button class="ax-btn danger" data-acao="excluir" data-tipo="loja" data-uid="${esc(uid)}" data-nome="${esc(x.razaoSocial || x.nome || "")}">Excluir perfil</button>`);
 }
 /** Recado avulso (sem mudar status) para um promotor ou uma loja. */
 async function enviarRecado(tipo, uid) {
@@ -257,6 +257,17 @@ async function enviarRecado(tipo, uid) {
     await chamarFuncao(`admin/recado/${tipo}/${encodeURIComponent(uid)}`, { texto });
     toast("Recado enviado.", "ok");
 }
+/** Derruba as sessões do usuário em todos os aparelhos (rota admin/usuarios/:uid/revogar-sessoes; fica na auditoria). */
+async function encerrarSessoes(uid) {
+    if (!(await pedir({ titulo: "Encerrar sessões?", texto: "O usuário será desconectado em todos os aparelhos e precisará entrar de novo. Fica registrado na auditoria.", ok: "Encerrar sessões", perigo: true }))) return;
+    await sensivel(() => chamarFuncao(`admin/usuarios/${encodeURIComponent(uid)}/revogar-sessoes`, {}));
+    toast("Sessões encerradas.", "ok");
+}
+/** Toque na chave Pix (aba Saques) copia para a área de transferência. */
+document.addEventListener("click", (e) => {
+    const c = e.target.closest("#f-saq-b code");
+    if (c && navigator.clipboard) navigator.clipboard.writeText(c.textContent).then(() => toast("Chave Pix copiada.", "ok", 3000));
+});
 async function mudarStatus(uid, novo) {
     let motivo = "";
     const reativando = novo === "ativo" && S.promo.find((x) => x.uid === uid)?.status === "bloqueado";
@@ -276,6 +287,7 @@ document.addEventListener("click", seguro(async (e) => {
         case "bloquear": return mudarStatus(uid, "bloqueado");
         case "editar": return abrirEdicao(b.dataset.tipo || "promotor", uid);
         case "excluir": return abrirExclusao(b.dataset.tipo || "promotor", uid, b.dataset.nome);
+        case "sessoes": return encerrarSessoes(uid);
         case "fechar": return $("ax-ficha").close();
     }
 }));

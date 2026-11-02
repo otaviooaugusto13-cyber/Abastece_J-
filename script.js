@@ -8,10 +8,11 @@ import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, te
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo, termosAceitos, gravarTermos } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
-import { iniciarSuporte, pararSuporte } from "./suporte.js";
+import { iniciarSuporte, pararSuporte, abrirSuporte, chatDisponivel } from "./suporte.js";
+import { ligarBotaoSuporte } from "./suporte-canais.js";
 import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { ativarPush, desativarPush } from "./push.js";
-import { WHATSAPP_SUPORTE, MP_PUBLIC_KEY } from "./config.js";
+import { MP_PUBLIC_KEY } from "./config.js";
 import { iniciarTaxas } from "./taxas.js";
 import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEntre, esc, TAXAS, fmtData, fmtDataHora, hojeLocal, mascaraDoc, mascaraTelefone, docValido, soDigitos, estaPago, valorCentavos, SETORES, textoTermos } from "./core.js";
 import { iniciar as iniciarJogo, pintarReputacao, abrirLocal, abrirRuptura, abrirAuditoria, temLocal, carregarMarcas } from "./loja-jogo.js";
@@ -32,8 +33,7 @@ iniciarJogo({ perfil: () => perfil, setLocal: (l) => { perfil.localizacao = l; p
 ligarMascaras({ doc: mascaraDoc, tel: mascaraTelefone });
 
 // ---------- textos que dependem da regra de taxas (nunca desatualizam) ----------
-$("btn-whatsapp").href = `https://wa.me/${WHATSAPP_SUPORTE}`;
-$("ajuda-zap").href = `https://api.whatsapp.com/send?phone=${WHATSAPP_SUPORTE}&text=${encodeURIComponent("Olá! Preciso de ajuda no Abastece Já (loja).")}`;
+ligarBotaoSuporte({ contexto: "loja", abrirChat: abrirSuporte, chatDisponivel });   // botão central + "Falar com o suporte" da Ajuda: WhatsApp OU chat interno
 /** Redesenha tudo que depende das taxas. Roda ao abrir e sempre que o admin muda algo (taxas.js). */
 function textosTaxas() {
     $("ajuda-split").textContent = `Cada turno custa ${brl(TAXAS.diariaCentavos)} (diária padrão), pagos só depois do serviço, por Pix ou cartão. O turno tem de ${TAXAS.horasMin} a ${TAXAS.horasMax} horas. Os detalhes estão nos Termos de Uso.`;
@@ -98,7 +98,12 @@ const mostrarOutroPerfil = (r) => telaOutroPerfil({ portal: "loja", perfis: r?.p
 async function carregarRep() {
     const antes = rep;
     try { rep = await consultar("reputacao"); } catch (e) { if (e.code === "conta-banida" || e.status === 403) rep = { banido: true, vidas: 0, infracoes: [], banidoMotivo: "Conta bloqueada." }; else { console.warn(e); return false; } }
-    if (rep.banido) { clearInterval(repTimer); telaBanido(rep, async () => { parar(); await sairDaConta(); location.reload(); }); return true; }
+    if (rep.banido) {
+        clearInterval(repTimer);
+        if (usuario && !chatDisponivel()) iniciarSuporte(usuario);                 // conta banida não chega ao fluxo normal: liga só o chat, que é o canal de contestação
+        telaBanido(rep, async () => { parar(); await sairDaConta(); location.reload(); }, () => abrirSuporte({ rascunho: `Contesto o bloqueio da minha conta. E-mail de cadastro: ${usuario?.email || ""}. Acredito que houve um engano porque: ` }));
+        return true;
+    }
     if (antes && !antes.banido && rep.vidas < antes.vidas) { const i = (rep.infracoes || []).find((x) => x.status !== "revogada"); animarPerdaVida({ ...(i || {}), vidas: rep.vidas }); }
     pintarReputacao(rep); return true;
 }

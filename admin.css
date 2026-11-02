@@ -158,3 +158,6 @@
 .pf-skel { display:grid; gap:10px; } .pf-skel i { display:block; height:14px; border-radius:6px; background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.1) 37%,rgba(255,255,255,.04) 63%); background-size:400% 100%; animation:pf-brilho 1.3s ease infinite; }
 @keyframes pf-brilho { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
 .pf-ts { margin-top:12px; font-size:11px; color:var(--ax-mut); }
+
+/* Chave Pix copiável (aba Saques) */
+#f-saq-b code { cursor: copy; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.08); }

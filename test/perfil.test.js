@@ -79,4 +79,21 @@ t("segurança: geolocalização liberada só para a própria origem e nada de li
     assert.doesNotMatch(js, /window\.open\((?!"https:\/\/api\.whatsapp)/, "só o compartilhamento por WhatsApp (ação explícita) abre aba");
     assert.doesNotMatch(js, /maps\.google|google\.com\/maps/);
 });
+t("admin: 'Encerrar sessões' e 'copiar chave Pix' ligados a rotas que existem no servidor", () => {
+    const adm = fs.readFileSync(new URL("../admin.js", import.meta.url), "utf8"), srv = fs.readFileSync(new URL("../server/rotas/admin.js", import.meta.url), "utf8");
+    assert.match(adm, /admin\/usuarios\/\$\{encodeURIComponent\(uid\)\}\/revogar-sessoes/); assert.match(srv, /\/admin\/usuarios\/:uid\/revogar-sessoes/);
+    assert.match(adm, /case "sessoes": return encerrarSessoes\(uid\)/); assert.match(adm, /#f-saq-b code/);
+    assert.match(fs.readFileSync(new URL("../admin.css", import.meta.url), "utf8"), /#f-saq-b code/);
+    assert.equal((adm.match(/data-acao="sessoes"/g) || []).length, 2, "botão na ficha do promotor E na da loja");
+});
+t("conta banida: botão 'Contestar com o suporte' nos dois painéis, chat por cima da tela vermelha e rota liberada só para o suporte", () => {
+    const ler = (f) => fs.readFileSync(new URL("../" + f, import.meta.url), "utf8");
+    assert.match(ler("gamificacao-ui.js"), /export function telaBanido\(r, aoSair, aoContestar\)[\s\S]*banido-contestar/);
+    for (const f of ["script.js", "script-personal.js"]) assert.match(ler(f), /telaBanido\(rep,[\s\S]{0,300}abrirSuporte\(\{ rascunho/, f + " passa o callback de contestação");
+    assert.match(ler("suporte.js"), /export function abrirSuporte\(opcoes\)[\s\S]*rascunho/);
+    const z = (css, sel) => Number(new RegExp(sel.replace(/[.#]/g, "\\$&") + "[^{]*\\{[^}]*z-index:\\s*(\\d+)").exec(css)?.[1]);
+    const css = ler("style-jogo.css"); assert.ok(z(css, "#sheet-suporte") > z(css, ".banido-tela"), "o chat precisa abrir acima da tela de banido");
+    const srv = ler("server/rotas/suporte.js");
+    assert.match(srv, /\/suporte\/mensagem", auth\.exigirMesmoBanido/); assert.match(srv, /\/suporte\/lido", auth\.exigirMesmoBanido/);
+});
 console.log(`\n${n}/${n} testes do perfil inteligente passaram`);

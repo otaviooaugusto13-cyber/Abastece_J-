@@ -46,15 +46,17 @@ export function animarPerdaVida(infracao) {
 }
 
 // ---------- Tela de banimento (crítica, vermelha) ----------
-export function telaBanido(r, aoSair) {
+export function telaBanido(r, aoSair, aoContestar) {
     let el = document.getElementById("tela-banido");
     if (!el) { el = document.createElement("div"); el.id = "tela-banido"; el.className = "banido-tela"; el.setAttribute("role", "alertdialog"); el.setAttribute("aria-modal", "true"); document.body.appendChild(el); }
     el.innerHTML = `<div class="banido-caixa"><div class="sirene" aria-hidden="true">🚨</div><h2>Conta bloqueada permanentemente</h2>${coracoes(0, VIDAS_MAX)}
       <div class="banido-motivo"><small>Motivo do bloqueio</small>${esc(r.banidoMotivo || "Acúmulo de 3 advertências.")}${r.banidoEm ? `<div class="small" style="opacity:.7;margin-top:6px">${fmtDataHora(r.banidoEm)}</div>` : ""}</div>
       <div class="banido-lista">${(r.infracoes || []).filter((i) => i.status !== "revogada").map((i) => `<div><b>${i.advertenciaNum || ""}ª</b> ${esc(i.rotulo)} — ${esc(i.detalhe)}</div>`).join("")}</div>
-      <p class="small" style="opacity:.8">Se acredita que houve um engano, fale com o suporte pelo chat do app informando seu e-mail de cadastro.</p>
+      <p class="small" style="opacity:.8">Se acredita que houve um engano, você pode contestar: abra o chat com o suporte e nossa equipe analisa o seu caso.</p>
+      ${aoContestar ? '<button class="btn btn-primary mt" id="banido-contestar" style="width:100%">Contestar com o suporte</button>' : ""}
       <button class="btn btn-danger mt" id="banido-sair" style="width:100%">Sair da conta</button></div>`;
-    el.classList.add("ativa"); document.body.classList.add("no-scroll"); el.querySelector("#banido-sair").onclick = aoSair; el.querySelector("#banido-sair").focus();
+    el.classList.add("ativa"); document.body.classList.add("no-scroll"); el.querySelector("#banido-sair").onclick = aoSair;
+    if (aoContestar) { el.querySelector("#banido-contestar").onclick = aoContestar; el.querySelector("#banido-contestar").focus(); } else el.querySelector("#banido-sair").focus();
 }
 export const esconderBanido = () => { document.getElementById("tela-banido")?.classList.remove("ativa"); };
 

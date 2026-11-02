@@ -20,6 +20,8 @@ const lista = (re) => fs.readdirSync(raiz).filter((f) => re.test(f)).sort();
 const linhaDe = (txt, i) => txt.slice(0, i).split("\n").length;
 const htmls = lista(/\.html$/), jss = lista(/\.js$/), csss = lista(/\.css$/);
 const achados = [];
+/** ids que algum .js injeta no DOM (modais montados em template). Um data-abrir/$() para eles NÃO é bug. */
+const idsEmJs = new Set(fs.readdirSync(raiz).filter((f) => /\.js$/.test(f)).flatMap((f) => [...fs.readFileSync(path.join(raiz, f), "utf8").matchAll(/\bid=\\?["']([\w-]+)["']|\.id\s*=\s*["']([\w-]+)["']/g)].map((m) => m[1] || m[2])));
 const add = (sev, regra, arq, linha, msg) => achados.push({ sev, regra, arq, linha, msg });
 
 /** Corpo de cada `function nome(...) { ... }` por contagem de chaves. */
@@ -63,7 +65,7 @@ for (const h of htmls) {
     const f = m[1].replace(/^\.\//, "");
     if (f && !rotasLimpas.has("/" + f.replace(/^\//, "")) && !rotasLimpas.has(f) && !existe(f.replace(/^\//, ""))) add("ALTO", "recurso-inexistente", h, linhaDe(t, m.index), `${f} referenciado e não existe (404 no console / imagem quebrada)`);
   }
-  for (const m of t.matchAll(/data-(abrir|fechar)="([^"]+)"/g)) if (!idsPorHtml[h].has(m[2]) && !new RegExp(`id="${m[2]}"`).test(t)) add("CRITICO", "alvo-inexistente", h, linhaDe(t, m.index), `data-${m[1]}="${m[2]}" aponta para um id que não existe: o botão não faz nada`);
+  for (const m of t.matchAll(/data-(abrir|fechar)="([^"]+)"/g)) if (!idsPorHtml[h].has(m[2]) && !idsEmJs.has(m[2]) && !new RegExp(`id="${m[2]}"`).test(t)) add("CRITICO", "alvo-inexistente", h, linhaDe(t, m.index), `data-${m[1]}="${m[2]}" aponta para um id que não existe: o botão não faz nada`);
 }
 
 // ---------- 2) JS ↔ HTML: $("id") que não existe ----------
@@ -76,7 +78,7 @@ for (const j of jss) {
   const dinamicos = new Set([...t.matchAll(/\.id\s*=\s*["']([\w-]+)["']|\bid=\\?["']?([\w-]+)/g)].map((m) => m[1] || m[2]));   // ids criados pelo próprio JS
   for (const m of t.matchAll(/(?:\$|getElementById)\(\s*["']([\w-]+)["']\s*\)(\?\.)?/g)) {
     const id = m[1];
-    if (m[2] || dinamicos.has(id)) continue;                                                                                   // `?.` ou criado dinamicamente: seguro
+    if (m[2] || dinamicos.has(id) || idsEmJs.has(id)) continue;                                                                                   // `?.` ou criado dinamicamente: seguro
     if (donos.every((h) => !idsPorHtml[h].has(id))) add(compartilhados.has(j) ? "ALTO" : "CRITICO", "id-do-js-inexistente", j, linhaDe(t, m.index), `$("${id}") não existe em ${donos.join(", ")}: devolve null e a função inteira quebra em silêncio (a tela "trava" sem erro visível)`);
   }
 }

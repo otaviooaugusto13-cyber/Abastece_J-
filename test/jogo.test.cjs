@@ -199,6 +199,16 @@ t("3ª advertência bane: claim, status, sessões, turnos liberados, rotas fecha
   falha(await aceitar(ids[0]), 403, "conta-banida"); falha(await chamar("GET", "/carteira", { token: "prom1" }), 403, "conta-banida");
   const r = await chamar("GET", "/reputacao", { token: "prom1" }); ok(r); assert.equal(r.json.banido, true); assert.match(r.json.banidoMotivo, /3 advertências|advertências acumuladas/); assert.equal(r.json.vidas, 0);
 });
+t("conta banida: SÓ o chat de suporte segue liberado (canal de contestação); todo o resto continua 403 conta-banida", async () => {
+  await semearPromotor(); await set("reputacao", "prom1", { uid: "prom1", papel: "promotor", banido: true, advertencias: 3, banidoMotivo: "Acúmulo de 3 advertências." });
+  E.claimsStore.prom1 = { role: "promotor", banido: true };
+  ok(await chamar("POST", "/suporte/mensagem", { token: "prom1", body: { texto: "Contesto o bloqueio: acredito que houve um engano." } }), "banido consegue contestar pelo chat");
+  const conv = await get("suporte_conversas", "prom1"); assert.equal(conv.ultimaDe, "usuario"); assert.equal(conv.naoLidasSuporte, 1, "a equipe é avisada");
+  ok(await chamar("POST", "/suporte/lido", { token: "prom1", body: {} }), "banido marca o chat como lido");
+  falha(await chamar("POST", "/suporte/mensagem", { token: "prom1", body: { texto: "x".repeat(1001) } }), 400);                 // os limites de validação continuam valendo
+  for (const [m, rota] of [["GET", "/carteira"], ["POST", "/push/registrar"]]) falha(await chamar(m, rota, { token: "prom1", body: {} }), 403, "conta-banida");
+  falha(await aceitar("qualquer-turno"), 403, "conta-banida");                                                                   // aceitar turno segue fechado
+});
 t("loja: cancelar com promotor escalado em cima da hora pune; com antecedência ou sem promotor não; 3 bane a loja", async () => {
   await semearPromotor(); await lojaComCartao();
   const aberta = await pedido(); const r1 = await chamar("POST", "/cancelarPedido", { token: "lojaA", body: { solicitacaoId: aberta } }); ok(r1); assert.equal(r1.json.infracao, null);

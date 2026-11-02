@@ -89,3 +89,23 @@ for (const n of ["bronze", "prata", "ouro", "platina"]) for (const b of [0, 3000
 assert.equal(cfg.GEO_RAIO_METROS, SC.GEO.RAIO_METROS); assert.equal(cfg.VIDAS_MAX, SC.VIDAS_MAX); assert.equal(cfg.CANCELAMENTO_TARDIO_HORAS, SC.CANCELAMENTO_TARDIO_HORAS);
 assert.deepEqual(cfg.BONUS_RUPTURA_CENTAVOS, SC.RUPTURA.BONUS_OPCOES_CENTAVOS);
 for (const perfil of ["loja", "promotor"]) { const t = core.textoTermos(perfil); assert.match(t, /Platina 10%/); assert.match(t, /advertência/); assert.match(t, /100 m|foto/); }
+
+
+// 7) NENHUMA rota da API pode escapar da regra de "sem cache" (servidor) nem do bypass do service worker (GET).
+//    Já aconteceu: respostas do painel de TI (auditoria, perfis) iam parar no Cache Storage do navegador.
+{
+    const fs = await import("node:fs"), path = await import("node:path");
+    const raiz = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+    const sw = fs.readFileSync(path.join(raiz, "sw.js"), "utf8"), sv = fs.readFileSync(path.join(raiz, "server/server.js"), "utf8");
+    const lista = (m, nome) => { assert.ok(m, `regex ${nome} não encontrada`); return new RegExp("^/(" + m[1].replace(/\\\//g, "/") + ")"); };
+    const rSW = lista(sw.match(/\^\\\/\(([^)]*)\)\/\.test\(u\.pathname\)/), "do service worker"), rSV = lista(sv.match(/app\.use\(\/\^\\\/\(([^)]*)\)\/, Seg\.semCache\)/), "semCache do servidor");
+    const sem = [];
+    for (const f of [...fs.readdirSync(path.join(raiz, "server/rotas")).map((n) => "server/rotas/" + n), "server/server.js"]) {
+        for (const m of fs.readFileSync(path.join(raiz, f), "utf8").matchAll(/app\.(get|post|put|delete)\(\s*["']([^"']+)["']/g)) {
+            const p = m[2].replace(/:\w+/g, "x");
+            if (!rSV.test(p)) sem.push(`servidor: ${m[1].toUpperCase()} ${m[2]}`);
+            if (m[1] === "get" && !rSW.test(p)) sem.push(`service worker: GET ${m[2]}`);
+        }
+    }
+    assert.deepEqual(sem, [], "rotas fora das regras de no-cache: " + sem.join(" · "));
+}

@@ -454,6 +454,34 @@ t("bootstrap: senha fraca é recusada e nada é criado", async () => {
   assert.equal(r.feito, false); assert.equal((await todos("ti_operadores")).length, 0);
 });
 
+// ======================= chamado automático (erro capturado no app) =======================
+t("chamado automático: abre com protocolo sequencial, categoria bug e origem 'automatico'; mesmo erro do mesmo usuário reaproveita o protocolo", async () => {
+  const corpo = { impressao: "a1b2c3d4e5f60718", titulo: "Erro automático: TypeError", descricao: "TypeError: x is not a function\nTela: screen-main" };
+  const a = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: corpo }); ok(a, "abrir automático");
+  assert.match(a.json.protocolo, /^TI-\d{6}$/); assert.equal(a.json.repetido, false);
+  const d = await get("chamados_ti", a.json.id);
+  assert.equal(d.categoria, "bug"); assert.equal(d.origem, "automatico"); assert.equal(d.solicitanteUid, "lojaA"); assert.equal(d.prioridade, "media");
+  const b = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: corpo }); ok(b);
+  assert.equal(b.json.protocolo, a.json.protocolo); assert.equal(b.json.repetido, true);
+  assert.equal((await todos("chamados_ti")).length, 1);                                     // nada duplicado na fila
+  const c = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { ...corpo, impressao: "ffffeeeeddddcccc" } }); ok(c);
+  assert.notEqual(c.json.protocolo, a.json.protocolo); assert.equal(c.json.repetido, false);   // outro erro → outro protocolo (sequencial)
+  const e = await chamar("POST", "/chamados/automatico", { token: "lojaB", body: corpo }); ok(e);
+  assert.notEqual(e.json.protocolo, a.json.protocolo);                                       // dedupe é por usuário: lojaB não herda o chamado da lojaA
+  E.avancar(61 * MIN);
+  const f = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: corpo }); ok(f);
+  assert.equal(f.json.repetido, false); assert.notEqual(f.json.protocolo, a.json.protocolo);  // passada a janela de 1 h, um novo chamado
+});
+t("chamado automático: exige login, valida a impressão, corta relatório gigante (nunca 400 por tamanho) e aparece em /chamados/meus", async () => {
+  falha(await chamar("POST", "/chamados/automatico", { body: { impressao: "abcdef123456", titulo: "Erro", descricao: "descrição qualquer" } }), 401);
+  falha(await chamar("POST", "/chamados/automatico", { token: "semPapel", body: { impressao: "abcdef123456", titulo: "Erro automático", descricao: "descrição qualquer" } }), 403);
+  falha(await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: "../../etc", titulo: "Erro automático", descricao: "descrição qualquer" } }), 400, "dados-invalidos");
+  falha(await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: { $gt: "" }, titulo: "Erro automático", descricao: "descrição qualquer" } }), 400, "dados-invalidos");
+  const r = await chamar("POST", "/chamados/automatico", { token: "prom1", body: { impressao: "abcdef123456", titulo: "x".repeat(500), descricao: "y".repeat(9000) } }); ok(r, "relatório gigante");
+  const d = await get("chamados_ti", r.json.id); assert.equal(d.titulo.length, 120); assert.equal(d.descricao.length, 2000);
+  assert.equal((await chamar("GET", "/chamados/meus", { token: "prom1" })).json[0].protocolo, r.json.protocolo);
+});
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {
