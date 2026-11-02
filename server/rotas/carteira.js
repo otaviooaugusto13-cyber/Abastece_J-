@@ -2,7 +2,7 @@
 const { paraCSV, dinheiro, dataBR } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { db, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas } = x;
+  const { db, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas, operacao } = x;
   const iso = (ts) => { const d = ts?.toDate ? ts.toDate() : null; return d ? d.toISOString() : null; };
   const PIX_CARENCIA_MS = 24 * 3600_000;     // após trocar a chave Pix, saques ficam travados por 24 h (proteção contra sequestro de conta)
   const enviarCSV = (res, nome, csv) => { res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${nome}"`); res.setHeader("X-Content-Type-Options", "nosniff"); res.send(csv); };
@@ -23,7 +23,7 @@ module.exports = (app, x) => {
     });
   }));
 
-  app.post("/carteira/saque", limitar({ janelaMs: 3600_000, max: 5, nome: "saque", porUsuario: true }), auth.exigir("promotor"), envelope(async (req, res) => {
+  app.post("/carteira/saque", limitar({ janelaMs: 3600_000, max: 5, nome: "saque", porUsuario: true }), operacao.exigir("pagamentos"), auth.exigir("promotor"), envelope(async (req, res) => {
     const uid = req.usuario.uid;
     auth.exigirRecente(req.usuario);
     const valor = V.inteiro(req.body?.valorCentavos, "valorCentavos", { min: 1, max: 100_000_000 });

@@ -1,6 +1,6 @@
 // Pedidos de turno. Toda mudança de estado acontece AQUI (transações); o navegador só lê.
 module.exports = (app, x) => {
-  const { db, FieldValue, Timestamp, auth, V, C, S, G, Falha, envelope, limitar, habilitacao, taxas, reputacao, hojeSP, visaoLoja, MODO_TESTE } = x;
+  const { db, FieldValue, Timestamp, auth, V, C, S, G, Falha, envelope, limitar, habilitacao, taxas, operacao, reputacao, hojeSP, visaoLoja, MODO_TESTE } = x;
   const porUsuario = (nome, max, janelaMs = 60_000) => limitar({ janelaMs, max, nome, porUsuario: true });
   const ehTeste = (u) => MODO_TESTE && u.teste === true && ["teste-loja", "teste-promotor"].includes(u.uid);
 
@@ -61,7 +61,7 @@ module.exports = (app, x) => {
   }));
 
   // ---------- Criar pedido (loja) ----------
-  app.post("/criarPedido", porUsuario("pedido", 20), auth.exigir("loja"), envelope(async (req, res) => {
+  app.post("/criarPedido", porUsuario("pedido", 20), operacao.exigir("missoes"), auth.exigir("loja"), envelope(async (req, res) => {
     const u = req.usuario, b = req.body || {};
     await exigirCartao(u.uid);
     const loja = V.texto(b.loja, "loja", { min: 3, max: 160 });

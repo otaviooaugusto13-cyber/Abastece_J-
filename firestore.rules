@@ -129,5 +129,11 @@ service cloud.firestore {
     match /presencas/{id}           { allow read, write: if false; }
     match /alertas_promotor/{id}    { allow read, write: if false; }
     match /marcas/{id}              { allow read, write: if false; }
+
+    // ---------- Admin Root: parâmetros globais (raio, Master Switch) e trilha de auditoria ----------
+    // config_publica = espelho enxuto (raio + interruptores) para os apps reagirem em tempo real; só o servidor escreve.
+    match /config_publica/{id}        { allow read: if logado(); allow write: if false; }
+    match /root_auditoria/{id}        { allow read, write: if false; }   // só a API (GET /root/auditoria, exige is_root)
+    match /root_auditoria_cadeia/{id} { allow read, write: if false; }
   }
 }

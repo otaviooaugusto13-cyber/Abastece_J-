@@ -2,7 +2,7 @@
 // perto da loja. Aviso = (1) tempo real no app (a oferta aparece na hora, via Firestore) e (2) push (FCM) quando o aparelho
 // do promotor está registrado. O bônus é pago pela loja e repassado 100% ao promotor (split.js).
 module.exports = (app, x) => {
-  const { db, admin, FieldValue, Timestamp, auth, V, C, S, G, Falha, envelope, limitar, visaoLoja, reputacao, taxas } = x;
+  const { db, admin, FieldValue, Timestamp, auth, V, C, S, G, Falha, envelope, limitar, visaoLoja, reputacao, taxas, operacao } = x;
   const R = C.RUPTURA, ts = () => FieldValue.serverTimestamp();
   const porUsuario = (nome, max, janelaMs = 60_000) => limitar({ janelaMs, max, nome, porUsuario: true });
 
@@ -23,9 +23,9 @@ module.exports = (app, x) => {
   // ---------- Quem recebe ----------
   /** Promotores ativos, treinados, com alertas ligados, posição recente dentro do raio e categoria compatível. Mais perto primeiro. */
   async function destinatarios({ lat, lng, setor }) {
-    const agora = Date.now(), rotulo = C.SETORES_ROTULO[setor] || setor;
+    const agora = Date.now(), rotulo = C.SETORES_ROTULO[setor] || setor, raioKm = Math.min(R.RAIO_KM, (await operacao.obter()).raioKm);   // o Root só pode APERTAR o alcance do relâmpago, nunca passar de R.RAIO_KM
     const docs = (await db.collection("alertas_promotor").where("ativo", "==", true).limit(1000).get()).docs.map((d) => d.data());
-    const perto = docs.filter((a) => Number.isFinite(a.lat) && agora - (a.posEm?.toMillis?.() || 0) <= R.POSICAO_VALIDADE_H * 3_600_000 && G.distanciaM({ lat, lng }, a) <= R.RAIO_KM * 1000)
+    const perto = docs.filter((a) => Number.isFinite(a.lat) && agora - (a.posEm?.toMillis?.() || 0) <= R.POSICAO_VALIDADE_H * 3_600_000 && G.distanciaM({ lat, lng }, a) <= raioKm * 1000)
       .filter((a) => !(a.menor && C.MENOR.SETORES_VEDADOS.includes(setor))).map((a) => ({ ...a, km: G.distanciaM({ lat, lng }, a) / 1000 }));
     const out = [];
     for (const a of perto.sort((p, q) => p.km - q.km)) {
@@ -48,7 +48,7 @@ module.exports = (app, x) => {
   }
 
   // ---------- Loja: abre o chamado ----------
-  app.post("/criarRuptura", porUsuario("ruptura", 5, 3600_000), auth.exigir("loja"), envelope(async (req, res) => {
+  app.post("/criarRuptura", porUsuario("ruptura", 5, 3600_000), operacao.exigir("missoes"), auth.exigir("loja"), envelope(async (req, res) => {
     const u = req.usuario, b = req.body || {};
     await x.exigirCartao(u.uid);
     const foco = V.opcao(b.foco, C.SETORES, "setor"), bonus = V.opcao(b.bonusCentavos, R.BONUS_OPCOES_CENTAVOS, "bônus");

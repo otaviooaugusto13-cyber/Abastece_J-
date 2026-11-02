@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 
 module.exports = (app, x) => {
-  const { db, FieldValue, Timestamp, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas, mp, reais, visaoLoja, getBaseUrl, urlPublicaHttps, APP_URL, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET } = x;
+  const { db, FieldValue, Timestamp, auth, V, C, S, Cripto, Falha, envelope, limitar, carteira, taxas, operacao, mp, reais, visaoLoja, getBaseUrl, urlPublicaHttps, APP_URL, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET } = x;
   const porUsuario = (nome, max) => limitar({ janelaMs: 60_000, max, nome, porUsuario: true });
 
   /**
@@ -28,7 +28,7 @@ module.exports = (app, x) => {
   }
 
   // ---------- Checkout ----------
-  app.post("/criarCobranca", porUsuario("cobranca", 20), auth.exigir("loja"), envelope(async (req, res) => {
+  app.post("/criarCobranca", porUsuario("cobranca", 20), operacao.exigir("pagamentos"), auth.exigir("loja"), envelope(async (req, res) => {
     const u = req.usuario, sid = V.idDoc(req.body?.solicitacaoId, "solicitacaoId");
     const ref = db.collection("solicitacoes").doc(sid), s = (await ref.get()).data();
     if (!s || s.uid !== u.uid) throw new Falha(404, "Pedido não encontrado.", "nao-encontrado");

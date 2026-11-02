@@ -15,7 +15,7 @@ import { ativarPush, desativarPush } from "./push.js";
 import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS, NIVEIS } from "./config.js";
 import { iniciarTaxas } from "./taxas.js";
 import { brl, reaisParaCentavos, TAXAS, esc, fmtData, fmtDataHora, hojeLocal, mascaraCPF, mascaraTelefone, cpfValido, soDigitos, estaPago, valorPromotor, validarNascimento, limitesNascimento, SETORES, CATEGORIAS, categoriaDoSetor, textoTermos, calcularDiaria } from "./core.js";
-import { CIDADES, RAIO_KM, acharCidade, rotuloCidade, distanciaKm, cidadeMaisProxima, cidadeDaVaga, pontoDaVaga, contarPorCidade, filtrarPorRaio, fmtKm, rumoRad, observarPosicao } from "./geo.js";
+import { CIDADES, RAIO_KM, definirRaioKm, acharCidade, rotuloCidade, distanciaKm, cidadeMaisProxima, cidadeDaVaga, pontoDaVaga, contarPorCidade, filtrarPorRaio, fmtKm, rumoRad, observarPosicao } from "./geo.js";
 import { AREAS, AREA, ENEAGRAMA, INSTINTOS, MAX_EXPERIENCIAS, asasDoTipo, codigoEneagrama, lerCodigoEneagrama, eneagramaValido, normalizarExperiencias, gerarPerfil, pontuarOferta, ranquearOfertas } from "./perfil-inteligente.js";
 import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
@@ -273,7 +273,14 @@ function montarSetoresPrefs() {
 }
 
 // ---------- dados em tempo real ----------
+let operacaoUn = null;
+/** Raio de atendimento do Admin Root em tempo real: mudou no painel → a lista "Perto de mim" e o radar se redesenham na hora. */
+function escutarOperacao() {
+    operacaoUn?.();
+    operacaoUn = onSnapshot(doc(db, "config_publica", "operacao"), (d) => { const o = d.data(); if (o && definirRaioKm(o.raioKm) === o.raioKm) renderOfertas(); }, () => { /* sem documento/permissão: mantém o raio atual */ });
+}
 function escutar() {
+    escutarOperacao();
     offUn?.(); turnosUn?.(); prim = { o: true, t: true };
     $("lista-ofertas").innerHTML = skeleton(3); $("lista-proximos").innerHTML = skeleton(2);
     // Ofertas abertas só são legíveis para quem concluiu o treinamento (regra do Firestore + claim "treinado")

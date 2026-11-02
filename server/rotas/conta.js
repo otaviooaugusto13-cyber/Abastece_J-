@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const Enea = require("../lib/eneagrama");           // Eneagrama automático (resultado do teste vinculado sem digitação)
 
 module.exports = (app, x) => {
-  const { db, FieldValue, auth, V, C, Cripto, Falha, envelope, limitar, habilitacao, perfisDasClaims, PERFIS } = x;
+  const { db, FieldValue, auth, V, C, Cripto, Falha, envelope, limitar, habilitacao, perfisDasClaims, PERFIS, operacao } = x;
   const TERMOS_VERSAO = "2026-10";
   const lim = limitar({ janelaMs: 60_000, max: 12, nome: "conta" });
   const ctxCampo = (campo, uid) => `profissionais_privado/${campo}/${uid}`;
@@ -72,7 +72,7 @@ module.exports = (app, x) => {
   }
 
   // ---------- Loja ----------
-  app.post("/cadastro/loja", lim, envelope(async (req, res) => {
+  app.post("/cadastro/loja", lim, operacao.exigir("cadastros"), envelope(async (req, res) => {
     const u = await auth.autenticar(req); if (u.role === "ti") throw contaTI();
     if (contaDeMarca(u)) throw erroMarca();
     // Conflito = a conta já TEM o perfil oposto (claims ou documento). Ser admin não é conflito.
@@ -86,7 +86,7 @@ module.exports = (app, x) => {
   }));
 
   // ---------- Promotor / freelancer (16+) ----------
-  app.post("/cadastro/promotor", lim, envelope(async (req, res) => {
+  app.post("/cadastro/promotor", lim, operacao.exigir("cadastros"), envelope(async (req, res) => {
     const u = await auth.autenticar(req), b = req.body || {}; if (u.role === "ti") throw contaTI();
     if (contaDeMarca(u)) throw erroMarca();
     if (perfisDasClaims(u).includes("loja") || (await db.collection("contratantes").doc(u.uid).get()).exists) throw conflito("loja", "promotor");

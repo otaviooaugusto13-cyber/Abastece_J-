@@ -18,13 +18,13 @@ const U = {
   lojaA: { uid: "lojaA", email: "a@x.com", email_verified: true }, lojaB: { uid: "lojaB", email: "b@x.com", email_verified: true },
   novo: { uid: "novo1", email: "n@x.com", email_verified: true, name: "Fulano de Tal" }, novo2: { uid: "novo2", email: "n2@x.com", email_verified: true, name: "Ciclano" },
   prom1: { uid: "prom1", email: "p@x.com", email_verified: true }, prom2: { uid: "prom2", email: "p2@x.com", email_verified: true },
-  adm: { uid: "adm1", email: "adm@x.com", email_verified: true }, nv: { uid: "nv", email: "nv@x.com", email_verified: false }
+  adm: { uid: "adm1", email: "adm@x.com", email_verified: true, name: "Root Teste" }, admN: { uid: "admN", email: "admn@x.com", email_verified: true }, nv: { uid: "nv", email: "nv@x.com", email_verified: false }
 };
 function reset() {
   E.limpar(); Object.assign(E.tokens, U);
   E.claimsStore.lojaA = { role: "loja" }; E.claimsStore.lojaB = { role: "loja" }; E.claimsStore.prom1 = { role: "promotor", treinado: false };
-  E.claimsStore.prom2 = { role: "promotor", treinado: false }; E.claimsStore.adm1 = { role: "admin" }; E.claimsStore.nv = { role: "loja" };
-  E.clock.now = Date.now(); ctx.__reset?.(); ctx.taxas.invalidar();
+  E.claimsStore.prom2 = { role: "promotor", treinado: false }; E.claimsStore.adm1 = { role: "admin", is_root: true }; E.claimsStore.admN = { role: "admin" }; E.claimsStore.nv = { role: "loja" };
+  E.clock.now = Date.now(); ctx.__reset?.(); ctx.taxas.invalidar(); ctx.operacao.invalidar();
 }
 const set = (col, id, d) => ctx.db.collection(col).doc(id).set(d);
 const get = async (col, id) => (await ctx.db.collection(col).doc(id).get()).data();
@@ -668,6 +668,7 @@ t("taxas: o limite semanal por loja vem do banco (3 → 1 muda o aceite na hora)
 });
 t("taxas: se o banco cair, usa a última versão boa; sem cache ou com documento corrompido, 503 (nunca chuta valores)", async () => {
   ok(await salvarTaxas()); await lojaComCartao();
+  await ctx.operacao.obter();   // o Master Switch também lê configuracoes/: com o banco fora, ele serve a última versão boa (o 503 de preço continua sendo o das taxas)
   const orig = ctx.db.collection;
   const quebrar = () => { ctx.db.collection = (c) => (c === "configuracoes" ? { doc: () => ({ get: async () => { throw new Error("firestore fora"); } }) } : orig(c)); };
   try {
@@ -1056,6 +1057,87 @@ t("Code 128: tabela íntegra, B e C, e limites", async () => {
   for (const txt of ["12", "123456789012345678901234", "Hello-World 42", "123", "A1b2~"]) assert.equal(decodificarBarras(DANFE.code128(txt).modulos), txt);
   assert.throws(() => DANFE.code128("")); assert.throws(() => DANFE.code128("ação")); assert.throws(() => DANFE.code128("1".repeat(81)));
   assert.equal(DANFE.agrupar("123456789012"), "1234 5678 9012");
+});
+
+
+// =================== ADMIN ROOT: raio dinâmico, Master Switch, taxas e auditoria encadeada ===================
+const root = (metodo, caminho, corpo, token = "adm", extra = {}) => chamar(metodo, caminho, { token, body: corpo, ...extra });
+const trilha = async () => (await ctx.db.collection("root_auditoria").get()).docs.map((d) => d.data()).sort((a, b) => a.seq - b.seq);
+
+t("root: só admin COM is_root entra (sem login 401, loja 403, admin comum 403 sem-root e a tentativa vira registro 'negado')", async () => {
+  falha(await root("GET", "/root/painel", {}, null), 401, "nao-autenticado");
+  falha(await root("GET", "/root/painel", {}, "lojaA"), 403, "sem-permissao");
+  falha(await root("GET", "/root/painel", {}, "admN"), 403, "sem-root");
+  falha(await root("PUT", "/root/operacao", { raioKm: 10 }, "admN"), 403, "sem-root");
+  falha(await root("PUT", "/root/master", { missoes: false, motivo: "teste de queda" }, "admN"), 403, "sem-root");
+  assert.equal(await get("configuracoes", "operacao"), undefined, "nada foi gravado");
+  assert.ok((await trilha()).some((e) => e.acao === "root.acesso.negado" && e.resultado === "negado" && e.operadorUid === "admN"));
+  const r = await root("GET", "/root/painel"); ok(r); assert.equal(r.json.operacao.raioKm, 20); assert.deepEqual(r.json.limitesOperacao.raioKm, [1, 50]); assert.ok(r.json.taxas.limites);
+});
+t("raio: padrão 20 km; Root altera de 1 a 50, valida tipo/limites, versão sobe e o ESPELHO público muda na mesma transação", async () => {
+  assert.equal((await chamar("GET", "/config/operacao")).json.raioKm, 20);
+  for (const ruim of [0, 51, -3, 10.5, "20", null, NaN, [], {}]) assert.equal((await root("PUT", "/root/operacao", { raioKm: ruim })).status, 400, JSON.stringify(ruim));
+  assert.equal((await root("PUT", "/root/operacao", {})).status, 400);
+  const r = await root("PUT", "/root/operacao", { raioKm: 35, versao: 0 }); ok(r); assert.equal(r.json.operacao.raioKm, 35); assert.equal(r.json.operacao.versao, 1);
+  assert.equal((await get("configuracoes", "operacao")).raioKm, 35);
+  assert.deepEqual({ ...(await get("config_publica", "operacao")), atualizadoEm: undefined }, { raioKm: 35, cadastros: true, missoes: true, pagamentos: true, versao: 1, atualizadoEm: undefined });
+  const pub = await chamar("GET", "/config/operacao"); ok(pub); assert.deepEqual(pub.json, { raioKm: 35, cadastros: true, missoes: true, pagamentos: true, versao: 1 });
+  ok(await root("PUT", "/root/operacao", { raioKm: 1 })); ok(await root("PUT", "/root/operacao", { raioKm: 50 }));
+  falha(await root("PUT", "/root/operacao", { raioKm: 10, versao: 1 }), 409, "operacao-desatualizada");   // versão velha: outro Root mexeu
+});
+t("master switch: pausar exige motivo; cadastros/missões/pagamentos retornam 503 enquanto pausados; painel e leitura pública continuam; religar volta ao normal", async () => {
+  falha(await root("PUT", "/root/master", { missoes: false }), 400, "operacao-invalida");                      // sem motivo
+  falha(await root("PUT", "/root/master", { missoes: "nao", motivo: "queda do provedor" }), 400, "operacao-invalida");
+  falha(await root("PUT", "/root/master", { motivo: "queda do provedor" }), 400, "operacao-invalida");          // nada para alterar
+  const r = await root("PUT", "/root/master", { cadastros: false, missoes: false, pagamentos: false, motivo: "Mercado Pago fora do ar" }); ok(r);
+  assert.deepEqual(r.json.operacao.master, { cadastros: false, missoes: false, pagamentos: false }); assert.equal(r.json.operacao.motivoPausa, "Mercado Pago fora do ar");
+  const pub = (await chamar("GET", "/config/operacao")).json; assert.equal(pub.cadastros, false); assert.ok(!("motivoPausa" in pub), "o motivo interno não vai para o público");
+  falha(await chamar("POST", "/cadastro/loja", { token: "novo", body: { termos: true } }), 503, "operacao-pausada");
+  falha(await chamar("POST", "/cadastro/promotor", { token: "novo2", body: { termos: true } }), 503, "operacao-pausada");
+  falha(await chamar("POST", "/criarPedido", { token: "lojaA", body: {} }), 503, "operacao-pausada");
+  falha(await chamar("POST", "/criarRuptura", { token: "lojaA", body: {} }), 503, "operacao-pausada");
+  falha(await chamar("POST", "/criarCobranca", { token: "lojaA", body: { solicitacaoId: "x" } }), 503, "operacao-pausada");
+  falha(await chamar("POST", "/carteira/saque", { token: "prom1", body: { valorCentavos: 5000 } }), 503, "operacao-pausada");
+  ok(await root("GET", "/root/painel"));                                                                        // o Root nunca é trancado para fora
+  E.tokens.adm.auth_time = Math.floor(E.clock.now / 1000) - 3600;                                               // login antigo: PAUSAR não pede reautenticação (botão de pânico)...
+  ok(await root("PUT", "/root/master", { pagamentos: false, motivo: "continua fora do ar" }));
+  falha(await root("PUT", "/root/master", { missoes: true }), 401, "reautenticar");                             // ...mas RELIGAR pede
+  E.tokens.adm.auth_time = Math.floor(E.clock.now / 1000);
+  ok(await root("PUT", "/root/master", { cadastros: true, missoes: true, pagamentos: true }));
+  const op = (await root("GET", "/root/painel")).json.operacao; assert.equal(op.motivoPausa, "", "tudo ligado limpa o motivo");
+  assert.notEqual((await chamar("POST", "/cadastro/loja", { token: "novo", body: { termos: true } })).json?.codigo, "operacao-pausada");
+});
+t("taxas: só o Root altera (admin comum 403 em /admin/taxas e /root/taxas); alteração do Root entra na trilha com antes/depois", async () => {
+  const NOVAS2 = { diariaCentavos: 25000, comissaoCentavos: 5000, repasseCentavos: 20000, taxaFixaCentavos: 500, horasMin: 2, horasMax: 8, maxSemana: 3 };
+  for (const caminho of ["/admin/taxas", "/root/taxas"]) falha(await root("PUT", caminho, NOVAS2, "admN"), 403, "sem-root");
+  assert.equal(await get("configuracoes", "taxas"), undefined);
+  ok(await root("PUT", "/root/taxas", NOVAS2));
+  const e = (await trilha()).filter((x) => x.acao === "root.taxas.alterar");
+  assert.deepEqual(e.map((x) => x.resultado), ["solicitado", "aplicado"]);
+  assert.equal(e[1].antes.diariaCentavos, 20000); assert.equal(e[1].depois.diariaCentavos, 25000);
+});
+t("auditoria Root: registra quem, quando e de qual IP; é encadeada por hash; adulteração é detectada; pedido inválido não deixa rastro de 'aplicado'", async () => {
+  ok(await root("PUT", "/root/operacao", { raioKm: 30 }, "adm", { ip: "203.0.113.7" }));
+  assert.equal((await root("PUT", "/root/operacao", { raioKm: 99 }, "adm", { ip: "203.0.113.7" })).status, 400);
+  const tr = await trilha(); assert.deepEqual(tr.map((x) => `${x.acao}:${x.resultado}`), ["root.raio.alterar:solicitado", "root.raio.alterar:aplicado"]);
+  const e = tr[1]; assert.equal(e.operadorUid, "adm1"); assert.equal(e.operadorEmail, "adm@x.com"); assert.equal(e.ip, "203.0.113.7"); assert.ok(e.emMs > 0 && e.hash && e.prevHash === tr[0].hash); assert.equal(e.depois.raioKm, 30);
+  const lista = await root("GET", "/root/auditoria"); ok(lista); assert.equal(lista.json.itens.length, 2); assert.equal(lista.json.itens[0].ip, "203.0.113.7");
+  const v1 = await root("GET", "/root/auditoria/verificar"); ok(v1); assert.equal(v1.json.ok, true); assert.equal(v1.json.verificados, 2);
+  await ctx.db.collection("root_auditoria").doc(String(tr[0].seq).padStart(10, "0")).set({ ...tr[0], ip: "1.1.1.1" });   // alguém mexe direto no banco
+  const v2 = (await root("GET", "/root/auditoria/verificar")).json; assert.equal(v2.ok, false); assert.ok(v2.problemas.some((p) => p.problema === "conteudo-alterado"));
+  falha(await root("GET", "/root/auditoria", {}, "admN"), 403, "sem-root");
+});
+t("auditoria Root: se a trilha estiver fora do ar, NADA é alterado (fail-closed)", async () => {
+  const antes = ctx.root.auditoria.registrar; ctx.root.auditoria.registrar = async () => null;
+  try { falha(await root("PUT", "/root/operacao", { raioKm: 12 }), 503, "auditoria-indisponivel"); } finally { ctx.root.auditoria.registrar = antes; }
+  assert.equal(await get("configuracoes", "operacao"), undefined);
+});
+t("root: bootstrap por ROOT_BOOTSTRAP_EMAIL promove só admin com e-mail verificado e é idempotente", async () => {
+  delete E.claimsStore.adm1.is_root;
+  const r1 = await ctx.root.bootstrap({ ROOT_BOOTSTRAP_EMAIL: "adm@x.com, lojaa@inexistente.com, a@x.com" });
+  assert.equal(r1.find((x) => x.email === "adm@x.com").feito, true); assert.equal(E.claimsStore.adm1.is_root, true); assert.equal(E.claimsStore.adm1.role, "admin");
+  assert.equal(r1.find((x) => x.email === "a@x.com").motivo, "nao-e-admin"); assert.equal(E.claimsStore.lojaA.is_root, undefined);
+  assert.equal((await ctx.root.bootstrap({ ROOT_BOOTSTRAP_EMAIL: "adm@x.com" }))[0].motivo, "ja-e-root");
 });
 
 

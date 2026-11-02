@@ -27,8 +27,8 @@ function limpar(v, nivel = 0) {
   return String(v).slice(0, 100);
 }
 
-function criarAuditoria({ db, FieldValue, Timestamp }) {
-  const COL = "ti_auditoria", CADEIA = "ti_auditoria_cadeia";
+function criarAuditoria({ db, FieldValue, Timestamp, colecao = "ti_auditoria", cadeia = "ti_auditoria_cadeia" }) {
+  const COL = colecao, CADEIA = cadeia;   // coleções parametrizáveis: o Admin Root usa a sua própria cadeia (root_auditoria)
   let fila = Promise.resolve();   // serializa as gravações desta instância (menos retentativas de transação)
 
   const nucleo = (e) => ({ seq: e.seq, prevHash: e.prevHash, emMs: e.emMs, acao: e.acao, resultado: e.resultado, operadorUid: e.operadorUid, operadorNome: e.operadorNome, operadorEmail: e.operadorEmail, nivel: e.nivel,
