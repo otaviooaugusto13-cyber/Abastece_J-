@@ -1,12 +1,13 @@
 // ============================================================
 // ABASTECE JÁ — acesso por portal (loja | promotor | admin) e tratamento amigável de multi-perfil
 //
-// Uma conta Google = um uid no Firebase Auth, e a sessão é COMPARTILHADA entre index.html, promotor.html e admin.html
-// (mesma origem). Por isso abrir o portal "errado" não é erro de login: é só a conta estar com outro perfil.
+// Uma conta (Google ou e-mail/senha) = um uid no Firebase Auth, e a sessão é COMPARTILHADA entre index.html e promotor.html
+// (mesma origem; o painel de TI e o do Admin têm sessão própria — ver firebase.js). Por isso abrir o portal "errado" não é erro de login:
+// é só a conta estar com outro perfil.
 // Antes, o front fazia signOut() + toast ("Esta conta não tem acesso…" / "Conta com dois perfis. Fale com o suporte.").
 // Agora: o servidor (/sessao) diz o que a conta tem, e esta tela oferece o caminho certo — sem derrubar a sessão.
 // ============================================================
-import { chamarFuncao, renovarToken } from "./firebase.js";
+import { chamarFuncao, renovarToken, conferirEmailVerificado, enviarVerificacaoEmail } from "./firebase.js";
 import { esc } from "./core.js";
 import { ROTAS, WHATSAPP_SUPORTE } from "./config.js";
 
@@ -128,4 +129,32 @@ export function telaFalhaTemporaria({ tentarDeNovo, trocarConta }) {
         texto: "Pode ser a conexão ou uma instabilidade momentânea. Sua conta não foi alterada — tente novamente.",
         acoes: [{ rotulo: "Tentar de novo", aoClicar: tentarDeNovo }, { rotulo: "Sair e usar outra conta", aoClicar: trocarConta, tipo: "ghost" }]
     });
+}
+
+/**
+ * Conta de E-MAIL e SENHA ainda sem e-mail confirmado. O servidor só aceita e-mail verificado, então, em vez de deixar o app falhar com
+ * "sessão inválida", mostramos esta tela: "Já confirmei" (relê o usuário, renova o token e recarrega), "Reenviar e-mail" e "Usar outra conta".
+ * Volta sozinha para o app quando a pessoa retorna à aba depois de clicar no link.
+ */
+export function telaVerificarEmail({ email, trocarConta }) {
+    const aviso = (t) => { const p = document.getElementById("acesso-texto"); if (p) p.textContent = t; };
+    const conferir = async (silencioso = false) => {
+        try { if (await conferirEmailVerificado()) { location.reload(); return true; } if (!silencioso) aviso("Ainda não identificamos a confirmação. Abra o link do e-mail e tente de novo."); }
+        catch (e) { if (!silencioso) aviso("Não foi possível verificar agora. Confira a internet e tente de novo."); }
+        return false;
+    };
+    const comBotao = (fn) => async (ev) => { const b = ev.currentTarget; b.disabled = true; try { await fn(); } finally { b.disabled = false; } };
+    mostrar({
+        titulo: "Confirme seu e-mail",
+        texto: `Enviamos um link de confirmação para ${email || "o seu e-mail"}. Abra a mensagem (olhe também o spam), toque no link e volte aqui.`,
+        acoes: [
+            { rotulo: "Já confirmei meu e-mail", aoClicar: comBotao(() => conferir(false)) },
+            { rotulo: "Reenviar e-mail", tipo: "ghost", aoClicar: comBotao(async () => {
+                try { await enviarVerificacaoEmail(); aviso(`Enviamos outro e-mail para ${email || "você"}. Pode levar alguns minutos.`); }
+                catch (e) { aviso(/too-many/.test(String(e?.code || "")) ? "Muitos pedidos seguidos. Aguarde um minuto e tente de novo." : "Não foi possível reenviar agora. Tente de novo em instantes."); }
+            }) },
+            { rotulo: "Usar outra conta", tipo: "ghost", aoClicar: trocarConta }
+        ]
+    });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && document.getElementById("acesso-titulo")?.textContent === "Confirme seu e-mail") conferir(true); });
 }

@@ -4,7 +4,7 @@ services:
     name: abastece-j
     runtime: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm install && cd ../cs/web && npm install --include=dev && npm run build   # painel de CS & B2B (React) → ../cs-app, servido em /painel-cs
     startCommand: npm start
     plan: free
     healthCheckPath: /saude
@@ -49,6 +49,19 @@ services:
     schedule: "0 * * * *"
     buildCommand: "true"
     startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$APP_URL/interno/manutencao"'
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+
+  # Sucesso do Cliente: alertas de vaga sem promotor, churn, disparo de NPS e geração das recorrências das lojas.
+  - type: cron
+    name: abastece-cs
+    runtime: node
+    schedule: "*/15 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$APP_URL/interno/cs-manutencao"'
     envVars:
       - key: CRON_SECRET
         sync: false

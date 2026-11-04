@@ -4,8 +4,9 @@
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta } from "./firebase.js";
-import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, irParaPainel, limparGuarda } from "./acesso.js";
+import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, precisaVerificarEmail } from "./firebase.js";
+import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaVerificarEmail, irParaPainel, limparGuarda } from "./acesso.js";
+import { ligarLoginEmail } from "./login-email.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo, termosAceitos, gravarTermos } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
 import { iniciarSuporte, pararSuporte, abrirSuporte, chatDisponivel } from "./suporte.js";
@@ -51,14 +52,16 @@ const msgAuth = (e) => ({
     "auth/unauthorized-domain": "Domínio não autorizado no Firebase (Authentication → Settings → Domínios autorizados).",
     "auth/operation-not-allowed": "Login com Google não está ativado no Firebase.",
     "auth/network-request-failed": "Sem conexão com a internet.",
+    "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere pop-ups para este site e tente de novo.",
     "auth/popup-closed-by-user": null, "auth/cancelled-popup-request": null
 })[e.code] ?? `Não foi possível entrar com o Google. (${e.code || "erro"})`;
 
 const TXT_LOGIN = {
-    entrar: { titulo: "Entrar na minha conta", sub: "Use a conta Google do cadastro da sua loja.", botao: "Entrar com Google" },
+    entrar: { titulo: "Entrar na minha conta", sub: "Entre com e-mail e senha ou com a conta Google do cadastro da sua loja.", botao: "Entrar com Google" },
     criar: { titulo: "Cadastre sua loja", sub: "Peça um promotor em minutos, acompanhe ao vivo e pague com nota automática.", botao: "Criar conta com Google" }
 };
 const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
+ligarLoginEmail({ modoAtual: () => seletor.atual() });
 const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 $("link-termos").addEventListener("click", (e) => { e.preventDefault(); abrir("sheet-termos"); });
 let aguardandoTermos = false;                                          // clicou em "Criar conta" sem aceitar: abrimos os Termos e, ao aceitar, seguimos para o Google
@@ -85,6 +88,7 @@ function parar() { clearInterval(repTimer); esconderBanido(); rep = null; pedido
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
     if (!u) { parar(); pararSuporte(); perfil = {}; pedidos = []; tela("screen-login"); resetarLogin(); return; }
+    if (precisaVerificarEmail(u)) { resetarLogin(); telaVerificarEmail({ email: u.email, trocarConta }); return; }   // e-mail/senha sem confirmação: o servidor só aceita e-mail verificado
     let seguiu = false;
     try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); resetarLogin(); erro(e.code === "limite-requisicoes" || e.code === "termos-obrigatorios" || e.code === "dados-invalidos" ? e.message : "Não foi possível carregar seu cadastro. Tente novamente."); return; }   // reabilita o botão: antes ficava em "Abrindo o Google…" para sempre
     if (!seguiu) { resetarLogin(); return; }                                    // tela de aviso/falha já está na tela; a sessão continua de pé

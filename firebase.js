@@ -1,12 +1,33 @@
 // Inicialização única do Firebase (antes cada página repetia a config).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { initializeAuth, getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, GoogleAuthProvider, connectAuthEmulator, signInWithCustomToken, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { initializeAuth, getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, GoogleAuthProvider, connectAuthEmulator, signInWithCustomToken, signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { FIREBASE_CONFIG, FUNCTIONS_BASE, USAR_EMULADOR } from "./config.js";
 
 // Inconsistências de NEGÓCIO (valor divergente, nota inconsistente…) abrem chamado mesmo sendo 4xx: o roteador do servidor as manda para ADM/Suporte. Espelhado em erros-nucleo.js.
 const CODIGOS_COM_CHAMADO = ["valor-divergente", "pagamento-invalido", "nota-inconsistente", "estorno-invalido", "loja-sem-localizacao", "dado-travado"];
-export const app = initializeApp(FIREBASE_CONFIG);
+
+// ---------- SESSÃO POR PAINEL ----------
+// O Firebase guarda a sessão no navegador sob a chave `firebase:authUser:<apiKey>:<nome do app>`. Antes, todos os painéis usavam o app padrão
+// ("[DEFAULT]"), ou seja, UMA sessão só por navegador: entrar no painel do Admin trocava o usuário do painel de TI (e vice-versa), o painel de TI
+// recebia "sem permissão" e se deslogava. Agora o painel de TI e o do Admin têm app (e sessão) próprios; loja e promotor continuam
+// compartilhando o app padrão de propósito (uma conta pode ter os dois perfis e o /sessao do servidor troca o ativo).
+const PORTAIS_ISOLADOS = ["ti", "admin"];
+/** Qual painel é esta página? Lê <meta name="abastece-portal">; sem ela, deduz pela URL (/painel-ti, ti.html, /painel-admin, admin.html). */
+export function portalDaPagina() {
+    try {
+        const m = document.querySelector('meta[name="abastece-portal"]')?.content?.trim();
+        if (m) return m;
+        const p = location.pathname.toLowerCase();
+        if (/(^|\/)(painel-ti|ti\.html)\/?$/.test(p)) return "ti";
+        if (/(^|\/)(painel-admin|admin\.html)\/?$/.test(p)) return "admin";
+    } catch (e) { /* sem DOM (testes): painel padrão */ }
+    return "default";
+}
+export const PORTAL = portalDaPagina();
+export const NOME_APP = PORTAIS_ISOLADOS.includes(PORTAL) ? PORTAL : undefined;   // undefined = app padrão
+
+export const app = NOME_APP ? initializeApp(FIREBASE_CONFIG, NOME_APP) : initializeApp(FIREBASE_CONFIG);
 // SESSÃO PERSISTENTE: o login fica salvo no aparelho (localStorage; se indisponível, IndexedDB; por último a sessão da aba) e é restaurado
 // ao reabrir o app. É declarado na criação do Auth — sem corrida com o primeiro login. Sessões antigas (IndexedDB) são migradas sozinhas.
 function criarAuth() {
@@ -101,20 +122,64 @@ export async function contaDeTeste() {
     try { return (await auth.currentUser.getIdTokenResult()).claims.teste === true; } catch (e) { return false; }
 }
 
-// ---------- Login / logout (um único caminho para os três portais) ----------
+// ---------- Login / logout (um único caminho para todos os portais) ----------
 /**
- * Entra com o Google por REDIRECIONAMENTO (sem popup: elimina o aviso "Cross-Origin-Opener-Policy ... window.close" e o bloqueio de popup).
- * A página navega até o Google e volta; quem conclui o login é `concluirLoginGoogle()` (getRedirectResult), chamado no carregamento da página.
- * Sempre resolve null (a navegação interrompe o fluxo); lança só se não conseguiu nem iniciar o redirect.
+ * Entra com o Google. Estratégia em duas camadas (a anterior só usava redirect e quebrava em qualquer ajuste de domínio/OAuth):
+ *   1) POPUP — não depende de armazenamento entre sites (o que o Chrome/Safari bloqueiam no redirect) e funciona com o domínio de
+ *      autenticação padrão do Firebase (<projeto>.firebaseapp.com), que já vem autorizado no Google Cloud sem configuração manual.
+ *      Resolve com a credencial.
+ *   2) REDIRECT — plano B só quando o popup é impossível (bloqueado, navegador embutido, armazenamento indisponível).
+ *      A página navega até o Google e volta; quem conclui é `concluirLoginGoogle()` (getRedirectResult) no carregamento. Resolve null.
+ * Lança com o erro original (auth/popup-closed-by-user = a pessoa desistiu; os chamadores tratam em silêncio).
+ * IMPORTANTE: chame direto do clique (o popup precisa nascer no gesto do usuário; nada de await antes).
  */
 export async function entrarComGoogle() {
-    await signInWithRedirect(auth, googleProvider);
-    return null;
+    try { return await signInWithPopup(auth, googleProvider); }
+    catch (e) {
+        const c = String(e?.code || "");
+        if (/popup-closed-by-user|cancelled-popup-request/.test(c)) throw e;
+        if (/popup-blocked|operation-not-supported|web-storage-unsupported|internal-error/.test(c)) { await signInWithRedirect(auth, googleProvider); return null; }
+        throw e;
+    }
 }
-/** Conclui o login iniciado por `entrarComGoogle()`. Nunca lança: devolve { cred } (ou { cred: null } se não houve redirect) ou { erro } com o erro original. */
+/** Conclui o login iniciado por redirect. Nunca lança: devolve { cred } (ou { cred: null } se não houve redirect) ou { erro } com o erro original. */
 export async function concluirLoginGoogle() {
     try { return { cred: await getRedirectResult(auth) }; }
     catch (erro) { console.error("getRedirectResult:", erro); return { cred: null, erro }; }
+}
+/** O usuário fechou a janela do Google ou clicou duas vezes: não é erro para mostrar. */
+export const loginCancelado = (e) => /popup-closed-by-user|cancelled-popup-request|no-auth-event|cancelled/.test(String(e?.code || ""));
+
+// ---------- Login por E-MAIL e SENHA (loja e promotor; o painel de TI/Admin tem o próprio formulário) ----------
+/** Entra com e-mail e senha. Lança com o erro original do Firebase (use `msgEmail` em login-email.js para traduzir). */
+export const entrarComEmail = (email, senha) => signInWithEmailAndPassword(auth, String(email || "").trim(), String(senha || ""));
+/**
+ * Cria a conta e já dispara o e-mail de confirmação. O servidor só aceita contas com e-mail VERIFICADO (server/lib/seguranca.js → autenticar),
+ * então a conta fica numa tela de "confirme seu e-mail" até a pessoa clicar no link.
+ */
+export async function criarContaComEmail({ email, senha, nome }) {
+    const cred = await createUserWithEmailAndPassword(auth, String(email || "").trim(), String(senha || ""));
+    const n = String(nome || "").trim().slice(0, 100);
+    if (n) { try { await updateProfile(cred.user, { displayName: n }); } catch (e) { console.warn("updateProfile:", e); } }
+    try { await enviarVerificacaoEmail(cred.user); } catch (e) { console.warn("sendEmailVerification:", e); }   // a tela de verificação oferece "Reenviar"
+    return cred;
+}
+/** Com `url`, o link do e-mail leva de volta ao painel; se o domínio não estiver autorizado no Firebase, reenvia sem ela. */
+async function comRetorno(enviar) {
+    const url = `${location.origin}${location.pathname}`;
+    try { return await enviar({ url, handleCodeInApp: false }); }
+    catch (e) { if (/continue-uri/.test(String(e?.code || ""))) return enviar(undefined); throw e; }
+}
+export const enviarVerificacaoEmail = (user = auth.currentUser) => comRetorno((cfg) => (cfg ? sendEmailVerification(user, cfg) : sendEmailVerification(user)));
+export const recuperarSenha = (email) => comRetorno((cfg) => (cfg ? sendPasswordResetEmail(auth, String(email || "").trim(), cfg) : sendPasswordResetEmail(auth, String(email || "").trim())));
+/** Conta de e-mail/senha que ainda não confirmou o e-mail (contas Google e de teste já vêm verificadas). */
+export const precisaVerificarEmail = (u) => !!u && u.emailVerified !== true && (u.providerData || []).some((p) => p.providerId === "password");
+/** Relê o usuário no Firebase; se já confirmou, renova o token (a claim email_verified só entra no token novo). Devolve true/false. */
+export async function conferirEmailVerificado() {
+    const u = auth.currentUser; if (!u) return false;
+    await u.reload();
+    if (!auth.currentUser?.emailVerified) return false;
+    await renovarToken(); return true;
 }
 /** Encerra a sessão e limpa os marcadores do fluxo de entrada (modo e anti-loop), para recomeçar do zero. */
 export async function sairDaConta() {

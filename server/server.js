@@ -10,6 +10,7 @@
 //   rotas/nota.js         comprovante de serviço (layout DANFE simplificado, sem valor fiscal) + verificação pública — ver NOTA-COMPROVANTE.md
 //   rotas/carteira.js     carteira digital, saque, extrato e CSV (profissional e loja)
 //   rotas/taxas.js        taxas e regras de turno editáveis pelo admin (GET /config/taxas público, PUT /admin/taxas)
+//   lib/cs/rotas.js       Sucesso do Cliente & B2B (/cs/*, /painel-cs): fill rate, CSAT, NPS, churn, contas-chave, faturamento B2B, recorrências, exportador — fonte TypeScript em ../cs (npm run cs:compilar)
 //   rotas/root.js         Admin Root: raio de atendimento, Master Switch, taxas e trilha de auditoria (flag is_root) — ver ROOT-ADMIN.md
 //   rotas/admin.js        aprovação, módulos, estornos, saques, conciliação, auditoria (papel admin)
 //   rotas/ti.js           módulo de TI: operadores, trilha de auditoria, chamados, dashboard, tempo real, presença (papel ti) — ver TI-MODULO.md
@@ -132,23 +133,24 @@ app.use(criarAuthProxy({ projectId: process.env.FIREBASE_PROJECT_ID || "abastece
 app.use(Seg.cabecalhos());
 app.use(cors(Seg.opcoesCors(permitidas)));
 const jsonPadrao = express.json({ limit: C.BODY_LIMITE });
-app.use((req, res, next) => (req.path === "/checkout" ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
+app.use((req, res, next) => (req.path === "/checkout" || /^\/cs\/lojas\/[\w-]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|config\/operacao|root\/|ti\/|chamados|presenca|nota\/|turnos|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|config\/operacao|root\/|ti\/|chamados|presenca|nota\/|turnos|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b|cs\/)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
 for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "root", "mapa", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+ctx.cs = require("./lib/cs/rotas")(app, { ...ctx, Img: require("./lib/imagem") });   // CS & B2B (compilado de ../cs/*.ts); depois de pedidos/b2b: usa ctx.exigirCartao, localDaLoja, marcaDoPedido
 
 
 // ---------- Site estático (somente extensões permitidas; nada de código do servidor, regras ou segredos) ----------
 const RAIZ = path.join(__dirname, "..");
-const BLOQUEADOS = /^\/(server|functions|test|scripts|node_modules|docs)(\/|$)|(^|\/)\./i;
+const BLOQUEADOS = /^\/(server|functions|test|scripts|node_modules|docs|cs)(\/|$)|(^|\/)\./i;
 // Rotas limpas dos painéis: a URL pública é /painel-loja e /painel-promotor (as páginas continuam sendo index.html e promotor.html).
 // Sem barra final (/painel-loja/ redireciona): os scripts e estilos usam caminhos relativos e quebrariam dentro de uma "pasta".
-const PAINEIS = { "painel-loja": "index.html", "painel-promotor": "promotor.html", "painel-admin": "admin.html", "painel-ti": "ti.html" };
-app.get(/^\/(painel-loja|painel-promotor|painel-admin|painel-ti)\/?$/, (req, res) => {
+const PAINEIS = { "painel-loja": "index.html", "painel-promotor": "promotor.html", "painel-admin": "admin.html", "painel-ti": "ti.html", "painel-cs": "cs-app/index.html" };
+app.get(/^\/(painel-loja|painel-promotor|painel-admin|painel-ti|painel-cs)\/?$/, (req, res) => {
   const nome = req.path.replace(/\//g, "");
   if (req.path.endsWith("/")) return res.redirect(302, `/${nome}${req.url.slice(req.path.length)}`);
   res.setHeader("Cache-Control", "no-cache");

@@ -4,8 +4,9 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, aquecerServidor } from "./firebase.js";
-import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, irParaPainel, limparGuarda } from "./acesso.js";
+import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, aquecerServidor, precisaVerificarEmail } from "./firebase.js";
+import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, telaVerificarEmail, irParaPainel, limparGuarda } from "./acesso.js";
+import { ligarLoginEmail } from "./login-email.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
 import { iniciarSuporte, pararSuporte, abrirSuporte, chatDisponivel } from "./suporte.js";
@@ -52,12 +53,13 @@ try { const et = new URLSearchParams(location.search).get("et"); if (et) localSt
 const refRecebido = () => { try { return localStorage.getItem("abastece_ref") || ""; } catch (e) { return ""; } };
 
 // ---------- login ----------
-const msgAuth = (e) => ({ "auth/unauthorized-domain": "Domínio não autorizado no Firebase.", "auth/operation-not-allowed": "Login com Google não está ativado no Firebase.", "auth/network-request-failed": "Sem conexão com a internet." })[e.code] ?? ((e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") ? null : `Falha ao autenticar (${e.code || "erro"}).`);
+const msgAuth = (e) => ({ "auth/unauthorized-domain": "Domínio não autorizado no Firebase.", "auth/operation-not-allowed": "Login com Google não está ativado no Firebase.", "auth/network-request-failed": "Sem conexão com a internet.", "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere pop-ups para este site e tente de novo." })[e.code] ?? ((e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") ? null : `Falha ao autenticar (${e.code || "erro"}).`);
 const TXT_LOGIN = {
-    entrar: { titulo: "Entrar na minha conta", sub: "Use a conta Google do seu cadastro de promotor.", botao: "Entrar com Google" },
+    entrar: { titulo: "Entrar na minha conta", sub: "Entre com e-mail e senha ou com a conta Google do seu cadastro de promotor.", botao: "Entrar com Google" },
     criar: { titulo: "Comece a pegar turnos", sub: refRecebido() ? "🎁 Você foi convidado por um promotor. Cadastre-se e faça seu primeiro turno!" : "Cadastro rápido com Google. Depois de aprovado, você vê as ofertas da região.", botao: "Criar conta com Google" }
 };
 const seletor = ligarSeletorDeModo({ textos: TXT_LOGIN });
+ligarLoginEmail({ modoAtual: () => seletor.atual() });
 const resetarLogin = () => { const b = $("btn-login"); delete b.dataset.ocupado; $("btn-login-txt").textContent = TXT_LOGIN[seletor.atual()].botao; seletor.atualizarBotao(); };
 const abrirTermos = (e) => { e.preventDefault(); abrir("sheet-termos"); };
 $("link-termos").addEventListener("click", abrirTermos); $("link-termos2").addEventListener("click", abrirTermos);
@@ -89,6 +91,7 @@ const tela = (id) => document.querySelectorAll(".screen").forEach((s) => s.class
 onAuthStateChanged(auth, async (u) => {
     usuario = u;
     if (!u) { clearInterval(repTimer); pararPosicao(); pub = {}; priv = {}; hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }; offUn?.(); turnosUn?.(); pararPings(); pararHab(); habCats = null; pararDeAcompanhar(); pararSuporte(); tela("screen-login"); resetarLogin(); prim = { o: true, t: true }; return; }
+    if (precisaVerificarEmail(u)) { resetarLogin(); telaVerificarEmail({ email: u.email, trocarConta }); return; }   // e-mail/senha sem confirmação: o servidor só aceita e-mail verificado
     try { await entrar(u); } catch (e) { console.error(e); resetarLogin(); erro("Não foi possível carregar seu cadastro. Tente novamente."); }
 });
 

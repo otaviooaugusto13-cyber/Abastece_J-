@@ -47,6 +47,7 @@ export function ligarSeletorDeModo({ textos }) {
         const dica = $("dica-modo");
         if (dica) dica.innerHTML = modo === "entrar" ? 'Ainda não tem conta? <button type="button" data-modo="criar">Criar nova conta</button>' : 'Já tem conta? <button type="button" data-modo="entrar">Entrar na minha conta</button>';
         atualizarBotao();
+        document.dispatchEvent(new CustomEvent("abastece:modo", { detail: { modo } }));   // login-email.js ajusta o formulário de e-mail/senha
     }
     for (const m of MODOS) botoes[m].addEventListener("click", () => definir(m));
     $("check-termos").addEventListener("change", atualizarBotao);

@@ -68,12 +68,17 @@ export const NOME_SUPORTE = "Suporte TI";        // nome que o usuário vê nas 
 
 // ---- Firebase (chave pública por natureza; segurança vem das regras) ----
 const AUTH_DOMAIN_FIREBASE = "abastece-ja-240d5.firebaseapp.com";
-const _hostApp = typeof location !== "undefined" && /^([\w-]+\.)*onrender\.com$/.test(location.hostname) ? location.host : null;
+// Domínio de autenticação do login Google.
+//  • PADRÃO (false): <projeto>.firebaseapp.com. Já vem autorizado no Firebase e o endereço de retorno do Google OAuth (…/__/auth/handler) é criado
+//    pelo próprio Firebase, então o login por popup funciona sem configurar nada no Google Cloud. (O app abre o popup primeiro; redirect é só plano B.)
+//  • true: usa o host do site + o proxy /__/auth/* do servidor (server/lib/auth-proxy.js). Só ligue se (1) cadastrou
+//    https://SEU-HOST/__/auth/handler em Google Cloud › Credenciais › cliente OAuth Web › URIs de redirecionamento e (2) incluiu SEU-HOST em
+//    Firebase › Authentication › Configurações › Domínios autorizados. Se o host do Render mudar e isso não for refeito, TODOS os botões do Google quebram.
+export const USAR_PROXY_AUTH = false;
+const _hostApp = USAR_PROXY_AUTH && typeof location !== "undefined" && /^([\w-]+\.)*onrender\.com$/.test(location.hostname) ? location.host : null;
 export const FIREBASE_CONFIG = {
     apiKey: "AIzaSyA0Z1SEkqrtXuAjtFntv1WRvkKIuY1zilY",
-    // signInWithRedirect: o domínio de autenticação precisa ser o MESMO do site (senão Chrome/Safari bloqueiam o armazenamento entre sites e o login "volta vazio").
-    // No Render o servidor repassa /__/auth/* ao Firebase (server/lib/auth-proxy.js), então usamos o próprio host do site.
-    authDomain: _hostApp || AUTH_DOMAIN_FIREBASE,
+    authDomain: _hostApp || AUTH_DOMAIN_FIREBASE,   // ver USAR_PROXY_AUTH acima
     projectId: "abastece-ja-240d5",
     storageBucket: "abastece-ja-240d5.firebasestorage.app",
     messagingSenderId: "1061248119348",

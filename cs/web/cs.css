@@ -1,0 +1,20 @@
+/* CS & B2B — dark mode (azul-noite, ouro #d4af37, azul real #4169e1), mesma paleta do painel Root. Sem dependências de CSS. */
+:root{--fundo:#0a1020;--cartao:#0e1527;--borda:#1c2745;--texto:#e8ecf7;--suave:#8fa0c8;--ouro:#d4af37;--azul:#4169e1;--verde:#34d399;--verm:#f87171;--ambar:#fbbf24;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--fundo);color:var(--texto);font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+.cs-app{max-width:1280px;margin:0 auto;padding:16px}.cs-topo{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cs-topo h1{margin:0;font-size:20px;color:var(--ouro)}.cs-filtros{display:flex;gap:8px;flex-wrap:wrap}
+select,input,textarea,button{font:inherit;color:var(--texto)}select,input,textarea{background:#0a1020;border:1px solid var(--borda);border-radius:8px;padding:6px 10px;max-width:100%}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--azul);outline-offset:1px}textarea{width:100%;min-height:70px}
+button{background:var(--azul);border:0;border-radius:8px;padding:7px 14px;font-weight:600;cursor:pointer}button.ouro{background:var(--ouro);color:#0a1020}button.sec{background:transparent;border:1px solid var(--borda)}button:disabled{opacity:.4;cursor:not-allowed}
+.cs-abas{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--borda);margin-bottom:16px}.cs-abas button{background:transparent;border-radius:8px 8px 0 0;color:var(--suave);white-space:nowrap}.cs-abas button.ativa{color:var(--ouro);box-shadow:inset 0 -2px var(--ouro)}
+.cs-grade{display:grid;gap:12px}.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.cs-card{background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:16px;box-shadow:0 4px 14px #0006;min-width:0}.cs-card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.cs-card-h h3{margin:0;font-size:15px}
+.cs-kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column}.cs-kpi b{font-size:26px;color:var(--azul)}.cs-kpi.ok b{color:var(--verde)}.cs-kpi.ruim b{color:var(--verm)}.cs-kpi-r{color:var(--suave);font-size:12px}.cs-kpi small{color:var(--suave)}
+.cs-tw{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:7px 9px;text-align:left;border-bottom:1px solid var(--borda);white-space:nowrap}th{color:var(--ouro);font-size:12px;text-transform:uppercase;letter-spacing:.03em}tbody tr:hover{background:#111a30}
+.cs-chip{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600}.cs-chip.ok{background:#064e3b99;color:#6ee7b7}.cs-chip.aviso{background:#78350f99;color:#fcd34d}.cs-chip.ruim{background:#7f1d1d99;color:#fca5a5}.cs-chip.info{background:#1e3a8a99;color:#93c5fd}
+.cs-vazio{color:var(--suave);text-align:center;padding:24px 0}.cs-erro{color:var(--verm)}.cs-aviso{position:fixed;right:16px;bottom:16px;padding:10px 16px;border-radius:10px;z-index:9;cursor:pointer;max-width:90vw}.cs-aviso.ok{background:#065f46}.cs-aviso.erro{background:#991b1b}
+.cs-form{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.cs-form label{display:flex;flex-direction:column;gap:3px;color:var(--suave);font-size:12px}.cs-form .larga{grid-column:1/-1}
+.cs-fotos{display:flex;gap:8px;flex-wrap:wrap}.cs-fotos figure{margin:0;width:120px}.cs-fotos img{width:120px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--borda)}.cs-fotos figcaption{font-size:11px;color:var(--suave)}
+.cs-barra{height:8px;border-radius:6px;background:#1c2745;overflow:hidden}.cs-barra i{display:block;height:100%;background:var(--azul)}.cs-barra.alerta i{background:var(--ambar)}.cs-barra.perigo i{background:var(--verm)}
+.cs-nota{color:var(--suave);font-size:12px;margin:8px 0 0}.cs-login{min-height:100vh;display:grid;place-items:center;text-align:center}
+@media(max-width:640px){.cs-app{padding:10px}.cs-kpi b{font-size:22px}}

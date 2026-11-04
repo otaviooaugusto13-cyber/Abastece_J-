@@ -1,7 +1,7 @@
 // Painel de TI. A autorização é do SERVIDOR (claim role=ti + operador ativo); esta tela só consome a API (/ti/*).
 // Nada de innerHTML com dado cru: tudo passa por esc(). Tempo real: stream SSE via fetch (token no cabeçalho, nunca na URL).
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, reauthenticateWithCredential, reauthenticateWithPopup, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, googleProvider, entrarComGoogle, concluirLoginGoogle, chamarFuncao, consultar, baixarCSVProtegido, renovarToken } from "./firebase.js";
+import { auth, googleProvider, entrarComGoogle, concluirLoginGoogle, loginCancelado, chamarFuncao, consultar, baixarCSVProtegido, renovarToken } from "./firebase.js";
 import { FUNCTIONS_BASE } from "./config.js";
 import { esc } from "./core.js";
 import "./presenca.js";
@@ -84,10 +84,11 @@ $("ti-login-f").addEventListener("submit", async (e) => {
 });
 $("ti-google").addEventListener("click", async () => {
     $("ti-login-erro").textContent = ""; $("ti-google").disabled = true;
-    try { await entrarComGoogle(); }   // redirect: a página navega até o Google e volta
-    catch (err) { console.error(err); $("ti-login-erro").textContent = "Não foi possível entrar com o Google. Tente novamente."; $("ti-google").disabled = false; }
+    try { await entrarComGoogle(); }   // popup (ou redirect como plano B); a sessão chega pelo onAuthStateChanged
+    catch (err) { if (!loginCancelado(err)) { console.error(err); $("ti-login-erro").textContent = /unauthorized-domain/.test(err.code || "") ? "Este endereço não está autorizado no Firebase (Authentication › Configurações › Domínios autorizados)." : /operation-not-allowed/.test(err.code || "") ? "O login com Google não está ativado no Firebase." : "Não foi possível entrar com o Google. Tente novamente."; } }
+    finally { $("ti-google").disabled = false; }
 });
-concluirLoginGoogle().then(({ erro }) => { if (erro && !/no-auth-event|cancelled|popup-closed/.test(erro.code || "")) $("ti-login-erro").textContent = "Não foi possível concluir o login com o Google. Tente novamente."; });
+concluirLoginGoogle().then(({ erro }) => { if (erro && !loginCancelado(erro)) $("ti-login-erro").textContent = "Não foi possível concluir o login com o Google. Tente novamente."; });
 onAuthStateChanged(auth, async (u) => {
     pararTempoReal(); clearInterval(S.timer); clearInterval(S.tick); $("ti-app").hidden = true; $("ti-login").hidden = false;
     if (!u) return;

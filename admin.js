@@ -2,7 +2,7 @@
 // com as permissões que as regras já concedem ao admin (profissionais, contratantes, solicitacoes).
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, query, where, orderBy, limit, onSnapshot, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { auth, db, googleProvider, entrarComGoogle, concluirLoginGoogle, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
+import { auth, db, googleProvider, entrarComGoogle, concluirLoginGoogle, loginCancelado, chamarFuncao, consultar, baixarCSVProtegido, papelAtual, renovarToken } from "./firebase.js";
 import { resolverAcesso } from "./acesso.js";
 import { iniciarEquipeTI } from "./admin-ti.js";
 import { iniciarChamados } from "./admin-chamados.js";
@@ -105,13 +105,14 @@ $("ax-login-f").addEventListener("submit", async (e) => {                       
     catch (err) { erroLogin(msgLogin(err.code)); }
     finally { $("ax-entrar").disabled = false; }
 });
-$("ax-google").addEventListener("click", async () => {                          // Google por REDIRECT (sem popup / sem aviso de COOP)
+$("ax-google").addEventListener("click", async () => {                          // Google: popup (ou redirect como plano B)
     erroLogin(); $("ax-google").disabled = true;
-    try { await entrarComGoogle(); }                                              // a página navega até o Google; ao voltar, o bloco abaixo conclui
-    catch (err) { console.error(err); erroLogin(/unauthorized-domain/.test(err.code || "") ? msgLogin(err.code) : "Não foi possível entrar com o Google. Tente novamente."); $("ax-google").disabled = false; }
+    try { await entrarComGoogle(); }                                              // popup (ou redirect como plano B); a sessão chega pelo onAuthStateChanged
+    catch (err) { if (!loginCancelado(err)) { console.error(err); erroLogin(/unauthorized-domain/.test(err.code || "") ? msgLogin(err.code) : /operation-not-allowed/.test(err.code || "") ? "O login com Google não está ativado no Firebase." : "Não foi possível entrar com o Google. Tente novamente."); } }
+    finally { $("ax-google").disabled = false; }
 });
 concluirLoginGoogle().then(({ erro }) => {                                      // volta do Google: o onAuthStateChanged abaixo cuida da sessão
-    if (erro && !/no-auth-event|cancelled|popup-closed/.test(erro.code || "")) erroLogin(/unauthorized-domain/.test(erro.code || "") ? msgLogin(erro.code) : "Não foi possível concluir o login com o Google. Tente novamente.");
+    if (erro && !loginCancelado(erro)) erroLogin(/unauthorized-domain/.test(erro.code || "") ? msgLogin(erro.code) : "Não foi possível concluir o login com o Google. Tente novamente.");
 });
 $("ax-sair").addEventListener("click", async () => { await desativarPush(); S.supUn?.(); await signOut(auth); });
 onAuthStateChanged(auth, async (u) => {
@@ -120,7 +121,10 @@ onAuthStateChanged(auth, async (u) => {
     if (!u) return;
     // O servidor reativa o perfil admin (a conta pode ter ficado com o perfil de loja/promotor ativo depois de usar outro portal).
     let r; try { r = await resolverAcesso("admin"); } catch (e) { $("ax-login-erro").textContent = "Não foi possível verificar suas permissões. Tente novamente."; return; }
-    if (r.estado !== "ok" || (await papelAtual()) !== "admin") { $("ax-login-erro").textContent = "Esta conta não tem permissão de administrador." + (r.sugerido ? ` Ela é de ${r.sugerido === "loja" ? "loja" : "promotor"}: use o portal correspondente ou entre com outra conta.` : ""); return; }   // sem signOut: a sessão é compartilhada com os outros portais
+    if (r.estado !== "ok" || (await papelAtual()) !== "admin") {
+        $("ax-login-erro").textContent = "Esta conta não tem permissão de administrador." + (r.sugerido ? ` Ela é de ${r.sugerido === "loja" ? "loja" : "promotor"}: use o portal correspondente ou entre com outra conta.` : "");
+        await signOut(auth); return;   // a sessão do painel Admin é só dele (app Firebase "admin"): sair aqui NÃO derruba o painel de TI nem a loja/promotor abertos
+    }
     $("ax-login").hidden = true; $("ax-app").hidden = false; $("ax-quem").textContent = $("ax-quem2").textContent = u.email;
     try { ouvir(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "visao"); } catch (e) { console.error(e); toast("Parte do painel não carregou. Recarregue a página.", "err"); }
     seguro(kpiContagens)(); seguro(kpiVolume)(); seguro(carregarAviso)(); chamados.atualizarBadge(); try { ativarPush(); } catch (e) { console.error(e); }

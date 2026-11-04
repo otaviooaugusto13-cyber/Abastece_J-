@@ -585,3 +585,18 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); p
 .erro-detalhes pre { margin: 6px 0 0; padding: 10px; border-radius: 10px; background: var(--bg-2); color: var(--muted); font-size: 11.5px; line-height: 1.45; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .erro-setor { display: block; margin-top: .25rem; }
+
+/* ---------- login por e-mail e senha + logo (loja e promotor) ---------- */
+.auth-logo { display: block; width: 92px; height: auto; margin: 0 auto 10px; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .35)); }
+.auth-email { margin: 0 0 2px; text-align: left; }
+.auth-email .field { margin-bottom: 12px; }
+.senha-wrap { position: relative; }
+.senha-wrap input { padding-right: 84px; }
+.senha-wrap button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--gold); font: inherit; font-size: 12.5px; font-weight: 700; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.auth-email .msg-erro { display: block; color: var(--red); font-size: 12.5px; margin: 0 0 10px; }
+.auth-email .msg-erro:empty { display: none; }
+.auth-email .msg-ok { color: var(--green); font-size: 12.5px; margin: 0 0 10px; }
+.link-esqueci { display: block; margin: 10px auto 0; background: none; border: 0; padding: 6px; color: var(--gold); font: inherit; font-size: 12.5px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.link-esqueci[hidden], .auth-email [hidden] { display: none; }
+.auth-ou { display: flex; align-items: center; gap: 12px; margin: 14px 0; color: var(--muted); font-size: 12px; }
+.auth-ou::before, .auth-ou::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); }

@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "commonjs", "moduleResolution": "node10", "strict": true, "noUncheckedIndexedAccess": false,
+    "esModuleInterop": true, "skipLibCheck": true, "outDir": "../server/lib/cs", "rootDir": ".", "declaration": false, "sourceMap": false,
+    "types": [], "ignoreDeprecations": "6.0"
+  },
+  "include": ["tipos.ts", "agregacao.ts", "relatorio.ts", "servico.ts", "rotas.ts"]
+}
