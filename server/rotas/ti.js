@@ -3,16 +3,17 @@
 //   /ti/operadores ...        cadastro, nível, reset de senha, exclusão lógica/restauração           (gestor)
 //   /ti/auditoria ...         trilha de auditoria: consulta, exportação CSV, verificação da cadeia     (gestor; técnico vê só a sua)
 //   /ti/chamados ...          fila e atendimento de chamados
-//   /ti/dashboard, /ti/stream métricas, ranking e tempo real (online + fila)
+//   /ti/dashboard, /ti/saude, /ti/stream métricas, ranking e tempo real (online + fila)
 //   /ti/administradores ...   contas de ADMIN criadas pela TI: criar, redefinir senha, remover acesso (gestor)
 //   /ti/solicitantes/:uid/perfil  perfil completo da loja/promotor que abriu o chamado (CPF mascarado; consulta auditada)
 //   /chamados ...             lado do SOLICITANTE (loja/promotor/admin): abrir, acompanhar, responder
+//   /chamados/automatico      erro capturado no app → roteador (roteador.js) escolhe TI | ADM | Suporte → protocolo + mensagem do setor + aviso à equipe (despacho.js)
 //   /presenca/ping            batimento do app para o contador de usuários online
 const { paraCSV } = require("../lib/csv");
 
 module.exports = (app, x) => {
-  const { auth, V, Falha, envelope, limitar, suporte, db, C, Cripto, habilitacao } = x;
-  const ti = x.ti, { operadores, admins, chamados, metricas, presenca, tempoReal, auditoria, K } = ti;
+  const { auth, V, Falha, envelope, limitar, suporte, db, C, Cripto, habilitacao, despacho } = x;
+  const ti = x.ti, { operadores, admins, chamados, metricas, presenca, tempoReal, auditoria, saude, K } = ti;
   const lim = limitar({ janelaMs: 60_000, max: 180, nome: "ti", porUsuario: true });
   const limSens = limitar({ janelaMs: 3_600_000, max: 40, nome: "ti-sens", porUsuario: true });
   const limCsv = limitar({ janelaMs: 60_000, max: 6, nome: "ti-csv", porUsuario: true });
@@ -112,7 +113,7 @@ module.exports = (app, x) => {
   const chamadoId = (req) => V.idDoc(req.params.id, "id");
   const resumoCh = (t) => ({ status: t.status, atribuidoNome: t.atribuidoNome || "", prioridade: t.prioridade });
   app.get("/ti/chamados", ...S("chamados.ler"), envelope(async (req, res) => {
-    const q = req.query; res.json(await chamados.listar({ visao: q.visao || "abertos", prioridade: q.prioridade || undefined, categoria: q.categoria || undefined, atribuidoUid: q.atribuido ? V.idDoc(String(q.atribuido), "atribuido") : undefined,
+    const q = req.query; res.json(await chamados.listar({ visao: q.visao || "abertos", prioridade: q.prioridade || undefined, categoria: q.categoria || undefined, origem: q.origem || undefined, departamento: q.departamento || undefined, atribuidoUid: q.atribuido ? V.idDoc(String(q.atribuido), "atribuido") : undefined,
       q: q.q ? V.texto(String(q.q), "busca", { max: 60 }) : undefined, limite: q.limite, cursor: q.cursor ? V.texto(String(q.cursor), "cursor", { max: 16, re: /^\d{1,16}$/ }) : undefined }));
   }));
   app.get("/ti/chamados/:id", ...S("chamados.ler"), envelope(async (req, res) => res.json(await chamados.detalhe(chamadoId(req)))));
@@ -136,6 +137,11 @@ module.exports = (app, x) => {
     const antes = await chamados.detalhe(chamadoId(req)), t = await chamados.mudarStatus(antes.id, eu(req), req.body?.status, req.body?.nota);
     return { resposta: chamados.visaoTI(t), aud: { resumo: `${t.protocolo}: ${antes.status} → ${t.status}`, antes: resumoCh(antes), depois: resumoCh(t), meta: { nota: String(req.body?.nota || "").slice(0, 200) } } };
   }));
+  /** Corrige o roteamento automático: manda o chamado para a fila de outro departamento (o protocolo não muda). Técnico só transfere o que é seu. */
+  app.post("/ti/chamados/:id/transferir", ...S("chamados.atender"), mutar((req) => ({ acao: "chamado.transferir", alvoTipo: "chamado", alvoId: req.params.id, resumo: "Transferir chamado de departamento" }), async (req) => {
+    const antes = await chamados.detalhe(chamadoId(req)), t = await chamados.transferir(antes.id, eu(req), req.body?.departamento, req.body?.motivo);
+    return { resposta: chamados.visaoTI(t), aud: { resumo: `${t.protocolo}: ${antes.departamento} → ${t.departamento}`, antes: { departamento: antes.departamento }, depois: { departamento: t.departamento }, meta: { motivo: String(req.body?.motivo || "").slice(0, 200) } } };
+  }));
   app.put("/ti/chamados/:id/prioridade", ...S("chamados.atender"), mutar((req) => ({ acao: "chamado.prioridade", alvoTipo: "chamado", alvoId: req.params.id, resumo: "Alterar prioridade" }), async (req) => {
     const antes = await chamados.detalhe(chamadoId(req)), t = await chamados.alterarPrioridade(antes.id, eu(req), req.body?.prioridade);
     return { resposta: chamados.visaoTI(t), aud: { resumo: `${t.protocolo}: prioridade ${antes.prioridade} → ${t.prioridade}`, antes: { prioridade: antes.prioridade }, depois: { prioridade: t.prioridade } } };
@@ -149,8 +155,10 @@ module.exports = (app, x) => {
   app.get("/ti/dashboard", ...S("metricas.ler"), envelope(async (req, res) => {
     const dias = metricas._normalizar(req.query.dias);
     const [fila, online, periodo, ranking] = await Promise.all([chamados.contagens(), presenca.contar(), metricas.resumo({ dias }), metricas.ranking({ dias, limite: 10 })]);
-    res.json({ fila, online, periodo, ranking, slaMin: K.SLA_MIN, geradoEm: new Date().toISOString() });
+    res.json({ fila, online, periodo, ranking, slaMin: K.SLA_MIN, saude: saude.resumo(), geradoEm: new Date().toISOString() });   // saude.resumo(): só o cache (a medição roda em segundo plano)
   }));
+  /** Saúde dos serviços integrados (Firebase, Mercado Pago, Webhooks, Geolocalização). `?forcar=1` remede se o último resultado tem > 10 s. */
+  app.get("/ti/saude", ...S("metricas.ler"), envelope(async (req, res) => res.json(await saude.obter({ forcar: req.query.forcar === "1" }))));
   app.get("/ti/stream", ti.exigirTI("presenca.ler"), limitar({ janelaMs: 60_000, max: 20, nome: "ti-stream", porUsuario: true }), (req, res, next) => { tempoReal.assinar(req, res).catch(next); });
 
   // ================= solicitante (loja / promotor / admin) =================
@@ -166,9 +174,12 @@ module.exports = (app, x) => {
   // Chamado AUTOMÁTICO: o app captura o erro, abre o chamado e mostra o protocolo na hora. Limite próprio (o manual é 5/h) — o que evita
   // inundar a fila é a deduplicação por impressão do erro (ver chamados.abrirAutomatico).
   const limAuto = limitar({ janelaMs: 3_600_000, max: 30, nome: "chamado-auto", porUsuario: true });
+  // O roteador classifica o erro NO SERVIDOR (o app não escolhe o departamento) e a resposta já traz o setor e o texto que a pessoa vê na tela.
+  // O aviso à equipe (push/chat) sai em segundo plano: se o chat estiver fora do ar, a pessoa continua recebendo o protocolo na hora.
   app.post("/chamados/automatico", auth.exigir(...USU), limAuto, envelope(async (req, res) => {
-    const b = req.body || {}, r = await chamados.abrirAutomatico({ impressao: b.impressao, titulo: b.titulo, descricao: b.descricao }, { solicitante: await quem(req.usuario) });
-    res.json({ id: r.id, protocolo: r.protocolo, repetido: r.repetido });
+    const b = req.body || {}, r = await chamados.abrirAutomatico({ impressao: b.impressao, titulo: b.titulo, descricao: b.descricao, contexto: b.contexto, erro: b.erro }, { solicitante: await quem(req.usuario) });
+    if (!r.repetido && despacho) despacho.disparar(r.chamado);
+    res.json({ id: r.id, protocolo: r.protocolo, repetido: r.repetido, departamento: r.departamento, setor: r.mensagem.setor, prioridade: r.prioridade, titulo: r.mensagem.titulo, mensagem: r.mensagem.texto });
   }));
   app.get("/chamados/meus", auth.exigir(...USU), limUsu, envelope(async (req, res) => res.json(await chamados.meus(req.usuario.uid))));
   app.get("/chamados/:id", auth.exigir(...USU), limUsu, envelope(async (req, res) => res.json(await chamados.detalheDoUsuario(req.usuario.uid, req.params.id))));

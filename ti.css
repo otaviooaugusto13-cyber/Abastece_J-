@@ -20,3 +20,54 @@
 .ax-bars .ti-bar2 b.c { background:var(--ax-blue); } .ax-bars .ti-bar2 b.r { background:var(--ax-green); }
 
 .ti-ou { text-align:center; margin:12px 0; }
+
+/* ---------- Saúde dos serviços ---------- */
+.ti-geral { display:inline-flex; align-items:center; gap:8px; padding:4px 12px; border-radius:999px; font-size:12.5px; font-weight:700; background:rgba(255,255,255,.08); color:var(--ax-mut); }
+.ti-geral.ok { background:var(--ax-green-s); color:var(--ax-green); } .ti-geral.warn { background:var(--ax-gold-s); color:var(--ax-gold); } .ti-geral.bad { background:var(--ax-red-s); color:var(--ax-red); }
+.ti-svcs { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+.ti-svc { position:relative; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px 18px; border-radius:14px; background:rgba(8,12,20,.5); border:1px solid var(--ax-line); overflow:hidden; }
+.ti-svc::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--ax-mut); }
+.ti-svc.ok::before { background:var(--ax-green); } .ti-svc.warn::before { background:var(--ax-gold); } .ti-svc.bad::before { background:var(--ax-red); }
+.ti-svc-top { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.ti-svc-n { font-weight:700; font-size:14px; line-height:1.25; }
+.ti-svc-st { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--ax-mut); white-space:nowrap; }
+.ti-svc-st i { width:9px; height:9px; border-radius:50%; background:var(--ax-mut); flex:none; }
+.ti-svc.ok .ti-svc-st { color:var(--ax-green); } .ti-svc.ok .ti-svc-st i { background:var(--ax-green); box-shadow:0 0 0 0 rgba(61,220,151,.6); animation:ti-pulse 2.4s infinite; }
+.ti-svc.warn .ti-svc-st { color:var(--ax-gold); } .ti-svc.warn .ti-svc-st i { background:var(--ax-gold); }
+.ti-svc.bad .ti-svc-st { color:var(--ax-red); } .ti-svc.bad .ti-svc-st i { background:var(--ax-red); animation:ti-blink 1s steps(2) infinite; }
+.ti-svc-lat { display:flex; align-items:baseline; gap:6px; font-variant-numeric:tabular-nums; }
+.ti-svc-lat b { font-size:26px; line-height:1; letter-spacing:-.02em; } .ti-svc-lat span { font-size:12px; color:var(--ax-mut); }
+.ti-spark { width:100%; height:28px; display:block; } .ti-spark polyline { fill:none; stroke:var(--ax-blue); stroke-width:1.6; stroke-linejoin:round; stroke-linecap:round; }
+.ti-svc.ok .ti-spark polyline { stroke:var(--ax-green); } .ti-svc.warn .ti-spark polyline { stroke:var(--ax-gold); } .ti-svc.bad .ti-spark polyline { stroke:var(--ax-red); }
+.ti-spark circle { fill:var(--ax-red); }
+.ti-svc-d { font-size:12px; color:var(--ax-mut); line-height:1.4; min-height:1.4em; overflow-wrap:anywhere; }
+.ti-svc-f { display:flex; justify-content:space-between; font-size:11.5px; color:var(--ax-mut); }
+@keyframes ti-blink { 50% { opacity:.25; } }
+
+/* ---------- Fila por criticidade e SLA ---------- */
+.ti-tag-bug { display:inline-block; padding:1px 7px; border-radius:6px; font:700 10.5px ui-monospace,Menlo,Consolas,monospace; letter-spacing:.04em; background:rgba(255,255,255,.07); color:var(--ax-mut); border:1px dashed var(--ax-line2); vertical-align:1px; }
+.ti-filtro { min-height:auto; font-size:13px; color:var(--ax-mut); }
+.ti-board { display:grid; gap:14px; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; }
+.ti-lane { border-radius:14px; background:rgba(8,12,20,.45); border:1px solid var(--ax-line); border-top:3px solid var(--ti-c); padding:10px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.ti-lane-critica { --ti-c:var(--ax-red); --ti-s:var(--ax-red-s); } .ti-lane-media { --ti-c:var(--ax-blue); --ti-s:var(--ax-blue-s); } .ti-lane-baixa { --ti-c:var(--ax-mut); --ti-s:rgba(255,255,255,.08); }
+.ti-lane-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ti-lane-h h3 { margin:0; font-size:14px; color:var(--ti-c); } .ti-lane-n { padding:1px 9px; border-radius:999px; font-size:12px; font-weight:800; background:var(--ti-s); color:var(--ti-c); }
+.ti-lane-late { font-size:11.5px; font-weight:700; color:var(--ax-red); margin-left:auto; }
+.ti-lane-vazio { text-align:center; font-size:12.5px; color:var(--ax-mut); padding:18px 6px; }
+.ti-card { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-radius:12px; background:var(--ax-card); border:1px solid var(--ax-line); cursor:pointer; text-align:left; transition:border-color .15s, transform .1s; }
+.ti-card:hover { border-color:var(--ax-line2); } .ti-card:active { transform:scale(.99); }
+.ti-card.estourado { border-color:rgba(255,107,107,.55); box-shadow:inset 3px 0 0 var(--ax-red); }
+.ti-card-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; } .ti-card-top b { font-variant-numeric:tabular-nums; }
+.ti-card-t { font-size:13.5px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.ti-card-m { font-size:12px; color:var(--ax-mut); }
+.ti-sla { display:grid; grid-template-columns:1fr auto; gap:2px 8px; align-items:center; font-size:12px; }
+.ti-sla-l { color:var(--ax-mut); } .ti-sla-v { font-weight:800; font-variant-numeric:tabular-nums; color:var(--ax-green); }
+.ti-sla-b { grid-column:1 / -1; height:5px; border-radius:99px; background:rgba(255,255,255,.08); overflow:hidden; display:block; }
+.ti-sla-b b { display:block; height:100%; width:0; border-radius:99px; background:var(--ax-green); transition:width .9s linear; }
+.ti-sla.atencao .ti-sla-v { color:var(--ax-gold); } .ti-sla.atencao .ti-sla-b b { background:var(--ax-gold); }
+.ti-sla.estourado .ti-sla-v { color:var(--ax-red); } .ti-sla.estourado .ti-sla-b b { background:var(--ax-red); }
+.ti-sla.pausado .ti-sla-v, .ti-sla.nenhum .ti-sla-v { color:var(--ax-mut); } .ti-sla.pausado .ti-sla-b b { background:var(--ax-mut); }
+.ti-mais { text-align:center; font-size:12px; color:var(--ax-mut); }
+@media (max-width:980px) { .ti-board { grid-template-columns:1fr; } }
+@media (prefers-reduced-motion:reduce) { .ti-svc .ti-svc-st i, .ti-dot.on { animation:none; } .ti-sla-b b { transition:none; } }
+.ti-svcs { margin-top:10px; }

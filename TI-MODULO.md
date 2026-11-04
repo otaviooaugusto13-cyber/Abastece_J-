@@ -108,3 +108,41 @@ Antes só `scripts/definir-admin.js` concedia a permissão. Agora, no Render →
 3. No painel admin, **saia e entre de novo** (o token precisa renovar). Depois **remova** `ADMIN_BOOTSTRAP_EMAIL`.
 Não converte conta de TI nem de marca; é idempotente.
 **Atenção:** com `ADMIN_EXIGE_MFA=1` (valor do `render.yaml`) toda rota `/admin/*` exige verificação em duas etapas, e o painel não tem tela para cadastrar o 2º fator: o admin entra, mas as telas falham com "Administradores precisam de verificação em duas etapas". Sem MFA configurado no Firebase, use `ADMIN_EXIGE_MFA=0`.
+
+
+## Rastreador de bugs, saúde dos serviços e fila por criticidade
+
+### `[AUTO-BUG]` — captura automática
+Fluxo: `erros-globais.js` (já existia) captura `window.onerror`, `unhandledrejection` e erros 500 da API → `POST /chamados/automatico` com `contexto` → chamado **`[AUTO-BUG] TipoDoErro: mensagem`**, categoria `bug`, origem `automatico`. Roda em segundo plano (nada bloqueia a navegação; falha ao abrir vira fila local que reenvia sozinha).
+O chamado guarda, em `chamados_ti.bug` (campos estruturados, visíveis só à equipe de TI): **rota** (sem query/hash), **versão do app**, **dispositivo** (tipo/SO/navegador), **stack trace** (redigida, ≤1500 caracteres), **usuário** (uid e tipo — *sempre do token verificado, nunca do corpo*), origem do erro, tela, alcance e o motivo da prioridade. Tudo é re-sanitizado e redigido (LGPD) **no servidor**; contexto malformado nunca gera 400.
+Os apps de loja/promotor **não são React**: a cobertura é pelos handlers globais. `painel-ti-react/AbasteceErrorBoundary.tsx` só serve se uma tela nova for escrita em React.
+
+### Classificação automática (`server/lib/ti/classificador.js`)
+| Prioridade | Quando | 1º atendimento / resolução |
+|---|---|---|
+| **Crítica** | o mesmo erro atinge **≥ 5 usuários** (ou repete **≥ 20×**) em 1 h · ou falha de código no fluxo financeiro (pagamento, checkout, carteira, saque, estorno, webhook) | 15 min / 4 h |
+| **Baixa** | falha já tratada pelo app (`reportar` manual) · página pública · arquivo do app não carregou (cache antigo) · limite/permissão do navegador | 24 h / 72 h |
+| **Média** | demais exceções não tratadas e erros 500 da API | 4 h / 24 h |
+
+Quando o alcance cruza o limite, **todos os chamados abertos do mesmo erro sobem para crítica** (uma vez por janela), com o motivo na linha do tempo e SLA recalculado. A contagem de pessoas usa hash do uid (`bug_impressoes`, janela de 1 h). O dedupe por usuário continua: o mesmo erro do mesmo usuário em 1 h reaproveita o protocolo.
+**Limite honesto:** rota e origem vêm do navegador e podem ser forjadas para subir a prioridade de um chamado *do próprio usuário* (dano limitado: 1 chamado por erro/h, 30/h por usuário). O critério de **alcance** usa contagem do servidor e não é forjável.
+O sistema continua com 4 prioridades (`alta` = urgência máxima que um usuário pode sugerir). O painel mostra **3 faixas**; `alta` cai em **Média** (com selo "Alta" e o prazo real de 1 h). Para mudar, edite `faixaDe()` em `ti-fila-nucleo.js`.
+
+### Saúde dos serviços (`GET /ti/saude`, painel → Dashboard)
+Medição **em segundo plano a cada 30 s** (o painel só lê o cache: custo zero qualquer que seja o nº de operadores). Estados: Operacional · Degradado (lento ou 1ª falha) · Fora do ar (2 falhas seguidas — evita alarme falso) · Não configurado. "Verificar agora" remede (mínimo 10 s entre medições).
+| Serviço | O que é medido |
+|---|---|
+| Firebase Admin | leitura de 1 doc no Firestore + `listUsers(1)` no Auth (latência = a pior; diz qual caiu) |
+| Mercado Pago | `GET /v1/payment_methods` com a credencial: prova rede, API **e** token válido (401/403 = fora) |
+| Webhooks | POST **sem assinatura** na URL pública (tem de responder 401: prova DNS/TLS/proxy e a checagem de assinatura) + taxa de 5xx dos webhooks reais em 15 min (≥20% degradado, ≥50% fora) |
+| Geolocalização | **o app não usa API externa de mapas**: confere o cálculo do geofence (haversine) com valores conhecidos. Se um dia adotar um provedor, defina `GEO_HEALTH_URL` (https) e ele passa a ser medido |
+Limite: histórico por instância, em memória (some ao reiniciar). Sem alerta ativo (e-mail/WhatsApp) ainda: só painel.
+
+### Fila por criticidade e SLA (Dashboard)
+Três faixas (Crítica/Média/Baixa) com contagem e "fora do prazo"; cada cartão tem **cronômetro ao vivo** (1º atendimento enquanto aberto, resolução em atendimento, pausado em "aguardando usuário") e barra verde → âmbar (≥70%) → vermelho (estourado). Filtro "Só [AUTO-BUG]". Cartões **TMA/TMR** com % dentro do SLA vêm das métricas agregadas já existentes. API: `GET /ti/chamados?origem=automatico|usuario|ti`.
+
+### Componente React/TypeScript
+`painel-ti-react/TIDashboard.tsx` consome a mesma API e as mesmas classes de `ti.css`; a lógica de faixas/SLA é a de `ti-fila-nucleo.js` (fonte única). **Não é usado pelo painel atual** (o projeto não tem build/React); exige Vite/Next ou similar para ser servido.
+
+### Testes
+`npm test` agora inclui `test/bugs.test.js` (22: classificador, redação, monitor, sondas, SLA) e 8 casos novos em `ti.test.cjs` (contexto, escalonamento, rotas). Coleções novas (`bug_impressoes`, `_saude`) são só do servidor: cobertas pela regra de negação padrão do Firestore.

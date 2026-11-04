@@ -37,11 +37,18 @@ t("urlSegura: tira query e hash", () => { assert.equal(urlSegura("https://app.co
 t("relatório: respeita 120 (título), 2000 (chamado) e 1000 (chat), inclui protocolo e não vaza dados pessoais", () => {
     const e = normalizar(Object.assign(new TypeError("falha com ana@loja.com " + "x".repeat(3000)), { stack: Array.from({ length: 40 }, (_, i) => `    at fn${i} (https://x.com/app.js:${i}:1)`).join("\n") }), { origem: "window.onerror", arquivo: "https://x.com/app.js?v=1", linha: 7, coluna: 3 });
     const r = montarRelatorio(e, { url: "https://x.com/painel-loja?token=abc", tela: "screen-main", perfil: "loja", versao: "abastece-v13", navegador: "UA".repeat(200), trilha: ["#a", "#b"], online: true });
-    assert.ok(r.titulo.length <= LIMITES.titulo && r.titulo.startsWith("Erro automático: TypeError"));
+    assert.ok(r.titulo.length <= LIMITES.titulo && r.titulo.startsWith("[AUTO-BUG] TypeError"));
     assert.ok(r.descricao.length <= LIMITES.descricaoChamado); assert.ok(!r.descricao.includes("ana@loja.com") && !r.descricao.includes("token=abc"));
     assert.match(r.descricao, /Tela: screen-main/); assert.match(r.descricao, /Últimas ações: #a > #b/);
     const chat = r.paraChat("TI-000123"); assert.ok(chat.length <= LIMITES.mensagemChat); assert.match(chat, /TI-000123/); assert.match(chat, /TypeError/);
     assert.match(r.paraChat(""), /Erro no aplicativo/);                                    // sem protocolo ainda assim gera texto útil
+});
+t("relatório: manda ao servidor os campos estruturados do erro (sem dados pessoais) e o chat cita o setor que recebeu o chamado", () => {
+    const api = Object.assign(new Error("POST pagamentos/confirmar: falha ana@loja.com"), { name: "ApiError", code: "valor-divergente", status: 409 });
+    const e = normalizar(api, { origem: "api", rota: "POST pagamentos/confirmar" }); assert.equal(e.codigo, "valor-divergente"); assert.equal(e.status, 409);
+    const r = montarRelatorio(e, { perfil: "loja", tela: "screen-pagar" });
+    assert.equal(r.erro.codigo, "valor-divergente"); assert.equal(r.erro.status, 409); assert.equal(r.erro.rota, "POST pagamentos/confirmar"); assert.equal(r.erro.perfil, "loja"); assert.ok(!JSON.stringify(r.erro).includes("ana@loja.com"));
+    assert.match(r.paraChat("ADM-000045", "Administrativo / Financeiro"), /Preciso de ajuda do Administrativo \/ Financeiro/); assert.match(r.paraChat("TI-000001"), /ajuda do TI/);
 });
 t("WhatsApp: número só com dígitos, texto codificado com encodeURIComponent, limite de tamanho, quebra de linha preservada", () => {
     const url = linkWhatsApp("Olá! Preciso de ajuda & mais\nlinha 2 ✓");

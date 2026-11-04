@@ -6,7 +6,10 @@ import { RAIO_KM_OFERTAS, LOCAL_MAX_IDADE_MS, GEO_RAIO_METROS } from "./config.j
 // `let` exportado = "live binding": quem importa RAIO_KM enxerga o valor novo assim que definirRaioKm() roda (raio definido pelo Admin Root, em tempo real).
 export let RAIO_KM = RAIO_KM_OFERTAS;
 /** Aplica o raio de atendimento vindo de config_publica/operacao. Ignora valores fora de 1–50 km (nunca deixa o app sem alcance por um dado ruim). */
-export function definirRaioKm(km) { if (Number.isFinite(km) && km >= 1 && km <= 50) RAIO_KM = km; return RAIO_KM; }
+export function definirRaioKm(km) {
+  if (Number.isFinite(km) && km >= 1 && km <= 50 && km !== RAIO_KM) { RAIO_KM = km; try { globalThis.dispatchEvent?.(new CustomEvent("raio:atualizado", { detail: { raioKm: km } })); } catch (e) { /* sem window (testes) */ } }
+  return RAIO_KM;
+}
 
 /** Cidades atendidas/prováveis (interior de SP e capitais próximas). Adicione linhas livremente: { n: nome, uf, lat, lng }. */
 export const CIDADES = [

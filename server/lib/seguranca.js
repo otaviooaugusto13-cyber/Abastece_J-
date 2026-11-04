@@ -15,9 +15,9 @@ function cabecalhos({ extraConnect = [] } = {}) {
     "form-action 'self'",
     // sem 'unsafe-inline' em scripts: todo JS do app é arquivo externo
     "script-src 'self' https://www.gstatic.com https://apis.google.com https://cdnjs.cloudflare.com https://sdk.mercadopago.com https://www.youtube.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",   // + CSS do Leaflet (mapa)
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com",
+    "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com https://*.basemaps.cartocdn.com",   // + blocos do mapa (CARTO/OpenStreetMap)
     "media-src 'self' https: blob:",
     `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
     `frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),

@@ -1,7 +1,7 @@
 // Chat de suporte (equipe ↔ loja/promotor) e registro de aparelhos para notificação push.
 // Leitura em tempo real pelo navegador (regras do Firestore); TODA escrita passa por aqui.
 module.exports = (app, x) => {
-  const { db, auth, V, C, Cripto, Falha, envelope, limitar, suporte, habilitacao, treinamento } = x;
+  const { db, auth, V, C, Cripto, Falha, envelope, limitar, suporte, tickets, habilitacao, treinamento } = x;
   const USU = ["loja", "promotor"];
   const limUsuario = limitar({ janelaMs: 60_000, max: 20, nome: "suporte-msg", porUsuario: true });
   const limAdmin = limitar({ janelaMs: 60_000, max: 60, nome: "suporte-adm", porUsuario: true });
@@ -66,7 +66,7 @@ module.exports = (app, x) => {
       const cpf = leve ? null : tentar(() => Cripto.decifrar(priv.cpfEnc, cx("cpf"))), idade = nascimento ? V.calcularIdade(nascimento) : null;
       const [trein, hab] = await Promise.all([treinamento.estado(uid), habilitacao.situacao(uid)]);
       cadastro = {
-        nome: pub.nome || "", status: pub.status, statusMotivo: pub.statusMotivo || "", cidade: pub.cidade || "", especialidade: pub.especialidade || "",
+        foto: typeof pub.fotoGoogle === "string" && pub.fotoGoogle.startsWith("https://") ? pub.fotoGoogle : "", nome: pub.nome || "", status: pub.status, statusMotivo: pub.statusMotivo || "", cidade: pub.cidade || "", especialidade: pub.especialidade || "",
         telefone: leve ? "" : tentar(() => Cripto.decifrar(priv.telefoneEnc, cx("telefone"))) || "", cpfMascarado: cpf ? V.mascararCPF(cpf) : "", nascimento: nascimento || null, idade,
         menor: idade !== null && idade < C.IDADE_MAIORIDADE, ratingMedia: pub.ratingMedia || null, criadoEm: iso(pub.criadoEm),
         treinamento: { concluidos: trein?.concluidos ?? 0, total: trein?.total ?? 0 }, pendencias: hab?.pendencias || [], habilitacoes: Object.keys(pub.habilitacoes || {})
@@ -74,10 +74,27 @@ module.exports = (app, x) => {
     } else {
       const [l, cartao] = await Promise.all([db.collection("contratantes").doc(uid).get(), db.collection("cartoes").doc(uid).get()]);
       const x = l.data() || {};
-      cadastro = { nome: x.razaoSocial || x.nome || "", status: x.status || "ativo", documento: x.documento || "", ramo: x.ramo || "", telefone: x.telefone || "", endereco: x.endereco || "", criadoEm: iso(x.criadoEm), cartao: cartao.data()?.status || "sem cartão" };
+      cadastro = { foto: typeof x.fotoGoogle === "string" && x.fotoGoogle.startsWith("https://") ? x.fotoGoogle : "", nome: x.razaoSocial || x.nome || "", status: x.status || "ativo", documento: x.documento || "", ramo: x.ramo || "", telefone: x.telefone || "", endereco: x.endereco || "", criadoEm: iso(x.criadoEm), cartao: cartao.data()?.status || "sem cartão" };
     }
     if (!leve) await auth.auditar(req, "admin.suporte.ver_perfil", uid, { tipo });
     res.json({ uid, tipo, email, cadastro, historico, acoes, conversa, parcial: leve, carregadoEm: new Date().toISOString() });
+  }));
+
+  // ---------- ticket (protocolo SP-…), resolução e escalamento para TI/gestão ----------
+  const limTicket = limitar({ janelaMs: 60_000, max: 60, nome: "suporte-ticket", porUsuario: true });
+  const limEscalar = limitar({ janelaMs: 3_600_000, max: 30, nome: "suporte-escalar", porUsuario: true });
+  const atorAdmin = (req) => ({ uid: req.usuario.uid, nome: String(req.usuario.name || req.usuario.email || "Atendente").slice(0, 100), tipo: "admin" });
+  // Idempotente: devolve o ticket vigente (ou abre um com novo protocolo). O painel chama ao abrir a conversa.
+  app.post("/admin/suporte/:uid/ticket", auth.exigir("admin"), limTicket, envelope(async (req, res) => { res.json(await tickets.garantir(V.idDoc(req.params.uid, "uid"))); }));
+  app.post("/admin/suporte/:uid/resolver", auth.exigir("admin"), limTicket, envelope(async (req, res) => {
+    const uid = V.idDoc(req.params.uid, "uid"), t = await tickets.resolver(uid);
+    await auth.auditar(req, "admin.suporte.resolver", uid, { protocolo: t.protocolo }); res.json(t);
+  }));
+  app.post("/admin/suporte/:uid/escalar", auth.exigir("admin"), limEscalar, envelope(async (req, res) => {
+    const uid = V.idDoc(req.params.uid, "uid"), b = req.body || {};
+    const r = await tickets.escalar(uid, { destino: b.destino, motivo: b.motivo, categoria: b.categoria, prioridade: b.prioridade, avisarUsuario: b.avisarUsuario !== false }, atorAdmin(req));
+    await auth.auditar(req, "admin.suporte.escalar", uid, { protocolo: r.ticket.protocolo, chamado: r.chamado.protocolo, destino: r.chamado.destino });
+    res.json(r);
   }));
 
   // ---------- aparelhos (push) ----------

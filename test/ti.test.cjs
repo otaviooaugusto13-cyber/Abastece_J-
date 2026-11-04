@@ -482,6 +482,162 @@ t("chamado automático: exige login, valida a impressão, corta relatório gigan
   assert.equal((await chamar("GET", "/chamados/meus", { token: "prom1" })).json[0].protocolo, r.json.protocolo);
 });
 
+// ======================= [AUTO-BUG]: contexto estruturado, classificação, alcance e saúde =======================
+const auto = (token, impressao, extra = {}, ctxo = {}) => chamar("POST", "/chamados/automatico", { token, body: { impressao, titulo: "TypeError: x is not a function", descricao: "TypeError: x is not a function\n\nStack:\nat a (s.js:1:1)", contexto: { nome: "TypeError", mensagem: "x is not a function", origem: "window.onerror", rota: "/painel-loja", perfil: "loja", ...ctxo }, ...extra } });
+const novoUsuario = (uid, role = "loja") => { E.tokens[uid] = { uid, email: `${uid}@x.com`, email_verified: true }; E.claimsStore[uid] = { role }; };
+
+t("auto-bug: título [AUTO-BUG], contexto estruturado gravado (rota, versão, dispositivo, stack) e usuário vindo do TOKEN, nunca do corpo", async () => {
+  const r = await auto("lojaA", "aaaa1111bbbb2222", {}, { rota: "/painel-loja?token=segredo#x", versao: "abastece-v15", tela: "screen-main", viewport: "390x844", online: true, usuario: { uid: "OUTRA", tipo: "admin" }, uid: "OUTRA",
+    mensagem: "falhou para joao@x.com", navegador: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36", stack: "TypeError: x\n    at abrir (s.js:10:5)\n    at b (s.js:99:1)" }); ok(r);
+  const d = await get("chamados_ti", r.json.id);
+  assert.ok(d.titulo.startsWith("[AUTO-BUG] ")); assert.equal(d.bug.rota, "/painel-loja"); assert.equal(d.bug.versao, "abastece-v15"); assert.deepEqual(d.bug.usuario, { uid: "lojaA", tipo: "loja" });
+  assert.deepEqual(d.bug.dispositivo, { tipo: "celular", so: "Android 14", navegador: "Chrome 126" }); assert.equal(d.bug.stack.split("\n").length, 3);
+  const bruto = JSON.stringify(d); for (const proibido of ["segredo", "joao@x.com", "OUTRA"]) assert.ok(!bruto.includes(proibido), `vazou: ${proibido}`);
+  assert.equal(d.prioridade, "media"); assert.equal(d.slaAtendMs - d.criadoMs, 240 * MIN, "SLA de média: 1º atendimento em 4 h"); assert.equal(d.bug.afetados, 1);
+  const rep = await auto("lojaA", "aaaa1111bbbb2222"); assert.equal(rep.json.protocolo, r.json.protocolo); assert.equal(rep.json.repetido, true);
+});
+t("auto-bug: classificação automática define a prioridade E o SLA — pagamento = crítica (15 min), falha tratada = baixa (24 h)", async () => {
+  const c = await auto("lojaA", "cccc1111dddd2222", {}, { rota: "/pagar.html" }); assert.equal(c.json.prioridade, "critica");
+  const dc = await get("chamados_ti", c.json.id); assert.equal(dc.slaAtendMs - dc.criadoMs, 15 * MIN); assert.equal(dc.slaResolMs - dc.criadoMs, 240 * MIN); assert.match(dc.bug.classificacao.motivos[0], /financeiro/);
+  const b = await auto("lojaA", "eeee1111ffff2222", {}, { origem: "manual" }); assert.equal(b.json.prioridade, "baixa");
+  const db_ = await get("chamados_ti", b.json.id); assert.equal(db_.slaAtendMs - db_.criadoMs, 1440 * MIN);
+});
+t("auto-bug: o MESMO erro em 5 usuários vira incidente — os chamados abertos sobem para crítica (com registro na linha do tempo) e o SLA é recalculado", async () => {
+  await operador("gest", "gestor"); const us = ["lojaA", "lojaB", "lojaC", "lojaD", "lojaE", "lojaF"]; for (const u of us.slice(2)) novoUsuario(u);
+  const ids = []; for (const u of us.slice(0, 4)) { const r = await auto(u, "inc01inc01inc01aa"); ok(r); assert.equal(r.json.prioridade, "media"); ids.push(r.json.id); }
+  const quinta = await auto("lojaE", "inc01inc01inc01aa"); assert.equal(quinta.json.prioridade, "critica", "o 5º já nasce crítico");
+  for (const id of [...ids, quinta.json.id]) { const d = await get("chamados_ti", id); assert.equal(d.prioridade, "critica", id); assert.equal(d.slaAtendMs - d.criadoMs, 15 * MIN); }
+  const det = await chamar("GET", `/ti/chamados/${ids[0]}`, { token: "gest" }); ok(det);
+  assert.ok(det.json.eventos.some((e) => e.tipo === "prioridade" && /Escalonado automaticamente: atinge 5 usuários/.test(e.texto)), "motivo na linha do tempo");
+  const sexta = await auto("lojaF", "inc01inc01inc01aa"); assert.equal(sexta.json.prioridade, "critica");
+  assert.equal((await get("bug_impressoes", "inc01inc01inc01aa")).afetados, 6);
+  E.avancar(61 * MIN); const nova = await auto("lojaA", "inc01inc01inc01aa"); assert.equal(nova.json.prioridade, "media", "passada a janela de 1 h, a contagem recomeça");
+});
+t("auto-bug: um único usuário repetindo o mesmo erro 20× também escala (mesmo protocolo, sem inundar a fila)", async () => {
+  let ultimo; for (let i = 0; i < 20; i++) { ultimo = await auto("lojaA", "loop0loop0loop0aa"); ok(ultimo); }
+  assert.equal((await todos("chamados_ti")).length, 1); const d = await get("chamados_ti", ultimo.json.id); assert.equal(d.prioridade, "critica");
+});
+t("auto-bug: contexto hostil nunca vira 400 (o erro já aconteceu) e fica dentro dos limites", async () => {
+  for (const [i, lixo] of [null, "texto", 42, [1], { rota: { a: 1 }, stack: 9, origem: "evil", mensagem: "m".repeat(9000), navegador: "n".repeat(9000) }].entries()) {
+    const r = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: `hostil${i}hostil${i}`, titulo: "Erro", descricao: "descrição qualquer", contexto: lixo } }); ok(r, `contexto ${i}`);
+    const d = await get("chamados_ti", r.json.id); assert.ok(d.bug.mensagem.length <= 300 && d.bug.navegador.length <= 160); assert.equal(d.bug.usuario.uid, "lojaA");
+  }
+});
+t("fila da equipe: filtra por origem automática e expõe o contexto só para a TI (o solicitante não recebe o campo bug)", async () => {
+  await operador("tec1", "tecnico"); const a = await auto("lojaA", "visao1visao1visao"); const m = await novoChamado("lojaB");
+  const lista = await chamar("GET", "/ti/chamados?origem=automatico", { token: "tec1" }); ok(lista); assert.deepEqual(lista.json.itens.map((x) => x.id), [a.json.id]);
+  falha(await chamar("GET", "/ti/chamados?origem=hack", { token: "tec1" }), 400, "dados-invalidos");
+  assert.equal(lista.json.itens[0].bug.rota, "/painel-loja"); assert.equal(lista.json.itens[0].origem, "automatico");
+  const meu = await chamar("GET", `/chamados/${a.json.id}`, { token: "lojaA" }); ok(meu); assert.ok(!("bug" in meu.json)); assert.ok(!("bug" in (await chamar("GET", "/chamados/meus", { token: "lojaA" })).json[0]));
+  assert.ok(m.id);
+});
+t("saúde (rota): só a equipe de TI; mede na 1ª vez, usa cache, 'forcar' respeita 10 s; dashboard traz o cache sem disparar medição", async () => {
+  await operador("tec1", "tecnico"); let n = 0;
+  ti.saude.definirSondas({ svc: { nome: "Serviço X", tipo: "externo", fn: async () => { n++; return { detalhe: "ok" }; } } });
+  falha(await chamar("GET", "/ti/saude", { token: "lojaA" }), 403, "sem-permissao"); falha(await chamar("GET", "/ti/saude", {}), 401);
+  const dash0 = await chamar("GET", "/ti/dashboard", { token: "tec1" }); ok(dash0); assert.equal(n, 0, "dashboard não dispara medição"); assert.equal(dash0.json.saude.geral, "desconhecido");
+  const r = await chamar("GET", "/ti/saude", { token: "tec1" }); ok(r); assert.equal(n, 1); assert.equal(r.json.geral, "ok"); assert.equal(r.json.servicos[0].nome, "Serviço X");
+  await chamar("GET", "/ti/saude?forcar=1", { token: "tec1" }); assert.equal(n, 1); E.avancar(11_000); await chamar("GET", "/ti/saude?forcar=1", { token: "tec1" }); assert.equal(n, 2);
+  assert.equal((await chamar("GET", "/ti/dashboard", { token: "tec1" })).json.saude.servicos[0].status, "ok");
+});
+t("webhook: chamada sem assinatura (401) não entra na telemetria passiva de saúde", async () => {
+  await chamar("POST", "/webhookMP", { body: { data: { id: "123456" } } }); await chamar("POST", "/webhookMP", { body: {} });
+  assert.equal(ti.saude.webhookRecente().total, 0);
+});
+
+// ======================= roteador: chamado automático vai para o departamento certo =======================
+const autoRot = (token, imp, erro, extra = {}) => chamar("POST", "/chamados/automatico", { token, body: { impressao: imp, titulo: "Erro automático: ApiError", descricao: `Erro: ${erro.nome}: ${erro.mensagem}\nOrigem: api`, erro, ...extra } });
+const E_ADM = { nome: "ApiError", mensagem: "POST pagamentos/confirmar: valor divergente [code=valor-divergente]", rota: "POST pagamentos/confirmar", status: 409, codigo: "valor-divergente" };
+const E_SUP = { nome: "ApiError", mensagem: "A janela de check-in expirou", codigo: "checkin-expirado", status: 409 };
+const E_TI = { nome: "TypeError", mensagem: "x is not a function", stack: "TypeError: x is not a function\n    at f (https://x/app.js:1:1)" };
+
+t("roteador: cada erro vai para o departamento certo, com protocolo e mensagem do setor; contadores independentes", async () => {
+  const a = await autoRot("lojaA", "adm00000001", E_ADM); ok(a); assert.match(a.json.protocolo, /^ADM-000001$/); assert.equal(a.json.departamento, "adm");
+  assert.match(a.json.mensagem, /ADM-000001/); assert.match(a.json.mensagem, /Administrativo\/Financeiro/); assert.equal(a.json.setor, "Administrativo / Financeiro"); assert.match(a.json.titulo, /Administrativo/);
+  const s = await autoRot("lojaA", "sup00000001", E_SUP); ok(s); assert.equal(s.json.protocolo, "SUP-000001"); assert.equal(s.json.departamento, "suporte");
+  const i = await autoRot("lojaA", "ti000000001", E_TI); ok(i); assert.equal(i.json.protocolo, "TI-000001"); assert.equal(i.json.departamento, "ti");
+  const a2 = await autoRot("lojaB", "adm00000002", E_ADM); ok(a2); assert.equal(a2.json.protocolo, "ADM-000002");
+  const d = await get("chamados_ti", a.json.id);
+  assert.equal(d.departamento, "adm"); assert.equal(d.categoria, "pagamento"); assert.equal(d.classificacao.automatica, true); assert.ok(d.classificacao.motivo && d.classificacao.sinais.length);
+  assert.equal(d.logsTecnicos.rota, "POST pagamentos/confirmar"); assert.equal(d.logsTecnicos.codigo, "valor-divergente"); assert.match(d.mensagemAmigavel, /ADM-000001/);
+  const r = await autoRot("lojaA", "adm00000001", E_ADM); ok(r); assert.equal(r.json.repetido, true); assert.equal(r.json.protocolo, "ADM-000001"); assert.equal(r.json.departamento, "adm"); assert.match(r.json.mensagem, /já estava registrado/);
+});
+t("roteador: sem o campo 'erro' (cliente antigo) deduz do relatório; dados pessoais são removidos dos logs; 'erro' malformado não dá 400", async () => {
+  const velho = await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: "velho0000001", titulo: "Erro automático: Error", descricao: "Erro: Error: Saldo insuficiente [code=saldo-insuficiente]\nOrigem: api" } }); ok(velho);
+  assert.equal(velho.json.departamento, "adm");
+  const pii = await autoRot("lojaA", "pii00000001", { nome: "Error", mensagem: "falha p/ ana@loja.com cpf 123.456.789-09 Bearer abcdefghij123456", stack: "token=SEGREDO" }); ok(pii);
+  const l = (await get("chamados_ti", pii.json.id)).logsTecnicos; for (const v of ["ana@loja.com", "123.456.789-09", "abcdefghij123456"]) assert.ok(!JSON.stringify(l).includes(v), v);
+  ok(await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: "ruim00000001", titulo: "Erro automático", descricao: "descrição qualquer", erro: "texto" } }));
+  ok(await chamar("POST", "/chamados/automatico", { token: "lojaA", body: { impressao: "ruim00000002", titulo: "Erro automático", descricao: "descrição qualquer", erro: { nome: { x: 1 }, stack: 7, status: "abc" } } }));
+});
+t("roteador: filas por departamento (painel de TI e painel admin); chamado do TI é invisível para o admin; usuário não vê logs", async () => {
+  await operador("tec1", "tecnico");
+  const a = await autoRot("lojaA", "adm00000001", E_ADM), s = await autoRot("lojaA", "sup00000001", E_SUP), i = await autoRot("lojaA", "ti000000001", E_TI);
+  const fila = async (q) => (await chamar("GET", `/ti/chamados?${q}`, { token: "tec1" })).json.itens.map((c) => c.protocolo).sort();
+  assert.deepEqual(await fila("departamento=adm"), ["ADM-000001"]); assert.deepEqual(await fila("departamento=ti"), ["TI-000001"]); assert.deepEqual(await fila(""), ["ADM-000001", "SUP-000001", "TI-000001"]);
+  const ad = await chamar("GET", "/admin/chamados", { token: "adm" }); ok(ad); assert.deepEqual(ad.json.itens.map((c) => c.protocolo).sort(), ["ADM-000001", "SUP-000001"]);
+  assert.deepEqual((await chamar("GET", "/admin/chamados?departamento=suporte", { token: "adm" })).json.itens.map((c) => c.protocolo), ["SUP-000001"]);
+  falha(await chamar("GET", `/admin/chamados/${i.json.id}`, { token: "adm" }), 404, "nao-encontrado");
+  falha(await chamar("POST", `/admin/chamados/${i.json.id}/assumir`, { token: "adm" }), 404, "nao-encontrado");
+  falha(await chamar("GET", "/admin/chamados", { token: "lojaA" }), 403); falha(await chamar("GET", "/admin/chamados", { token: "tec1" }), 403);
+  const det = await chamar("GET", `/admin/chamados/${a.json.id}`, { token: "adm" }); ok(det); assert.equal(det.json.departamento, "adm"); assert.ok(!("stack" in det.json.logsTecnicos) && !("arquivo" in det.json.logsTecnicos)); assert.equal(det.json.logsTecnicos.codigo, "valor-divergente");
+  assert.match((await chamar("GET", `/ti/chamados/${i.json.id}`, { token: "tec1" })).json.logsTecnicos.stack, /at f/);       // o TI continua vendo a stack completa
+  const r = await chamar("GET", "/admin/chamados/resumo", { token: "adm" }); ok(r); assert.equal(r.json.adm.totalAbertos, 1); assert.equal(r.json.suporte.totalAbertos, 1);
+  const painel = await chamar("GET", "/ti/dashboard", { token: "tec1" }); ok(painel); assert.equal(painel.json.fila.totalAbertos, 1);               // fila do TI só conta o TI
+  assert.equal(painel.json.fila.departamentos.adm.totalAbertos, 1);
+  const meu = await chamar("GET", `/chamados/${a.json.id}`, { token: "lojaA" }); ok(meu); assert.equal(meu.json.departamento, "adm"); assert.ok(!("logsTecnicos" in meu.json)); assert.ok(!("classificacao" in meu.json));
+});
+t("roteador: admin atende o chamado do ADM (assumir, responder, resolver) sem poluir métricas do TI; usuário vê a resposta", async () => {
+  const a = await autoRot("lojaA", "adm00000001", E_ADM), id = a.json.id;
+  ok(await chamar("POST", `/admin/chamados/${id}/assumir`, { token: "adm" }), "assumir");
+  ok(await chamar("POST", `/admin/chamados/${id}/comentarios`, { token: "adm", body: { texto: "Conferindo o repasse agora.", interno: false } }));
+  ok(await chamar("POST", `/admin/chamados/${id}/comentarios`, { token: "adm", body: { texto: "nota só da equipe", interno: true } }));
+  falha(await chamar("POST", `/admin/chamados/${id}/status`, { token: "adm", body: { status: "resolvido", nota: "" } }), 400);
+  ok(await chamar("POST", `/admin/chamados/${id}/status`, { token: "adm", body: { status: "resolvido", nota: "Repasse corrigido e conferido." } }), "resolver");
+  const meu = (await chamar("GET", `/chamados/${id}`, { token: "lojaA" })).json;
+  assert.equal(meu.status, "resolvido"); assert.ok(meu.eventos.some((e) => e.texto === "Conferindo o repasse agora." && e.autor === "Equipe de Administrativo / Financeiro")); assert.ok(!meu.eventos.some((e) => /nota só da equipe/.test(e.texto)));
+  assert.equal((await todos("ti_produtividade")).length, 0); assert.equal((await todos("ti_metricas_dia")).length, 0);
+});
+t("roteador: transferir corrige o roteamento (protocolo igual, volta à fila do novo setor); técnico só transfere o que é seu", async () => {
+  await operador("tec1", "tecnico"); await operador("tec2", "tecnico");
+  const a = await autoRot("lojaA", "ti000000001", { nome: "Error", mensagem: "Falha ao conferir comissão do mês" }), id = a.json.id; assert.equal(a.json.departamento, "adm");
+  falha(await chamar("POST", `/ti/chamados/${id}/transferir`, { token: "tec1", body: { departamento: "adm", motivo: "mesmo setor" } }), 409, "sem-mudanca");
+  falha(await chamar("POST", `/ti/chamados/${id}/transferir`, { token: "tec1", body: { departamento: "xx", motivo: "motivo válido" } }), 400);
+  falha(await chamar("POST", `/ti/chamados/${id}/transferir`, { token: "tec1", body: { departamento: "suporte", motivo: "ok" } }), 400);
+  ok(await chamar("POST", `/ti/chamados/${id}/assumir`, { token: "tec1" }));
+  falha(await chamar("POST", `/ti/chamados/${id}/transferir`, { token: "tec2", body: { departamento: "suporte", motivo: "não é meu chamado" } }), 403, "nao-e-seu");
+  const t1 = await chamar("POST", `/ti/chamados/${id}/transferir`, { token: "tec1", body: { departamento: "suporte", motivo: "É dúvida de uso, não de dinheiro." } }); ok(t1);
+  assert.equal(t1.json.departamento, "suporte"); assert.equal(t1.json.protocolo, a.json.protocolo); assert.equal(t1.json.status, "aberto"); assert.equal(t1.json.atribuidoUid, ""); assert.equal(t1.json.transferencias, 1);
+  assert.equal((await get("chamados_ti", id)).classificacao.departamento, "adm");                          // a decisão do robô fica preservada
+  assert.deepEqual((await chamar("GET", "/admin/chamados?departamento=suporte", { token: "adm" })).json.itens.map((c) => c.id), [id]);
+  const meu = (await chamar("GET", `/chamados/${id}`, { token: "lojaA" })).json; assert.ok(!meu.eventos.some((e) => e.tipo === "transferido"));
+  ok(await chamar("POST", `/admin/chamados/${id}/transferir`, { token: "adm", body: { departamento: "ti", motivo: "Na verdade é bug técnico." } }));
+  assert.equal((await get("chamados_ti", id)).departamento, "ti");
+});
+t("roteador: chamados antigos (sem 'departamento') continuam na fila do TI; chamado manual segue TI-", async () => {
+  await operador("tec1", "tecnico");
+  const m = await novoChamado("lojaA"); assert.match(m.protocolo, /^TI-\d{6}$/);
+  const d = await get("chamados_ti", m.id); delete d.departamento; await set("chamados_ti", m.id, d);       // simula chamado de antes do roteador
+  assert.equal((await chamar("GET", "/ti/chamados?departamento=ti", { token: "tec1" })).json.itens.length, 1);
+  assert.equal((await chamar("GET", "/ti/chamados?departamento=adm", { token: "tec1" })).json.itens.length, 0);
+  assert.equal((await chamar("GET", "/ti/dashboard", { token: "tec1" })).json.fila.totalAbertos, 1);
+});
+t("roteador: a equipe é avisada (push ADM/Suporte + webhook do departamento) em segundo plano, sem atrasar nem quebrar a resposta", async () => {
+  const antes = { ...process.env }, fetchReal = globalThis.fetch, envios = [];
+  process.env.CHAMADOS_WEBHOOK_ADM = "https://hooks.slack.com/services/T/B/X"; process.env.CHAMADOS_WEBHOOK_SUPORTE = "https://chat.exemplo.com/h";
+  globalThis.fetch = async (url, op) => { envios.push({ url, corpo: JSON.parse(op.body) }); return { ok: true, status: 200 }; };
+  try {
+    await set("push_tokens", "t1", { uid: "adm1", token: "tok-admin", admin: true });
+    const a = await autoRot("lojaA", "adm00000001", E_ADM); ok(a); await ctx.despacho.aguardar();
+    assert.equal(envios.length, 1); assert.equal(envios[0].url, "https://hooks.slack.com/services/T/B/X"); assert.match(envios[0].corpo.text, /ADM-000001/); assert.ok(!/at f \(/.test(envios[0].corpo.text));
+    assert.equal(E.pushes.length, 1); assert.match(E.pushes[0].data.titulo, /ADM-000001/);
+    const nota = (await ctx.db.collection(`chamados_ti/${a.json.id}/eventos`).get()).docs.map((d) => d.data()).find((e) => e.tipo === "notificacao"); assert.ok(nota && nota.interno === true && /webhook ok/.test(nota.texto));
+    await autoRot("lojaA", "ti000000001", E_TI); await ctx.despacho.aguardar(); assert.equal(envios.length, 1);        // TI sem webhook configurado: nada sai
+    globalThis.fetch = async () => { throw new Error("chat fora do ar"); };
+    const b = await autoRot("lojaB", "adm00000009", E_ADM); ok(b, "resposta não depende do chat"); await ctx.despacho.aguardar(); assert.match(b.json.protocolo, /^ADM-/);
+  } finally { globalThis.fetch = fetchReal; for (const k of ["CHAMADOS_WEBHOOK_ADM", "CHAMADOS_WEBHOOK_SUPORTE"]) { if (antes[k] === undefined) delete process.env[k]; else process.env[k] = antes[k]; } }
+});
+
 (async () => {
   let falhas = 0;
   for (const [nome, fn] of testes) {

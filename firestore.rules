@@ -73,6 +73,7 @@ service cloud.firestore {
     // ---------- suporte (chat equipe ↔ usuário): o navegador só LÊ; escrever é só pela API ----------
     match /suporte_conversas/{uid} { allow read: if dono(uid) || ehAdmin(); allow write: if false; }
     match /suporte_mensagens/{id}  { allow read: if logado() && (resource.data.uid == request.auth.uid || ehAdmin()); allow write: if false; }
+    match /suporte_tickets/{uid}   { allow read: if ehAdmin(); allow write: if false; }   // protocolo SP-… e escalamento: só a equipe lê (o usuário não vê notas de triagem)
     // push_tokens: nenhuma regra → negado por padrão (só o servidor lê/escreve)
 
     // ---------- pedidos ----------

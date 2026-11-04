@@ -98,6 +98,11 @@
       <!-- DASHBOARD -->
       <section id="v-dashboard">
         <div class="ax-row ax-mb"><div class="ax-pills" id="d-dias"><button class="ax-pill" data-d="1">Hoje</button><button class="ax-pill sel" data-d="7">7 dias</button><button class="ax-pill" data-d="30">30 dias</button><button class="ax-pill" data-d="90">90 dias</button></div></div>
+        <div class="ax-card ax-mb" aria-labelledby="d-saude-h">
+          <div class="ax-row"><h2 class="ax-grow" id="d-saude-h">Saúde dos serviços</h2><span class="ti-geral" id="d-saude-geral" role="status"></span><button class="ax-btn sm" id="d-saude-agora" type="button">Verificar agora</button></div>
+          <p class="ax-xs ax-mut ax-mb" id="d-saude-nota"></p>
+          <div class="ti-svcs" id="d-saude"></div>
+        </div>
         <div class="ax-grid ax-g4">
           <div class="ax-card ax-kpi gold"><span class="l">Usuários online agora</span><span class="v" id="k-online">—</span><span class="s" id="k-online-s"></span></div>
           <div class="ax-card ax-kpi blue"><span class="l">Chamados abertos</span><span class="v" id="k-abertos">—</span><span class="s" id="k-abertos-s"></span></div>
@@ -106,13 +111,16 @@
           <div class="ax-card ax-kpi"><span class="l">Tempo médio de resolução</span><span class="v" id="k-tmr">—</span><span class="s">sem contar “aguardando usuário”</span></div>
           <div class="ax-card ax-kpi"><span class="l">Resolvidos no período</span><span class="v" id="k-res">—</span><span class="s" id="k-res-s"></span></div>
         </div>
+        <div class="ax-card ax-mt" aria-labelledby="d-board-h">
+          <div class="ax-row ax-mb"><h2 class="ax-grow" id="d-board-h">Fila por criticidade e SLA</h2>
+            <label class="ax-chk ti-filtro"><input type="checkbox" id="d-so-bug"> Só [AUTO-BUG]</label><button class="ax-btn sm" data-ir="chamados" type="button">Ver todos</button></div>
+          <div class="ti-board" id="d-board"></div>
+        </div>
         <div class="ax-grid ax-g2 ax-mt">
           <div class="ax-card"><h2>Ranking de operadores</h2><p class="ax-xs ax-mut">Mais chamados resolvidos no período</p>
             <div class="ax-tw ax-mt"><table class="ax-tbl"><thead><tr><th>#</th><th>Operador</th><th>Resolvidos</th><th>Assumidos</th><th>Atend. médio</th><th>Resol. média</th></tr></thead><tbody id="d-rank"></tbody></table></div></div>
           <div class="ax-card"><h2>Chamados por dia</h2><p class="ax-xs ax-mut"><span style="color:var(--ax-blue)">■</span> criados &nbsp; <span style="color:var(--ax-green)">■</span> resolvidos</p><div class="ax-bars" id="d-serie"></div></div>
         </div>
-        <div class="ax-card ax-mt"><div class="ax-row"><h2 class="ax-grow">Fila prioritária</h2><button class="ax-btn sm" data-ir="chamados">Ver todos</button></div>
-          <div class="ax-tw ax-mt"><table class="ax-tbl"><thead><tr><th>Protocolo</th><th>Chamado</th><th>Prioridade</th><th>Status</th><th>Responsável</th><th>Prazo</th></tr></thead><tbody id="d-fila"></tbody></table></div></div>
       </section>
 
       <!-- CHAMADOS -->
@@ -125,6 +133,8 @@
           <div class="ax-row ax-mb">
             <input class="ax-in ax-grow" id="c-busca" type="search" placeholder="Protocolo, título ou solicitante" aria-label="Buscar chamados" maxlength="60">
             <select class="ax-sel ax-grow" id="c-pri" aria-label="Prioridade"><option value="">Todas as prioridades</option></select>
+            <select class="ax-sel ax-grow" id="c-origem" aria-label="Origem"><option value="">Qualquer origem</option><option value="automatico">Automáticos [AUTO-BUG]</option><option value="usuario">Abertos por usuários</option><option value="ti">Abertos pela TI</option></select>
+            <select class="ax-sel ax-grow" id="c-dep" aria-label="Departamento"><option value="">Todos os departamentos</option><option value="ti">TI</option><option value="adm">Administrativo / Financeiro</option><option value="suporte">Suporte</option></select>
             <select class="ax-sel ax-grow" id="c-resp" aria-label="Responsável"><option value="">Qualquer responsável</option><option value="nenhum">Sem responsável</option></select>
             <button class="ax-btn sm" id="c-atualizar">Atualizar</button>
           </div>

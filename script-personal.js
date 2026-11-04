@@ -21,6 +21,8 @@ import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
 import { iniciar as iniciarJogo, abrirCheckin, abrirCheckout, abrirFaltaLoja, alertaRelampago, manterPosicao, pararPosicao } from "./promotor-jogo.js";
 import { coracoes, cartaoNivel, listaInfracoes, telaBanido, esconderBanido, animarPerdaVida, chipNivel, medalha, abrirFoto } from "./gamificacao-ui.js";
+import { montarOnline } from "./promotor-online.js";         // "aparecer para lojas próximas" (mapa das lojas)
+montarOnline($("online-promotor"));
 let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
 let ofertas = [], turnos = [], filtroSetor = "", ordem = "match";
 let perfilIA = { experiencias: [], eneagrama: null, palavrasChave: [], bioAuto: true };

@@ -8,8 +8,9 @@
 // Fluxo, para qualquer erro não tratado (window "error", "unhandledrejection") ou erro 500 da API:
 //   1. normaliza e descarta ruído do navegador/extensões; agrupa repetições (mesma "impressão" = um painel só);
 //   2. mostra NA HORA o painel tranquilizador ("já abrimos um chamado") enquanto o chamado é criado;
-//   3. POST /chamados/automatico → protocolo sequencial (TI-000123) aparece no painel;
-//   4. "Falar com o TI" abre o chat e envia o relatório técnico; sem sessão/chat, abre o WhatsApp com o mesmo relatório;
+//   3. POST /chamados/automatico → o SERVIDOR classifica o erro (roteador: TI, ADM/Financeiro ou Suporte), gera o protocolo do setor
+//      (TI-000123, ADM-000045, SUP-000012) e devolve o texto personalizado, que aparece no painel;
+//   4. "Falar com o <setor>" abre o chat e envia o relatório técnico; sem sessão/chat, abre o WhatsApp com o mesmo relatório;
 //   5. sem rede/sem login: o relatório fica numa fila local e é enviado sozinho quando houver sessão.
 // NADA aqui pode lançar para fora: cada caminho tem try/catch e o app continua funcionando.
 // ============================================================
@@ -41,11 +42,11 @@ function coletarContexto() {
 const comLimite = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error("tempo esgotado"), { code: "tempo" })), ms))]);
 
 /** Abre o chamado no servidor. Devolve { protocolo } ou lança (sem sessão, sem rede, 429…) — quem chama decide o plano B. */
-async function abrirChamado({ imp, titulo, descricao }) {
+async function abrirChamado({ imp, titulo, descricao, contexto, erro }) {
     const fb = await import("./firebase.js");
     await comLimite(fb.aguardarAuth(), 6000);
     if (!fb.auth.currentUser) throw Object.assign(new Error("sem sessão"), { code: "sem-sessao" });
-    const r = await comLimite(fb.chamarFuncao("chamados/automatico", { impressao: imp, titulo, descricao }), TEMPO_CHAMADO_MS);
+    const r = await comLimite(fb.chamarFuncao("chamados/automatico", { impressao: imp, titulo, descricao, contexto, erro }), TEMPO_CHAMADO_MS);
     if (!r?.protocolo) throw new Error("resposta sem protocolo");
     return r;
 }
@@ -63,17 +64,17 @@ async function enviarPendentes() {
         const fila = lerFila(); if (!fila.length) return;
         const restantes = []; let ultimo = null;
         for (let i = 0; i < fila.length; i++) {
-            try { const r = await abrirChamado(fila[i]); ultimo = { ...fila[i], protocolo: r.protocolo }; }
+            try { const r = await abrirChamado(fila[i]); ultimo = { ...fila[i], protocolo: r.protocolo, resposta: r }; }
             catch (e) {
                 restantes.push(fila[i]);
                 if (e.code === "sem-sessao" || e.code === "rede" || e.code === "tempo") { restantes.push(...fila.slice(i + 1)); break; }   // sem sessão/rede: guarda o resto e tenta depois
             }
         }
         gravarFila(restantes);
-        if (ultimo) mostrarPainel({ estado: "aberto", protocolo: ultimo.protocolo, relatorio: relatorioArmazenado(ultimo), posterior: true });
+        if (ultimo) mostrarPainel({ estado: "aberto", protocolo: ultimo.protocolo, relatorio: relatorioArmazenado(ultimo), posterior: true, setor: ultimo.resposta?.setor, titulo: ultimo.resposta?.titulo, mensagem: ultimo.resposta?.mensagem });
     } catch (e) { console.warn("[erros-globais] fila:", e); } finally { enviandoFila = false; }
 }
-const relatorioArmazenado = (it) => ({ titulo: it.titulo, descricao: it.descricao, paraChat: (p) => `🛠️ Chamado ${p} aberto automaticamente. Preciso de ajuda do TI.\n\n${it.descricao}`.slice(0, 1000) });
+const relatorioArmazenado = (it) => ({ titulo: it.titulo, descricao: it.descricao, paraChat: (p, setor = "TI") => `🛠️ Chamado ${p} aberto automaticamente. Preciso de ajuda do ${setor}.\n\n${it.descricao}`.slice(0, 1000) });
 
 // ---------------- interface ----------------
 const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto != null) e.textContent = texto; return e; };
@@ -84,17 +85,18 @@ function fecharPainel() { painelAtual?.remove(); painelAtual = null; }
 /**
  * Desenha (ou redesenha) o painel. Tudo por textContent/DOM: o texto do erro NUNCA entra como HTML (sem XSS).
  *   estado: "abrindo" | "aberto" | "pendente"
+ *   setor / titulo / mensagem: o que o SERVIDOR devolveu depois de rotear o chamado (ex.: "Administrativo / Financeiro"); sem eles, o texto genérico.
  */
-function mostrarPainel({ estado, protocolo = "", relatorio, posterior = false, avisoChat = "" }) {
+function mostrarPainel({ estado, protocolo = "", relatorio, posterior = false, avisoChat = "", setor = "", titulo = "", mensagem = "" }) {
     fecharPainel();
     const p = el("section", `erro-chamado erro-${estado}`); p.id = "erro-chamado"; p.setAttribute("role", "alert"); p.setAttribute("aria-live", "assertive"); p.setAttribute("aria-labelledby", "erro-titulo");
     const topo = el("div", "erro-topo");
     topo.append(el("span", "erro-ico", estado === "aberto" ? ICONE.ok : estado === "abrindo" ? ICONE.espera : ICONE.aviso));
     const textos = el("div", "erro-textos");
-    const h = el("h2", null, estado === "pendente" ? "Anotamos o problema" : "Tivemos um imprevisto — e já estamos cuidando disso"); h.id = "erro-titulo";
+    const h = el("h2", null, estado === "pendente" ? "Anotamos o problema" : estado === "aberto" && titulo ? titulo : "Tivemos um imprevisto — e já estamos cuidando disso"); h.id = "erro-titulo";
     const msg = el("p", "muted small");
     msg.textContent = estado === "abrindo" ? "Abrindo um chamado automaticamente para a equipe de TI…"
-        : estado === "aberto" ? (posterior ? "Um erro ocorrido antes agora virou chamado. Você não precisa fazer nada." : "Acabamos de abrir um chamado automaticamente para a equipe de TI. Você não precisa fazer nada — mas, se quiser, pode falar com a gente agora.")
+        : estado === "aberto" ? (mensagem ? `${posterior ? "Um erro ocorrido antes agora virou chamado. " : ""}${mensagem}` : posterior ? "Um erro ocorrido antes agora virou chamado. Você não precisa fazer nada." : "Acabamos de abrir um chamado automaticamente para a equipe de TI. Você não precisa fazer nada — mas, se quiser, pode falar com a gente agora.")
         : "O problema foi registrado neste aparelho. Assim que você estiver conectado e com a conta aberta, o chamado é criado sozinho. Se for urgente, fale com o TI.";
     textos.append(h, msg);
     const x = el("button", "icon-btn erro-fechar", "✕"); x.type = "button"; x.setAttribute("aria-label", "Fechar aviso"); x.addEventListener("click", fecharPainel);
@@ -102,7 +104,7 @@ function mostrarPainel({ estado, protocolo = "", relatorio, posterior = false, a
 
     if (estado === "abrindo") { const l = el("div", "erro-carregando"); l.setAttribute("aria-hidden", "true"); p.append(l); }
     if (estado === "aberto" && protocolo) {
-        const box = el("div", "erro-protocolo"); box.append(el("span", "muted small", "Número do chamado"));
+        const box = el("div", "erro-protocolo"); box.append(el("span", "muted small", setor ? `Número do chamado · setor: ${setor}` : "Número do chamado"));
         const linha = el("div", "erro-protocolo-linha"), num = el("strong", "erro-numero", protocolo);
         const cp = el("button", "btn btn-ghost btn-sm", "Copiar"); cp.type = "button";
         cp.addEventListener("click", async () => { try { await navigator.clipboard.writeText(protocolo); cp.textContent = "Copiado ✓"; } catch { cp.textContent = "Selecione e copie"; } setTimeout(() => (cp.textContent = "Copiar"), 2200); });
@@ -111,7 +113,7 @@ function mostrarPainel({ estado, protocolo = "", relatorio, posterior = false, a
     if (avisoChat) p.append(el("p", "small erro-aviso", avisoChat));
 
     const acoes = el("div", "erro-acoes");
-    if (relatorio && estado !== "abrindo") acoes.append(botaoTI(p, relatorio, estado === "aberto" ? protocolo : ""));
+    if (relatorio && estado !== "abrindo") acoes.append(botaoTI(p, relatorio, estado === "aberto" ? protocolo : "", setor));
     const rec = el("button", "btn btn-ghost", "Recarregar a página"); rec.type = "button"; rec.addEventListener("click", () => location.reload());
     const seguir = el("button", "btn btn-ghost", "Continuar usando"); seguir.type = "button"; seguir.addEventListener("click", fecharPainel);
     acoes.append(rec, seguir); p.append(acoes);
@@ -129,11 +131,12 @@ function mostrarPainel({ estado, protocolo = "", relatorio, posterior = false, a
  * Botão "Falar com o TI". Com sessão: abre o chat e envia o relatório como primeira mensagem.
  * Sem sessão (ou se o chat falhar): vira um LINK do WhatsApp com o mesmo relatório, que abre em nova aba (target=_blank).
  */
-function botaoTI(painel, relatorio, protocolo) {
-    const texto = relatorio.paraChat(protocolo);
+function botaoTI(painel, relatorio, protocolo, setor = "") {
+    const nomeSetor = setor || "TI", rotuloBase = `Falar com ${setor ? `o setor ${setor}` : "o TI"}`;
+    const texto = relatorio.paraChat(protocolo, nomeSetor);
     const comoLink = (rotulo) => { const a = el("a", "btn btn-primary erro-ti", rotulo); a.href = linkWhatsApp(texto); a.target = "_blank"; a.rel = "noopener noreferrer"; return a; };
     if (!protocolo) return comoLink("Falar com o TI");                            // sem chamado → sem sessão confiável: WhatsApp direto
-    const b = el("button", "btn btn-primary erro-ti", "Falar com o TI"); b.type = "button";
+    const b = el("button", "btn btn-primary erro-ti", rotuloBase); b.type = "button";
     b.addEventListener("click", async () => {
         b.disabled = true; b.textContent = "Abrindo conversa…";
         try {
@@ -142,7 +145,7 @@ function botaoTI(painel, relatorio, protocolo) {
             throw new Error("chat indisponível");
         } catch (e) {
             console.warn("[erros-globais] chat do TI:", e);
-            const a = comoLink("Falar com o TI pelo WhatsApp"); b.replaceWith(a);
+            const a = comoLink(`${rotuloBase} pelo WhatsApp`); b.replaceWith(a);
             painel.insertBefore(el("p", "small erro-aviso", "Não conseguimos abrir o chat agora. Use o botão abaixo: a mensagem já vai pronta no WhatsApp."), painel.querySelector(".erro-acoes"));
         }
     });
@@ -169,10 +172,10 @@ export async function reportarErro(causa, origem = "manual", extra = {}) {
         if (!silencioso) mostrarPainel({ estado: "abrindo", relatorio: null });
         dentro = false;
         try {
-            const r = await abrirChamado({ imp, titulo: rel.titulo, descricao: rel.descricao });
-            if (!silencioso) mostrarPainel({ estado: "aberto", protocolo: r.protocolo, relatorio: rel });
+            const r = await abrirChamado({ imp, titulo: rel.titulo, descricao: rel.descricao, contexto: rel.contexto, erro: rel.erro });
+            if (!silencioso) mostrarPainel({ estado: "aberto", protocolo: r.protocolo, relatorio: rel, setor: r.setor, titulo: r.titulo, mensagem: r.mensagem });
         } catch (falha) {
-            enfileirar({ imp, titulo: rel.titulo, descricao: rel.descricao });
+            enfileirar({ imp, titulo: rel.titulo, descricao: rel.descricao, contexto: rel.contexto, erro: rel.erro });
             console.warn("[erros-globais] chamado adiado:", falha?.code || falha?.message);
             if (!silencioso) mostrarPainel({ estado: "pendente", relatorio: rel });
         }
@@ -191,7 +194,7 @@ try {
     // firebase.js dispara este evento quando a API responde 500 (erro do nosso servidor). Erros de validação (400/404/429) são esperados e NÃO viram chamado.
     window.addEventListener("abastece:erro-api", (ev) => {
         const d = ev.detail || {}; const err = Object.assign(new Error(`${d.rota || "API"}: ${redigir(d.mensagem || "erro interno")}`), { name: "ApiError", code: d.codigo, status: d.status });
-        reportarErro(err, "api");
+        reportarErro(err, "api", { rota: d.rota });
     });
     window.addEventListener("online", () => setTimeout(enviarPendentes, 1500));
     setTimeout(enviarPendentes, 5000);                                              // depois que o app restaurou a sessão

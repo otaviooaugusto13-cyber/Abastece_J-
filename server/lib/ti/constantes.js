@@ -35,6 +35,16 @@ const SLA_MIN = {
 // O usuário (loja/promotor) só sugere urgência; "crítica" é decisão da equipe de TI.
 const URGENCIA_USUARIO = ["baixa", "media", "alta"];
 
+// ---------- Departamentos (roteamento dos chamados automáticos) ----------
+// Cada departamento tem fila, prefixo de protocolo e contador próprios. `ti` é o padrão (e o de todo chamado antigo, sem o campo).
+const DEPARTAMENTOS = ["ti", "adm", "suporte"];
+const DEPARTAMENTO_PADRAO = "ti";
+const DEPARTAMENTO_NOME = { ti: "TI", adm: "Administrativo / Financeiro", suporte: "Suporte" };
+const PREFIXO_PROTOCOLO = { ti: "TI", adm: "ADM", suporte: "SUP" };
+const CONTADOR = { ti: "chamados_ti", adm: "chamados_adm", suporte: "chamados_suporte" };   // `chamados_ti` é o contador histórico: o TI-000123 continua de onde parou
+/** Departamentos que atendem pelo painel administrativo (papel "admin"); o TI tem o painel próprio (/painel-ti). */
+const DEPARTAMENTOS_ADMIN = ["adm", "suporte"];
+
 // ---------- Presença ----------
 const PRESENCA_JANELA_MS = 75_000;      // online = pingou nos últimos 75 s (o app pinga a cada 30 s com a aba visível)
 const PRESENCA_PING_MIN_MS = 10_000;    // ping mais rápido que isso é ignorado (anti-abuso)
@@ -78,6 +88,7 @@ function senhaTemporaria() {
 
 module.exports = {
   NIVEIS, PERMISSOES, pode, STATUS, STATUS_ABERTOS, PRIORIDADES, PESO_PRIORIDADE, CATEGORIAS, TRANSICOES, SLA_MIN, URGENCIA_USUARIO,
+  DEPARTAMENTOS, DEPARTAMENTO_PADRAO, DEPARTAMENTO_NOME, PREFIXO_PROTOCOLO, CONTADOR, DEPARTAMENTOS_ADMIN,
   PRESENCA_JANELA_MS, PRESENCA_PING_MIN_MS, STREAM_INTERVALO_MS, STREAM_VIDA_MAX_MS, STREAM_MAX_POR_OPERADOR, STREAM_MAX_GLOBAL,
   validarSenha, senhaTemporaria
 };

@@ -18,6 +18,8 @@ import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEnt
 import { iniciar as iniciarJogo, pintarReputacao, abrirLocal, abrirRuptura, abrirAuditoria, temLocal, carregarMarcas } from "./loja-jogo.js";
 import { telaBanido, esconderBanido, animarPerdaVida } from "./gamificacao-ui.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
+import { montarMapaPromotores } from "./mapa-promotores.js";   // mapa de promotores online por perto
+montarMapaPromotores($("mapa-promotores"), { aoDefinirLocal: () => abrirLocal() });
 
 // ---------- estado ----------
 let rep = null, repTimer = null;

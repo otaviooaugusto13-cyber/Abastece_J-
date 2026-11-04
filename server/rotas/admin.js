@@ -355,4 +355,32 @@ module.exports = (app, x) => {
     await auth.auditar(req, "admin.exportar", tipo, { linhas: linhas.length });
     x.enviarCSV(res, `abastece-ja-${tipo}-${V.hojeSP()}.csv`, paraCSV(cab, linhas));
   }));
+
+  // ---------- Chamados dos departamentos ADM/Financeiro e Suporte (roteados pelo roteador automático) ----------
+  // O TI tem painel próprio (/painel-ti). Aqui o administrador vê e atende só as filas de ADM e Suporte; um chamado do TI devolve 404.
+  // Mesmas regras de estado do módulo de TI (chamados.js); as métricas/ranking do painel de TI não contam estes chamados.
+  const KC = ti.K, chamados = ti.chamados;
+  const atorChamado = (req) => ({ uid: req.usuario.uid, nome: String(req.usuario.name || req.usuario.email || "Administrador").slice(0, 100), tipo: "admin", nivel: "gestor" });
+  const doMeuSetor = async (req) => { let t = await chamados.detalhe(V.idDoc(req.params.id, "id")); if (!KC.DEPARTAMENTOS_ADMIN.includes(t.departamento)) throw new Falha(404, "Chamado não encontrado.", "nao-encontrado");
+    if (t.logsTecnicos) { const { stack, arquivo, ...resumo } = t.logsTecnicos; t = { ...t, logsTecnicos: resumo }; }   // stack trace e arquivo são do TI; ADM/Suporte veem só o resumo do erro
+    return t; };
+  const depsDaConsulta = (q) => { const d = String(q.departamento || ""); return d === "adm" || d === "suporte" ? [d] : KC.DEPARTAMENTOS_ADMIN; };
+  app.get("/admin/chamados/resumo", ...ADM, envelope(async (req, res) => { const c = await chamados.contagens(); res.json({ adm: c.departamentos.adm, suporte: c.departamentos.suporte }); }));
+  app.get("/admin/chamados", ...ADM, envelope(async (req, res) => {
+    const q = req.query;
+    res.json(await chamados.listar({ visao: q.visao || "abertos", departamentos: depsDaConsulta(q), prioridade: q.prioridade || undefined, q: q.q ? V.texto(String(q.q), "busca", { max: 60 }) : undefined,
+      limite: q.limite, cursor: q.cursor ? V.texto(String(q.cursor), "cursor", { max: 16, re: /^\d{1,16}$/ }) : undefined }));
+  }));
+  app.get("/admin/chamados/:id", ...ADM, envelope(async (req, res) => res.json(await doMeuSetor(req))));
+  /** Executa a ação, audita e devolve o chamado. `acao` sem o prefixo "admin.chamado.". */
+  const agir = (acao, fn) => [...ADM, envelope(async (req, res) => {
+    const antes = await doMeuSetor(req), t = await fn(req, antes);
+    await auth.auditar(req, `admin.chamado.${acao}`, antes.id, { protocolo: antes.protocolo, departamento: antes.departamento, de: antes.status, para: t.status, para_departamento: t.departamento });
+    res.json(chamados.visaoTI(t));
+  })];
+  app.post("/admin/chamados/:id/assumir", ...agir("assumir", (req, antes) => chamados.assumir(antes.id, atorChamado(req))));
+  app.post("/admin/chamados/:id/status", ...agir("status", (req, antes) => chamados.mudarStatus(antes.id, atorChamado(req), req.body?.status, req.body?.nota)));
+  /** `interno: false` é uma resposta que a loja/promotor enxerga na linha do tempo do próprio chamado. */
+  app.post("/admin/chamados/:id/comentarios", ...agir("comentar", (req, antes) => chamados.comentar(antes.id, atorChamado(req), req.body?.texto, req.body?.interno !== false)));
+  app.post("/admin/chamados/:id/transferir", ...agir("transferir", (req, antes) => chamados.transferir(antes.id, atorChamado(req), req.body?.departamento, req.body?.motivo)));
 };

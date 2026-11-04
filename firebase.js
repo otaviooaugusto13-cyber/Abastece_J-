@@ -4,6 +4,8 @@ import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/
 import { initializeAuth, getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, GoogleAuthProvider, connectAuthEmulator, signInWithCustomToken, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { FIREBASE_CONFIG, FUNCTIONS_BASE, USAR_EMULADOR } from "./config.js";
 
+// Inconsistências de NEGÓCIO (valor divergente, nota inconsistente…) abrem chamado mesmo sendo 4xx: o roteador do servidor as manda para ADM/Suporte. Espelhado em erros-nucleo.js.
+const CODIGOS_COM_CHAMADO = ["valor-divergente", "pagamento-invalido", "nota-inconsistente", "estorno-invalido", "loja-sem-localizacao", "dado-travado"];
 export const app = initializeApp(FIREBASE_CONFIG);
 // SESSÃO PERSISTENTE: o login fica salvo no aparelho (localStorage; se indisponível, IndexedDB; por último a sessão da aba) e é restaurado
 // ao reabrir o app. É declarado na criação do Auth — sem corrida com o primeiro login. Sessões antigas (IndexedDB) são migradas sozinhas.
@@ -60,7 +62,7 @@ export async function chamarFuncao(nome, corpo = {}, metodo) {
             const falha = Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status, status: r.status, detalhe: j.detalhe });
             // Erro 500 = defeito NOSSO (não validação/permissão): avisa o capturador global (erros-globais.js), que abre o chamado automático.
             // Não dispara para a própria rota do chamado, para não criar um laço se justamente ela estiver com problema.
-            if (r.status === 500 && !/^chamados\/automatico/.test(nome)) { try { window.dispatchEvent(new CustomEvent("abastece:erro-api", { detail: { rota: `${m} ${nome}`, status: r.status, codigo: j.codigo, mensagem: falha.message } })); } catch (e) { /* sem window */ } }
+            if ((r.status === 500 || CODIGOS_COM_CHAMADO.includes(j.codigo)) && !/^chamados\/automatico/.test(nome)) { try { window.dispatchEvent(new CustomEvent("abastece:erro-api", { detail: { rota: `${m} ${nome}`, status: r.status, codigo: j.codigo, mensagem: falha.message } })); } catch (e) { /* sem window */ } }
             throw falha;
         }
         return j;

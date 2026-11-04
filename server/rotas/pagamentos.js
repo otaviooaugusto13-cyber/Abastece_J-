@@ -137,7 +137,7 @@ module.exports = (app, x) => {
     const esperado = crypto.createHmac("sha256", MP_WEBHOOK_SECRET).update(manifesto).digest("hex");
     return Cripto.igualSeguro(esperado, partes.v1);
   }
-  app.post("/webhookMP", limitar({ janelaMs: 60_000, max: 120, nome: "webhook" }), async (req, res) => {
+  app.post("/webhookMP", limitar({ janelaMs: 60_000, max: 120, nome: "webhook" }), (req, res, next) => { try { res.on("finish", () => { try { x.ti.saude.registrarWebhook({ status: res.statusCode }); } catch { /* telemetria nunca derruba o webhook */ } }); } catch { /* idem */ } next(); }, async (req, res) => {
     try {
       const dataId = String(req.query?.["data.id"] || req.body?.data?.id || "");
       if (!MP_WEBHOOK_SECRET) return res.status(503).json({ erro: "webhook não configurado", codigo: "webhook-nao-configurado" });

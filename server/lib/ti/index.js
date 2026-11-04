@@ -9,14 +9,19 @@ const { criarMetricas } = require("./metricas");
 const { criarChamados } = require("./chamados");
 const { criarPresenca } = require("./presenca");
 const { criarTempoReal } = require("./tempo-real");
+const { criarSaude } = require("./saude");
+const { criarSondas } = require("./sondas");
 
-function criarTI({ db, admin, FieldValue, Timestamp, V, auth }) {
+/** `saudeDeps`: { G, mpToken, baseUrl, segredoWebhook, geoUrl } para as sondas reais; `saudeDeps.sondas` substitui todas (testes). */
+function criarTI({ db, admin, FieldValue, Timestamp, V, auth, saudeDeps = {} }) {
   const auditoria = criarAuditoria({ db, FieldValue, Timestamp });
   const operadores = criarOperadores({ db, admin, FieldValue, V });
   const admins = criarAdmins({ db, admin, FieldValue, V, definirPapel: (...a) => auth.definirPapel(...a) });
   const metricas = criarMetricas({ db, FieldValue });
   const chamados = criarChamados({ db, FieldValue, Timestamp, V, metricas });
   const presenca = criarPresenca({ db, Timestamp });
+  const saude = criarSaude({ ...(saudeDeps.opcoes || {}) });   // sondas são ligadas logo abaixo (precisam do próprio monitor para o webhook passivo)
+  saude.definirSondas(saudeDeps.sondas || criarSondas({ db, admin, saude, ...saudeDeps }));
   const tempoReal = criarTempoReal({ presenca, chamados });
 
   /** Identidade de quem age, para a trilha de auditoria. */
@@ -68,7 +73,7 @@ function criarTI({ db, admin, FieldValue, Timestamp, V, auth }) {
   }
 
   /** Zera caches em memória (uso dos testes). */
-  const limparCaches = () => { metricas.limparCache(); chamados.invalidarCache(); presenca.limparCache(); presenca._mapa.clear(); for (const uid of [...operadores._cache.keys()]) operadores.invalidar(uid); };
-  return { auditoria, operadores, admins, metricas, chamados, presenca, tempoReal, bootstrapGestor, exigirTI, recente, auditar, atorDe, limparCaches, K };
+  const limparCaches = () => { metricas.limparCache(); chamados.invalidarCache(); presenca.limparCache(); presenca._mapa.clear(); saude.limpar(); for (const uid of [...operadores._cache.keys()]) operadores.invalidar(uid); };
+  return { auditoria, operadores, admins, metricas, chamados, presenca, tempoReal, saude, bootstrapGestor, exigirTI, recente, auditar, atorDe, limparCaches, K };
 }
 module.exports = { criarTI };

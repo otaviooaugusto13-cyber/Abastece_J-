@@ -5,14 +5,16 @@ import { auth, googleProvider, entrarComGoogle, concluirLoginGoogle, chamarFunca
 import { FUNCTIONS_BASE } from "./config.js";
 import { esc } from "./core.js";
 import "./presenca.js";
+import { FAIXAS, agruparPorFaixa, slaDe, textoSla, totaisPorFaixa, ehAutoBug, tituloLimpo, STATUS_SAUDE, rotuloGeral, sparkline, formatarLatencia } from "./ti-fila-nucleo.js";
 
 const $ = (id) => document.getElementById(id);
-const S = { google: false, op: null, perm: [], cfg: null, vista: "dashboard", dias: 7, cv: "abertos", cproximo: null, os: "ativo", equipe: [], aproximo: null, parar: null, timer: null };
+const S = { google: false, op: null, perm: [], cfg: null, vista: "dashboard", dias: 7, cv: "abertos", cproximo: null, os: "ativo", equipe: [], aproximo: null, parar: null, timer: null, tick: null, fila: [], slaMin: null, soBug: false, saude: null };
 const pode = (p) => S.perm.includes(p);
 const TITULOS = { dashboard: "Dashboard", chamados: "Chamados", operadores: "Operadores", admins: "Administradores", auditoria: "Auditoria" };
 const ST = { aberto: ["Aberto", "b"], em_atendimento: ["Em atendimento", "y"], aguardando_usuario: ["Aguardando usuário", ""], resolvido: ["Resolvido", "g"], cancelado: ["Cancelado", "r"] };
 const PRI = { critica: "Crítica", alta: "Alta", media: "Média", baixa: "Baixa" };
 const CAT = { acesso: "Acesso/login", pagamento: "Pagamento", app: "Aplicativo", bug: "Erro/bug", dados: "Dados", infra: "Infraestrutura", outro: "Outro" };
+const DEP = { ti: "TI", adm: "Administrativo / Financeiro", suporte: "Suporte" }, COR_DEP = { ti: "b", adm: "y", suporte: "g" };
 const badge = (t, c = "") => `<span class="ax-badge ${c}">${esc(t)}</span>`;
 const stBadge = (s) => badge(...(ST[s] || [s, ""]));
 const priBadge = (p) => `<span class="ax-badge ti-pri-${esc(p)}">${esc(PRI[p] || p)}</span>`;
@@ -87,7 +89,7 @@ $("ti-google").addEventListener("click", async () => {
 });
 concluirLoginGoogle().then(({ erro }) => { if (erro && !/no-auth-event|cancelled|popup-closed/.test(erro.code || "")) $("ti-login-erro").textContent = "Não foi possível concluir o login com o Google. Tente novamente."; });
 onAuthStateChanged(auth, async (u) => {
-    pararTempoReal(); clearInterval(S.timer); $("ti-app").hidden = true; $("ti-login").hidden = false;
+    pararTempoReal(); clearInterval(S.timer); clearInterval(S.tick); $("ti-app").hidden = true; $("ti-login").hidden = false;
     if (!u) return;
     try { S.google = (await u.getIdTokenResult()).signInProvider === "google.com"; } catch { S.google = false; }
     try {
@@ -119,8 +121,11 @@ function iniciar() {
     $("ti-login").hidden = true; $("ti-app").hidden = false; $("ax-quem").textContent = `${S.op?.nome} · ${S.op?.nivel}`; $("ti-minha-senha").hidden = S.google;   // sem senha própria quando o acesso é pelo Google
     for (const sel of [$("c-pri")]) sel.innerHTML = '<option value="">Todas as prioridades</option>' + S.cfg.prioridades.map((p) => `<option value="${esc(p)}">${esc(PRI[p])}</option>`).join("");
     document.querySelector('#ax-nav [data-v="operadores"]').hidden = !pode("operadores.ler"); document.querySelector('#ax-nav [data-v="admins"]').hidden = !pode("admins.gerir"); $("a-op").hidden = !pode("auditoria.ler"); $("a-verificar").hidden = !pode("auditoria.verificar"); $("a-csv").hidden = !pode("auditoria.ler");
-    seguro(carregarEquipe)(); abrir(location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "dashboard"); ligarTempoReal();
+    seguro(carregarEquipe)(); const idLink = new URLSearchParams(location.search).get("chamado");   // link do aviso à equipe (chat/push): /painel-ti?chamado=ID
+    abrir(idLink ? "chamados" : location.hash.slice(1) in TITULOS ? location.hash.slice(1) : "dashboard"); ligarTempoReal();
+    if (idLink && /^[\w-]{4,64}$/.test(idLink)) { history.replaceState(null, "", location.pathname + location.hash); seguro(() => detalhe(idLink))(); }
     S.timer = setInterval(() => { if (!document.hidden && S.vista === "dashboard") seguro(carregarDashboard)(); }, 30000);   // métricas do período; o resto vem pelo stream
+    S.tick = setInterval(tickSla, 1000);   // cronômetros de SLA
 }
 async function carregarEquipe() {
     S.equipe = await consultar("ti/operadores");
@@ -232,15 +237,65 @@ function pararTempoReal() { S.parar?.(); S.parar = null; }
 // ---------- dashboard ----------
 async function carregarDashboard() {
     for (const b of document.querySelectorAll("#d-dias .ax-pill")) b.classList.toggle("sel", Number(b.dataset.d) === S.dias);
-    const [d, fila] = await Promise.all([consultar(`ti/dashboard?dias=${S.dias}`), consultar("ti/chamados?visao=abertos&limite=8")]);
+    const [d, fila] = await Promise.all([consultar(`ti/dashboard?dias=${S.dias}`), consultar("ti/chamados?visao=abertos&limite=120")]);
     pintarTick({ online: d.online, fila: d.fila, em: d.geradoEm }); const p = d.periodo;
     $("k-tma").textContent = dur(p.tmaSeg); $("k-tma-s").textContent = p.slaAtendimentoPct == null ? "até um operador assumir" : `${p.slaAtendimentoPct}% dentro do SLA`;
     $("k-tmr").textContent = dur(p.tmrSeg); $("k-res").textContent = p.resolvidos; $("k-res-s").textContent = `${p.criados} aberto(s) no período` + (p.slaResolucaoPct == null ? "" : ` · ${p.slaResolucaoPct}% no SLA`);
     $("d-rank").innerHTML = d.ranking.length ? d.ranking.map((r) => `<tr>${td("#", r.posicao <= 3 ? ["🥇", "🥈", "🥉"][r.posicao - 1] : r.posicao)}${td("Operador", esc(r?.nome))}${td("Resolvidos", `<b>${r.resolvidos}</b>`)}${td("Assumidos", r.assumidos)}${td("Atend. médio", dur(r.tmaSeg))}${td("Resol. média", dur(r.tmrSeg))}</tr>`).join("") : vazio(6, "Sem atendimentos no período.");
     const max = Math.max(1, ...p.serie.flatMap((x) => [x.criados, x.resolvidos]));
     $("d-serie").innerHTML = p.serie.map((x) => `<div title="${esc(x.dia.split("-").reverse().join("/"))}: ${x.criados} criados, ${x.resolvidos} resolvidos"><div class="ti-bar2"><b class="c" style="height:${(x.criados / max) * 100}%"></b><b class="r" style="height:${(x.resolvidos / max) * 100}%"></b></div><span>${esc(x.dia.slice(p.dias > 31 ? 5 : 8))}</span></div>`).join("");
-    $("d-fila").innerHTML = fila.itens.length ? fila.itens.map((c) => linhaChamado(c, true)).join("") : vazio(6, "Nenhum chamado em aberto. 🎉");
+    S.fila = fila.itens; S.slaMin = d.slaMin; pintarBoard(); pintarSaude(d.saude);
 }
+// ---------- saúde dos serviços + fila por criticidade (cronômetro de SLA ao vivo) ----------
+// A lógica (faixas, prazo, sparkline) mora em ti-fila-nucleo.js, compartilhada com o componente React e coberta por teste.
+function pintarSaude(s) {
+    S.saude = s; const geral = $("d-saude-geral"), lista = $("d-saude");
+    if (!s) { lista.innerHTML = ""; return; }
+    const cls = { ok: "ok", degradado: "warn", fora: "bad" }[s.geral] || "";
+    geral.className = `ti-geral ${cls}`; geral.textContent = rotuloGeral(s.geral, s.servicos);
+    $("d-saude-nota").textContent = s.verificadoEm ? `Verificado às ${new Date(s.verificadoEm).toLocaleTimeString("pt-BR")} · atualiza sozinho a cada ${s.intervaloSeg} s, em segundo plano.` : "Primeira medição em andamento…";
+    lista.innerHTML = s.servicos.map((v) => {
+        const st = STATUS_SAUDE[v.status] || STATUS_SAUDE.desconhecido, sp = sparkline(v.historico, 120, 28, v.lentoMs || 0);
+        return `<article class="ti-svc ${esc(st.classe)}" aria-label="${esc(v.nome)}: ${esc(st.rotulo)}">
+            <div class="ti-svc-top"><span class="ti-svc-n">${esc(v.nome)}</span><span class="ti-svc-st"><i aria-hidden="true"></i>${esc(st.rotulo)}</span></div>
+            <div class="ti-svc-lat"><b>${v.latenciaMs == null ? "—" : esc(formatarLatencia(v.latenciaMs))}</b><span>${v.latenciaMs == null ? "" : "ms de latência"}</span></div>
+            <svg class="ti-spark" viewBox="0 0 120 28" preserveAspectRatio="none" role="img" aria-label="Latência das últimas medições">${sp.linha ? `<polyline points="${esc(sp.linha)}"/>${sp.falhas.map((f) => `<circle cx="${f.x}" cy="${f.y}" r="2.4"/>`).join("")}` : ""}</svg>
+            <div class="ti-svc-d">${esc(v.detalhe || "")}</div>
+            <div class="ti-svc-f"><span>${v.tipo === "interno" ? "serviço interno" : "serviço externo"}</span><span>${v.disponibilidadePct == null ? "" : `${esc(v.disponibilidadePct)}% disponível`}</span></div></article>`;
+    }).join("");
+}
+$("d-saude-agora").addEventListener("click", seguro(async () => { const b = $("d-saude-agora"); b.disabled = true; try { pintarSaude(await consultar("ti/saude?forcar=1")); } finally { b.disabled = false; } }));
+
+const MAX_POR_FAIXA = 8;
+function pintarBoard() {
+    const lista = S.fila.filter((c) => !S.soBug || ehAutoBug(c)), g = agruparPorFaixa(lista), agora = Date.now(), tot = totaisPorFaixa(lista, S.slaMin, agora);
+    $("d-board").innerHTML = FAIXAS.map((f) => {
+        const itens = g[f.id].slice(0, MAX_POR_FAIXA), extra = g[f.id].length - itens.length;
+        return `<section class="ti-lane ti-lane-${f.id}" aria-label="Faixa ${esc(f.rotulo)}" title="${esc(f.dica)}">
+            <div class="ti-lane-h"><h3>${esc(f.rotulo)}</h3><span class="ti-lane-n">${tot[f.id].total}</span>${tot[f.id].estourados ? `<span class="ti-lane-late">${tot[f.id].estourados} fora do prazo</span>` : ""}</div>
+            ${itens.length ? itens.map(cartaoChamado).join("") : `<p class="ti-lane-vazio">Nada nesta faixa.</p>`}
+            ${extra > 0 ? `<p class="ti-mais">+ ${extra} em “Ver todos”</p>` : ""}</section>`;
+    }).join("");
+    tickSla();
+}
+const cartaoChamado = (c) => `<article class="ti-card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="${esc(`${c.protocolo}, ${PRI[c.prioridade] || c.prioridade}, ${tituloLimpo(c)}`)}">
+    <div class="ti-card-top"><b>${esc(c.protocolo)}</b>${ehAutoBug(c) ? '<span class="ti-tag-bug">AUTO-BUG</span>' : ""}${c.prioridade === "alta" ? priBadge("alta") : ""}${stBadge(c.status)}</div>
+    <div class="ti-card-t">${esc(tituloLimpo(c))}</div>
+    <div class="ti-card-m">${esc(c.solicitante?.nome || "—")} · ${esc(c.atribuidoNome || "sem responsável")} · há ${esc(idade(c.criadoEm))}</div>
+    <div class="ti-sla" data-sla="${esc(c.id)}"><span class="ti-sla-l"></span><span class="ti-sla-v"></span><i class="ti-sla-b"><b></b></i></div></article>`;
+/** Roda a cada 1 s: só mexe no texto/largura dos cronômetros (nada de redesenhar a fila). Pausa com a aba escondida. */
+function tickSla() {
+    if (document.hidden || S.vista !== "dashboard") return;
+    const agora = Date.now(), porId = new Map(S.fila.map((c) => [c.id, c]));
+    for (const el of $("d-board").querySelectorAll("[data-sla]")) {
+        const c = porId.get(el.dataset.sla); if (!c) continue; const sla = slaDe(c, S.slaMin, agora);
+        el.className = `ti-sla ${sla.nivel}`; el.children[0].textContent = sla.rotulo; el.children[1].textContent = textoSla(sla);
+        el.children[2].firstElementChild.style.width = `${Math.min(100, Math.round(sla.pct * 100))}%`; el.closest(".ti-card").classList.toggle("estourado", sla.nivel === "estourado");
+    }
+}
+$("d-so-bug").addEventListener("change", (e) => { S.soBug = e.target.checked; pintarBoard(); });
+document.addEventListener("keydown", (e) => { const card = e.target.closest?.(".ti-card[data-id]"); if (card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); card.click(); } });
+
 $("d-dias").addEventListener("click", (e) => { const b = e.target.closest("[data-d]"); if (b) { S.dias = Number(b.dataset.d); seguro(carregarDashboard)(); } });
 
 // ---------- chamados ----------
@@ -248,21 +303,21 @@ const prazo = (c) => {
     const alvo = c.status === "aberto" ? c.slaAtendEm : c.status === "em_atendimento" ? c.slaResolEm : null; if (!alvo) return "—";
     const ms = new Date(alvo).getTime() - Date.now(); return ms < 0 ? `<span class="ti-late">atrasado ${esc(dur(-ms / 1000))}</span>` : `em ${esc(dur(ms / 1000))}`;
 };
-const linhaChamado = (c, curta = false) => `<tr class="ti-click" data-id="${esc(c.id)}">${td("Protocolo", esc(c.protocolo))}${td("Chamado", `<b>${esc(c.titulo)}</b><br><span class="ax-xs ax-mut">${esc(CAT[c.categoria] || c.categoria)}</span>`)}${td("Prioridade", priBadge(c.prioridade))}${td("Status", stBadge(c.status))}`
+const linhaChamado = (c, curta = false) => `<tr class="ti-click" data-id="${esc(c.id)}">${td("Protocolo", esc(c.protocolo))}${td("Chamado", `${ehAutoBug(c) ? '<span class="ti-tag-bug">AUTO-BUG</span> ' : ""}<b>${esc(tituloLimpo(c))}</b><br><span class="ax-xs ax-mut">${esc(CAT[c.categoria] || c.categoria)}</span>`)}${td("Prioridade", priBadge(c.prioridade))}${td("Status", stBadge(c.status))}`
     + (curta ? "" : td("Solicitante", esc(c.solicitante?.nome || "—"))) + td("Responsável", esc(c.atribuidoNome || "—")) + td("Prazo", prazo(c)) + (curta ? "" : td("Aberto", `${esc(dt(c.criadoEm))}<br><span class="ax-xs ax-mut">há ${esc(idade(c.criadoEm))}</span>`)) + "</tr>";
 async function carregarChamados(reiniciar) {
     for (const b of document.querySelectorAll("#c-visao .ax-pill")) b.classList.toggle("sel", b.dataset.v === S.cv);
-    const q = new URLSearchParams({ visao: S.cv, limite: "100" }); for (const [k, id] of [["prioridade", "c-pri"], ["atribuido", "c-resp"], ["q", "c-busca"]]) if ($(id).value.trim()) q.set(k, $(id).value.trim());
+    const q = new URLSearchParams({ visao: S.cv, limite: "100" }); for (const [k, id] of [["prioridade", "c-pri"], ["origem", "c-origem"], ["departamento", "c-dep"], ["atribuido", "c-resp"], ["q", "c-busca"]]) if ($(id).value.trim()) q.set(k, $(id).value.trim());
     if (!reiniciar && S.cproximo) q.set("cursor", S.cproximo);
     const r = await consultar(`ti/chamados?${q}`); S.cproximo = r.proximo;
     const html = r.itens.map((c) => linhaChamado(c)).join(""); $("c-body").innerHTML = reiniciar ? (html || vazio(8, "Nenhum chamado neste filtro.")) : $("c-body").innerHTML + html;
     $("c-mais").hidden = !r.proximo; $("c-nota").textContent = r.truncado && S.cv === "abertos" ? "Mostrando os 100 mais urgentes. Use os filtros para refinar." : "";
 }
-for (const id of ["c-pri", "c-resp"]) $(id).addEventListener("change", seguro(() => carregarChamados(true)));
+for (const id of ["c-pri", "c-origem", "c-dep", "c-resp"]) $(id).addEventListener("change", seguro(() => carregarChamados(true)));
 let tb; $("c-busca").addEventListener("input", () => { clearTimeout(tb); tb = setTimeout(seguro(() => carregarChamados(true)), 350); });
 $("c-visao").addEventListener("click", (e) => { const b = e.target.closest("[data-v]"); if (b) { S.cv = b.dataset.v; seguro(() => carregarChamados(true))(); } });
 $("c-atualizar").addEventListener("click", seguro(() => carregarChamados(true))); $("c-mais").addEventListener("click", seguro(() => carregarChamados(false)));
-document.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr && !e.target.closest("button")) seguro(() => detalhe(tr.dataset.id))(); });
+document.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id], .ti-card[data-id]"); if (tr && !e.target.closest("button")) seguro(() => detalhe(tr.dataset.id))(); });
 $("c-novo").addEventListener("click", seguro(async () => {
     const v = await formulario({ titulo: "Novo chamado", texto: "Registre um problema relatado por telefone, WhatsApp ou pessoalmente.", ok: "Abrir chamado", campos: [
         { n: "solicitanteNome", label: "Quem pediu", req: true, min: 2, max: 100, ph: "Nome da pessoa / loja" }, { n: "titulo", label: "Título", req: true, min: 5, max: 120 },
@@ -277,10 +332,13 @@ async function detalhe(id) {
     const ev = c.eventos.map((e) => { const txt = e.tipo === "criado" ? "Chamado aberto" : e.tipo === "assumido" ? "Assumiu o chamado" : e.tipo === "status" ? `${ST[e.de]?.[0] || e.de} → ${ST[e.para]?.[0] || e.para}` : e.tipo === "comentario" ? "" : e.texto;
         return `<div class="ti-ev${e.interno ? " int" : ""}"><div class="m">${esc(dt(e.em))} · ${esc(e.autor || "—")}${e.interno ? " · nota interna" : ""}</div>${txt ? `<div>${esc(txt)}</div>` : ""}${e.texto && e.tipo !== "atribuido" && e.tipo !== "prioridade" ? `<div>${esc(e.texto)}</div>` : ""}</div>`; }).join("");
     d.innerHTML = `<form method="dialog"><div class="ax-row"><h2 class="ax-grow">${esc(c.protocolo)} · ${esc(c.titulo)}</h2><button class="ax-btn sm" value="x" aria-label="Fechar">✕</button></div>
-        <div class="ax-row ax-mt">${priBadge(c.prioridade)} ${stBadge(c.status)} ${badge(CAT[c.categoria] || c.categoria)} ${c.reaberturas ? badge(`reaberto ${c.reaberturas}x`, "r") : ""}</div>
+        <div class="ax-row ax-mt">${priBadge(c.prioridade)} ${stBadge(c.status)} ${badge(CAT[c.categoria] || c.categoria)} ${badge(DEP[c.departamento] || "TI", COR_DEP[c.departamento])} ${c.reaberturas ? badge(`reaberto ${c.reaberturas}x`, "r") : ""}${c.transferencias ? ` ${badge(`transferido ${c.transferencias}x`, "y")}` : ""}</div>
+        ${c.classificacao ? `<p class="ax-sm ax-mt"><b>Roteamento automático:</b> ${esc(c.classificacao.motivo)} <span class="ax-mut">(confiança ${esc(c.classificacao.confianca)})</span></p>` : ""}
         <p class="ax-sm ax-mt" style="white-space:pre-wrap">${esc(c.descricao)}</p>
+        ${c.logsTecnicos?.stack ? `<details class="ax-mt"><summary class="ax-sm">Logs técnicos (stack trace)</summary><div class="ti-pre ax-mt">${esc(c.logsTecnicos.stack)}</div></details>` : ""}
         <div class="ti-split ax-mt ax-sm"><div><span class="ax-mut">Solicitante</span><br>${esc(c.solicitante?.nome)} <span class="ax-mut">(${esc(c.solicitante.tipo)})</span></div><div><span class="ax-mut">Responsável</span><br>${esc(c.atribuidoNome || "—")}</div><div><span class="ax-mut">Aberto em</span><br>${esc(dt(c.criadoEm))}</div><div><span class="ax-mut">1º atendimento</span><br>${c.atendidoEm ? esc(dur(c.tempoAtendSeg)) : "ainda não"}</div><div><span class="ax-mut">Prazo</span><br>${prazo(c)}</div></div>
         ${c.resolucao ? `<p class="ax-sm ax-mt"><b>Resolução:</b> ${esc(c.resolucao)}</p>` : ""}
+        ${blocoBug(c)}
         <h3 class="ax-mt">Linha do tempo</h3><div class="ti-tl ax-mt">${ev}</div>
         <div class="ax-row ax-mt" id="ti-acoes"></div></form>`;
     const A = $("ti-acoes"), btn = (txt, fn, cls = "") => { const b = document.createElement("button"); b.type = "button"; b.className = "ax-btn sm " + cls; b.textContent = txt; b.addEventListener("click", seguro(async () => { if (await fn()) { d.close(); await recarregar(); } })); A.append(b); };
@@ -293,9 +351,18 @@ async function detalhe(id) {
         btn(rot, async () => { const exige = p === "resolvido" || p === "cancelado"; const v = await formulario({ titulo: rot, ok: rot, perigo: p === "cancelado", campos: [{ n: "nota", label: p === "resolvido" ? "O que foi feito (o solicitante verá)" : exige ? "Motivo" : "Nota (opcional)", tipo: "textarea", req: exige, min: exige ? 5 : 0, max: 1000 }] }); return v && acao("status", { status: p, nota: v.nota }); }, p === "resolvido" ? "ok" : p === "cancelado" ? "danger" : "");
     }
     if (gestor && aberto) btn("➜ Encaminhar", async () => { const v = await formulario({ titulo: "Encaminhar chamado", ok: "Encaminhar", campos: [{ n: "operadorUid", label: "Para", tipo: "select", req: true, opcoes: S.equipe.filter((o) => o.status === "ativo" && o.uid !== c.atribuidoUid).map((o) => [o.uid, `${o?.nome} (${o?.nivel})`]) }] }); return v && acao("atribuir", v); });
+    if (podeMexer && aberto) btn("↔ Transferir de setor", async () => { const v = await formulario({ titulo: "Transferir de setor", texto: "Use quando o roteamento automático errou. O protocolo continua o mesmo e o chamado volta para a fila do novo setor.", ok: "Transferir", campos: [{ n: "departamento", label: "Para", tipo: "select", req: true, opcoes: Object.entries(DEP).filter(([k]) => k !== c.departamento) }, { n: "motivo", label: "Motivo", tipo: "textarea", req: true, min: 5, max: 500 }] }); return v && acao("transferir", v); });
     if (podeMexer && aberto) btn("⚑ Prioridade", async () => { const v = await formulario({ titulo: "Alterar prioridade", ok: "Salvar", campos: [{ n: "prioridade", label: "Prioridade", tipo: "select", valor: c.prioridade, opcoes: S.cfg.prioridades.map((p) => [p, PRI[p]]) }] }); return v && v.prioridade !== c.prioridade && acao("prioridade", v, "PUT"); });
     d.showModal();
 }
+/** Contexto estruturado de um [AUTO-BUG]: rota, versão, dispositivo, usuário, alcance, motivo da prioridade e stack trace. */
+const blocoBug = (c) => {
+    const b = c.bug; if (!b) return "";
+    const d = b.dispositivo || {}, motivos = (b.classificacao?.motivos || []).join("; ");
+    const campos = [["Rota", b.rota], ["Versão do app", b.versao], ["Dispositivo", [d.tipo, d.so, d.navegador].filter((x) => x && x !== "desconhecido").join(" · ")], ["Usuário", b.usuario?.uid ? `${b.usuario.tipo} · ${b.usuario.uid}` : ""],
+        ["Origem do erro", b.origem], ["Alcance (1 h)", `${b.afetados || 1} usuário(s) · ${b.ocorrencias || 1} ocorrência(s)`], ["Prioridade automática", motivos], ["Tela", b.tela], ["Arquivo", b.arquivo]];
+    return `<h3 class="ax-mt">Contexto do erro automático</h3><div class="ti-split ax-mt ax-sm">${campos.map(([r, v]) => linha(r, v)).join("")}</div>${b.stack ? `<div class="ti-pre ax-mt">${esc(b.stack)}</div>` : ""}`;
+};
 const recarregar = async () => { await CARGA[S.vista](); };
 
 // ---------- operadores ----------

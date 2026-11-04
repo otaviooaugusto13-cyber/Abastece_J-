@@ -4,19 +4,22 @@
 // A interface e os listeners globais ficam em erros-globais.js.
 // ============================================================
 
+/** Códigos de erro da API que abrem chamado mesmo sendo 4xx (inconsistência de negócio). Espelhado em firebase.js. */
+export const CODIGOS_COM_CHAMADO = ["valor-divergente", "pagamento-invalido", "nota-inconsistente", "estorno-invalido", "loja-sem-localizacao", "dado-travado"];
+
 export const LIMITES = { titulo: 120, descricaoChamado: 2000, mensagemChat: 1000, stackLinhas: 8, mensagemErro: 400 };
 
 /** Qualquer coisa que alguém possa lançar (Error, string, objeto, undefined…) vira { nome, mensagem, stack }. */
 export function normalizar(causa, extra = {}) {
-    let nome = "Error", mensagem = "", stack = "";
+    let nome = "Error", mensagem = "", stack = "", codigo = "", status = 0;
     if (causa instanceof Error || (causa && typeof causa === "object" && ("message" in causa || "stack" in causa))) {
         nome = String(causa.name || "Error"); mensagem = String(causa.message ?? ""); stack = String(causa.stack || "");
-        if (causa.code) mensagem += ` [code=${String(causa.code).slice(0, 40)}]`;
-        if (causa.status) mensagem += ` [status=${String(causa.status).slice(0, 10)}]`;
+        if (causa.code) { codigo = String(causa.code).slice(0, 60); mensagem += ` [code=${codigo.slice(0, 40)}]`; }
+        if (causa.status) { status = Number(causa.status) || 0; mensagem += ` [status=${String(causa.status).slice(0, 10)}]`; }
     } else if (typeof causa === "string") { mensagem = causa; nome = "Erro"; }
     else if (causa === undefined || causa === null) { mensagem = "Erro sem detalhes"; }
     else { try { mensagem = JSON.stringify(causa); } catch { mensagem = String(causa); } nome = "ErroNaoPadrao"; }
-    return { nome, mensagem: mensagem.slice(0, LIMITES.mensagemErro) || "Erro sem mensagem", stack, ...extra };
+    return { nome, mensagem: mensagem.slice(0, LIMITES.mensagemErro) || "Erro sem mensagem", stack, ...(codigo ? { codigo } : {}), ...(status ? { status } : {}), ...extra };
 }
 
 /**
@@ -63,15 +66,31 @@ export function redigir(texto) {
         .replace(/([?&](?:token|key|apikey|api_key|access_token|auth|senha|password|code)=)[^&\s)]+/gi, "$1[removido]");
 }
 
+export const PREFIXO_BUG = "[AUTO-BUG]";
 const cortar = (s, n) => (s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s);
 /** URL sem query/hash: o caminho basta para o TI e não vaza parâmetros. */
 export const urlSegura = (href) => { try { const u = new URL(href); return `${u.origin}${u.pathname}`; } catch { return String(href || "").split(/[?#]/)[0]; } };
 
 /**
+ * Contexto ESTRUTURADO do erro (vai em `contexto` no POST). O servidor trata tudo como não confiável e re-sanitiza;
+ * o usuário NÃO vai aqui: o servidor usa o do token. A pilha segue já redigida (LGPD).
+ */
+export function montarContexto(e, ctx = {}) {
+    let rota = ""; try { rota = new URL(ctx.url).pathname; } catch { rota = String(ctx.url || "").split(/[?#]/)[0]; }
+    return {
+        nome: e.nome, mensagem: redigir(e.mensagem), origem: e.origem || "", rota, versao: ctx.versao || "", perfil: ctx.perfil || "", tela: ctx.tela || "",
+        navegador: cortar(String(ctx.navegador || ""), 400), viewport: ctx.viewport || "", online: ctx.online, fuso: ctx.fuso || "",
+        arquivo: e.arquivo ? urlSegura(e.arquivo) : "", linha: e.linha || 0,
+        stack: redigir(String(e.stack || "").split("\n").slice(0, LIMITES.stackLinhas).map((l) => l.trim()).join("\n"))
+    };
+}
+
+/**
  * Monta os dois textos a partir do erro e do contexto coletado pelo navegador.
- *   titulo      → título do chamado ("Erro automático: TypeError — …")
+ *   titulo      → título do chamado ("[AUTO-BUG] TypeError: …")
  *   descricao   → relatório completo (≤ 2000 caracteres: limite do chamado)
- *   paraChat(p) → versão compacta com o protocolo (≤ 1000: limite da mensagem do chat)
+ *   paraChat(p, setor) → versão compacta com o protocolo (≤ 1000: limite da mensagem do chat); `setor` = departamento que recebeu o chamado (padrão "TI")
+ *   erro        → campos estruturados (já sem dados pessoais) para o SERVIDOR classificar e rotear o chamado: TI, ADM/Financeiro ou Suporte
  */
 export function montarRelatorio(e, ctx = {}) {
     const pilha = redigir(String(e.stack || "").split("\n").slice(0, LIMITES.stackLinhas).map((l) => l.trim()).join("\n"));
@@ -88,15 +107,16 @@ export function montarRelatorio(e, ctx = {}) {
         ["Arquivo", e.arquivo && `${urlSegura(e.arquivo)}${e.linha ? `:${e.linha}${e.coluna ? `:${e.coluna}` : ""}` : ""}`]
     ].filter(([, v]) => v);
     const cabecalho = campos.map(([k, v]) => `${k}: ${v}`).join("\n");
-    const resumoTitulo = `Erro automático: ${e.nome} — ${redigir(e.mensagem).replace(/\s+/g, " ")}`;
+    const resumoTitulo = `${PREFIXO_BUG} ${e.nome}: ${redigir(e.mensagem).replace(/\s+/g, " ")}`;   // cabeçalho que a fila de TI filtra e conta
     const titulo = cortar(resumoTitulo, LIMITES.titulo);
     const descricao = cortar(`${cabecalho}${pilha ? `\n\nStack:\n${pilha}` : ""}`, LIMITES.descricaoChamado);
-    const paraChat = (protocolo) => {
-        const topo = `🛠️ ${protocolo ? `Chamado ${protocolo} aberto automaticamente.` : "Erro no aplicativo."} Preciso de ajuda do TI.\n\n`;
+    const erro = { nome: e.nome, mensagem: redigir(e.mensagem), origem: e.origem || "", rota: e.rota || "", status: e.status || 0, codigo: e.codigo || "", arquivo: e.arquivo ? urlSegura(e.arquivo) : "", stack: pilha, tela: ctx.tela || "", perfil: ctx.perfil || "" };
+    const paraChat = (protocolo, setor = "TI") => {
+        const topo = `🛠️ ${protocolo ? `Chamado ${protocolo} aberto automaticamente.` : "Erro no aplicativo."} Preciso de ajuda do ${setor}.\n\n`;
         const corpo = campos.filter(([k]) => ["Erro", "Origem", "Quando", "Página", "Tela", "Perfil", "Versão"].includes(k)).map(([k, v]) => `${k}: ${v}`).join("\n");
         const resto = LIMITES.mensagemChat - topo.length - corpo.length - 12;
         const pilhaCurta = resto > 60 && pilha ? `\n\nStack:\n${cortar(pilha, resto)}` : "";
         return cortar(`${topo}${corpo}${pilhaCurta}`, LIMITES.mensagemChat);
     };
-    return { titulo, descricao, paraChat };
+    return { titulo, descricao, contexto: montarContexto(e, ctx), paraChat, erro };
 }

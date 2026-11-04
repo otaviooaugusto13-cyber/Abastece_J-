@@ -1,0 +1,2 @@
+{ "compilerOptions": { "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "jsx": "react-jsx", "strict": true, "allowJs": true, "checkJs": false, "noEmit": true, "skipLibCheck": true, "lib": ["ES2022", "DOM", "DOM.Iterable"] },
+  "include": ["./*.tsx", "../ti-fila-nucleo.js"] }

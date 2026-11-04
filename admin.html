@@ -64,6 +64,7 @@
       <button class="ax-nav sel" data-v="visao"><span class="ic">◎</span>Visão geral</button>
       <button class="ax-nav" data-v="usuarios"><span class="ic">☰</span>Usuários<span class="n ax-badge y" id="n-pend" hidden></span></button>
       <button class="ax-nav" data-v="suporte"><span class="ic">✉</span>Suporte<span class="n ax-badge y" id="n-sup" hidden></span></button>
+      <button class="ax-nav" data-v="chamados"><span class="ic">⚑</span>Chamados<span class="n ax-badge y" id="n-cham" hidden></span></button>
       <button class="ax-nav" data-v="missoes"><span class="ic">▤</span>Missões</button>
       <button class="ax-nav" data-v="financeiro"><span class="ic">$</span>Financeiro</button>
       <button class="ax-nav" data-v="treino"><span class="ic">▶</span>Treinamento</button>
@@ -234,6 +235,24 @@
       </section>
 
       <!-- EQUIPE DE TI (cadastro, remoção e liberação de acesso ao painel /painel-ti) -->
+      <!-- CHAMADOS dos departamentos ADM/Financeiro e Suporte (roteados automaticamente; o TI atende em /painel-ti) -->
+      <section id="v-chamados" hidden>
+        <div class="ax-card">
+          <div class="ax-row ax-mb">
+            <div class="ax-pills ax-grow" id="ch-visao"><button class="ax-pill sel" data-v="abertos">Abertos</button><button class="ax-pill" data-v="resolvidos">Resolvidos</button><button class="ax-pill" data-v="todos">Todos</button></div>
+            <button class="ax-btn sm" id="ch-atualizar">Atualizar</button>
+          </div>
+          <div class="ax-row ax-mb">
+            <input class="ax-inp ax-grow" id="ch-busca" type="search" placeholder="Protocolo, título ou solicitante" aria-label="Buscar chamados" maxlength="60">
+            <select class="ax-sel ax-grow" id="ch-dep" aria-label="Setor"><option value="">Administrativo/Financeiro e Suporte</option><option value="adm">Só Administrativo / Financeiro</option><option value="suporte">Só Suporte</option></select>
+            <select class="ax-sel ax-grow" id="ch-pri" aria-label="Prioridade"><option value="">Todas as prioridades</option><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select>
+          </div>
+          <p class="ax-xs ax-mut ax-mb" id="ch-nota">Chamados abertos automaticamente quando o app detecta um erro, já separados por setor. Chamados técnicos ficam com a equipe de TI.</p>
+          <div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Protocolo</th><th>Chamado</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Responsável</th><th>Prazo</th><th>Aberto</th></tr></thead><tbody id="ch-body"></tbody></table></div>
+          <div class="ax-row ax-mt" style="justify-content:center"><button class="ax-btn" id="ch-mais" hidden>Carregar mais</button></div>
+        </div>
+      </section>
+
       <section id="v-ti" hidden>
         <div class="ax-card">
           <div class="ax-row ax-mb">
@@ -320,6 +339,8 @@
   </form>
 </dialog>
 <dialog class="ax-dlg" id="ti-dlg" aria-label="Equipe de TI"></dialog>
+<dialog class="ax-dlg" id="ch-dlg" aria-label="Chamado" style="width:min(720px,calc(100vw - 20px))"></dialog>
+<dialog class="ax-dlg" id="ch-form" aria-label="Chamado — ação"></dialog>
 <dialog class="ax-dlg" id="ax-ficha"><div id="ax-ficha-c"></div><div class="ax-row ax-mt" id="ax-ficha-a"></div></dialog>
 
 <script type="module" src="admin.js"></script>

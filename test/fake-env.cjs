@@ -89,16 +89,16 @@ function carregarServidor() {
     if (!r) return { status: 404, json: { erro: "sem rota" } };
     const vals = r.re.exec(pathOnly).slice(1), params = Object.fromEntries(r.nomes.map((n, i) => [n, vals[i]]));
     const h = { ...(token ? { authorization: `Bearer ${token}.x.y` } : {}), ...Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])) };
-    const saida = { status: 200, json: null, texto: null, h: {} };
+    const saida = { status: 200, json: null, texto: null, h: {} }, fins = [];
     const req = { method: metodo, path: pathOnly, url: caminho, body, query: q, params, ip, get: (n) => h[n.toLowerCase()] };
-    const res = { status(s) { saida.status = s; return this; }, json(j) { saida.json = j; return this; }, send(t) { saida.texto = t; return this; }, redirect(c, loc) { saida.status = c; saida.h.location = loc; return this; }, sendFile(f) { saida.texto = f; return this; }, setHeader(k, v) { saida.h[k] = v; }, removeHeader() {} };
+    const res = { status(s) { saida.status = s; return this; }, json(j) { saida.json = j; return this; }, send(t) { saida.texto = t; return this; }, redirect(c, loc) { saida.status = c; saida.h.location = loc; return this; }, sendFile(f) { saida.texto = f; return this; }, setHeader(k, v) { saida.h[k] = v; }, removeHeader() {}, get statusCode() { return saida.status; }, on(ev, fn) { if (ev === "finish") fins.push(fn); return this; } };
     let i = 0; const pend = [];
     const next = (err) => { const p = (async () => {
       if (err) return Seg.tratadorErros(err, req, res);
       const fn = r.hs[i++]; if (!fn) return;
       try { await fn(req, res, next); } catch (e) { Seg.tratadorErros(e, req, res); }
     })(); pend.push(p); return p; };
-    next(); while (pend.length) await pend.shift(); return saida;
+    next(); while (pend.length) await pend.shift(); for (const f of fins) f(); return saida;
   }
   return { ...srv, chamar, Seg };
 }

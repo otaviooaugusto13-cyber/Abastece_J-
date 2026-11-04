@@ -14,9 +14,10 @@ O `#btn-whatsapp` (verde) virou `#btn-suporte-plataforma` (`.fab-suporte`, doura
 ## 4. Erros globais + chamado automático — `erros-globais.js`, `erros-nucleo.js`, `POST /chamados/automatico`
 - Captura `window.error`, `unhandledrejection` e respostas 500 da API (`abastece:erro-api`, disparado por `firebase.js`). Também: `window.AbasteceErros.reportar(erro)` para `try/catch` do app.
 - Ignora ruído (ResizeObserver, extensões, fetch cancelado, sem internet, sessão expirada) e agrupa repetições pela "impressão" do erro.
-- Painel calmo: "já abrimos um chamado", protocolo sequencial `TI-000123` (copiável), **Falar com o TI**, recarregar, continuar usando, "ver detalhes técnicos".
+- Painel calmo: "já abrimos um chamado", protocolo sequencial do setor (`TI-000123`, `ADM-000045`, `SUP-000012`; copiável), **Falar com o TI**, recarregar, continuar usando, "ver detalhes técnicos".
 - **Falar com o TI**: abre o chat e envia o relatório (≤1000 caracteres). Sem sessão ou com o chat indisponível, vira link do WhatsApp com o mesmo relatório.
-- Servidor: `chamados.abrirAutomatico` — categoria `bug`, origem `automatico`; o mesmo erro do mesmo usuário em 1 h reaproveita o protocolo (sem inundar a fila); coleção `chamados_ti_dedupe` (já coberta pela regra de negação padrão do Firestore). Limite: 30/h por usuário.
+- **Roteamento por departamento (TI, ADM/Financeiro, Suporte): ver `ROTEADOR-CHAMADOS.md`.** O servidor classifica o erro, gera o protocolo do setor (`TI-`, `ADM-`, `SUP-`) e avisa a equipe certa.
+- Servidor: `chamados.abrirAutomatico` — origem `automatico` (categoria e departamento vêm do roteador; antes era sempre `bug`/TI); o mesmo erro do mesmo usuário em 1 h reaproveita o protocolo (sem inundar a fila); coleção `chamados_ti_dedupe` (já coberta pela regra de negação padrão do Firestore). Limite: 30/h por usuário.
 - Sem sessão/rede: o relatório fica em `localStorage` e é enviado quando houver sessão (o protocolo aparece então).
 - Privacidade: e-mail, CPF/CNPJ, telefone, tokens e query strings são removidos do relatório. O texto do erro nunca entra como HTML.
 
