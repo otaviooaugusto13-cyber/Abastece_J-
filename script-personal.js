@@ -11,6 +11,9 @@ import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
 import { pintarRecado } from "./recado.js";
 import { iniciarSuporte, pararSuporte, abrirSuporte, chatDisponivel } from "./suporte.js";
 import { ligarBotaoSuporte } from "./suporte-canais.js";
+import { iniciarDock } from "./dock.js";
+import { iniciarDocumento } from "./documento.js";
+import { deArquivo } from "./camera.js";
 import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { ativarPush, desativarPush } from "./push.js";
 import { RAIO_KM_OFERTAS, LOCAL_MOVIMENTO_MIN_KM, ENEAGRAMA_TESTE_URL, ENEAGRAMA_TESTE_ORIGEM, WHATSAPP_SUPORTE, IDADE_MINIMA, MENOR_JANELA_INICIO, MENOR_JANELA_FIM, MENOR_SETORES_VEDADOS, NIVEIS } from "./config.js";
@@ -1035,9 +1038,16 @@ document.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key ==
 
 function irPara(id) {
     document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
-    document.querySelectorAll(".nav-item").forEach((i) => i.classList.toggle("active", i.dataset.tab === id)); window.scrollTo(0, 0);
+    dock.marcar(id); window.scrollTo(0, 0);
     if (id === "tab-ofertas") iniciarGeo(); else pararDeAcompanhar();          // GPS só liga enquanto a pessoa está vendo as ofertas
 }
-$("nav-personal").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });
+const dock = iniciarDock({
+    dock: $("dock"), irPara, inicio: "", centro: () => irPara("tab-ofertas"),   // inicio vazio: a Home do promotor rola normalmente (sem modo mapa)
+    aliases: { "tab-chat": "tab-agenda", "tab-treino": "tab-menu" },
+    centroAtivo: (id) => id === "tab-ofertas"
+});
+const documento = iniciarDocumento({ consultar, enviar: chamarFuncao, comprimir: deArquivo, abrir, fechar, ok, erro });
+document.addEventListener("click", (e) => { if (e.target.closest("[data-acao='documento']")) documento.abrir(); });
+dock.marcar("tab-inicio");
 
 setInterval(() => { document.querySelectorAll("[data-expira]").forEach((e) => { const r = Number(e.dataset.expira) - Date.now(); if (r <= 0) { renderOfertas(); return; } e.textContent = r >= 60000 ? `${Math.ceil(r / 60000)} min` : `${Math.ceil(r / 1000)} s`; }); }, 1000);

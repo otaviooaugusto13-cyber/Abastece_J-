@@ -19,7 +19,7 @@ let uid = null, desligar = [], msgs = [], conv = null, anterior = null, aberto =
  */
 function pintarSelos(n) {
     const mostrar = n > 0 && !aberto, texto = n > 9 ? "9+" : String(n);
-    for (const id of ["fab-badge"]) { const e = $(id); if (e) { e.hidden = !mostrar; e.textContent = texto; } }
+    for (const id of ["fab-badge", "conta-badge", "dock-conta-badge"]) { const e = $(id); if (e) { e.hidden = !mostrar; e.textContent = texto; } }
     document.querySelector('.menu-item[data-abrir="sheet-ajuda"]')?.classList.toggle("com-novidade", mostrar);   // pontinho no menu
 }
 /** Contexto do WhatsApp conforme quem é a pessoa (a conversa já sabe se é loja ou promotor). */

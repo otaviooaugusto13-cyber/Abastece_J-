@@ -1,0 +1,130 @@
+/* ============================================================
+   Abastece Já — Dock flutuante, Home em mapa (estilo Uber), bottom sheet e envio de documento
+   Carregar DEPOIS de style.css e style-mapa.css.
+   ============================================================ */
+:root { --dock-h: 64px; --dock-gap: 12px; --dock-total: calc(var(--dock-h) + var(--dock-gap) + var(--safe-b)); --fab-d: 62px; }
+
+/* ---------- Correção do Suporte invisível no celular ----------
+   Antes: `.login-screen ~ .fab-suporte { bottom: 18px }` casava SEMPRE (o #screen-login é irmão anterior do botão mesmo
+   quando está oculto), então o botão ficava a 18px do rodapé, inteiro por baixo da barra inferior (z-index 50 > 40).
+   Agora: o ajuste só vale quando a tela de login/cadastro está de fato ativa. */
+.fab-suporte { bottom: calc(var(--dock-total) + 14px); }
+body:has(#screen-login.active) .fab-suporte,
+body:has(#screen-cadastro.active) .fab-suporte { bottom: calc(18px + var(--safe-b)); }
+/* Com o dock, o Suporte vive na aba Conta (cartão "Suporte"), então o botão solto sai de cima do mapa/dock. */
+body.tem-dock .fab-suporte { display: none; }
+body.tem-dock:has(#screen-login.active) .fab-suporte,
+body.tem-dock:has(#screen-cadastro.active) .fab-suporte { display: inline-flex; }
+
+/* ---------- Dock ---------- */
+body.tem-dock .bottom-nav { display: none; }
+body.tem-dock .main-app-screen { padding-bottom: calc(var(--dock-total) + 28px); }
+.dock {
+    position: fixed; z-index: 60; left: 12px; right: 12px; bottom: calc(var(--dock-gap) + var(--safe-b));
+    max-width: 520px; margin: 0 auto; height: var(--dock-h);
+    display: grid; grid-template-columns: 1fr 1fr var(--fab-d) 1fr 1fr; align-items: center; padding: 0 6px;
+    border-radius: 30px; border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow: 0 14px 34px -10px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .18);
+}
+.dock-item {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    height: 100%; min-width: 44px; border: 0; background: none; cursor: pointer; color: var(--muted);
+    font-size: 10.5px; font-weight: 600; letter-spacing: .01em; -webkit-tap-highlight-color: transparent;
+    transition: color .18s ease, transform .12s ease;
+}
+.dock-item:active { transform: scale(.92); }
+.dock-item svg { width: 24px; height: 24px; display: block; }
+.dock-item .ico-on { display: none; }
+.dock-item.is-active { color: var(--gold); }
+.dock-item.is-active .ico-on { display: block; }
+.dock-item.is-active .ico-off { display: none; }
+.dock-item.is-active::after { content: ""; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.dock-item .dot { position: absolute; top: 9px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--red); color: #fff; font-size: 10px; display: grid; place-items: center; }
+.dock-item:focus-visible { outline: 2px solid var(--gold); outline-offset: -4px; border-radius: 18px; }
+
+/* Botão central elevado: sai do dock e ganha um "recorte" da cor do fundo para parecer encaixado */
+.dock-fab-slot { display: grid; place-items: center; height: 100%; }
+.dock-fab {
+    position: relative; top: -22px; width: var(--fab-d); height: var(--fab-d); border-radius: 50%; border: 5px solid var(--bg);
+    display: grid; place-items: center; cursor: pointer; color: var(--gold-ink); -webkit-tap-highlight-color: transparent;
+    background: linear-gradient(160deg, var(--gold), color-mix(in srgb, var(--gold) 70%, #000));
+    box-shadow: 0 12px 24px -8px var(--gold), 0 4px 10px rgba(0, 0, 0, .3);
+    transition: transform .15s cubic-bezier(.2, .8, .2, 1), box-shadow .15s ease;
+}
+.dock-fab svg { width: 28px; height: 28px; transition: transform .25s ease; }
+.dock-fab:active { transform: scale(.93); }
+.dock-fab.is-active svg { transform: rotate(90deg); }
+.dock-fab:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+.dock-fab-rotulo { position: absolute; bottom: -17px; font-size: 10.5px; font-weight: 700; color: var(--gold); white-space: nowrap; }
+@media (max-width: 360px) { .dock { left: 8px; right: 8px; padding: 0 2px; } .dock-item { font-size: 10px; } }
+@media (prefers-reduced-motion: reduce) { .dock-item, .dock-fab, .dock-fab svg { transition: none; } }
+
+/* ---------- Home em mapa (loja) ---------- */
+body.home-ativa { overflow: hidden; }
+#tab-home.home-mapa { animation: none; }       /* o transform da animação criaria um novo bloco de contenção para o mapa fixo */
+.home-mapa .mapa-fundo { position: fixed; inset: 0; z-index: 0; background: var(--bg-2); }
+.home-mapa .mapa-fundo .mp-area { position: absolute; inset: 0; border: 0; border-radius: 0; min-height: 0; }
+.home-mapa .mapa-fundo .mp-mapa { height: 100%; width: 100%; }
+.home-mapa .mapa-fundo .mp-credito { display: none; }                   /* o crédito do mapa passa para o rodapé do sheet */
+.home-mapa .mapa-fundo .mp-topo {
+    position: absolute; z-index: 10; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 74px); margin: 0;
+    padding: 9px 14px; border-radius: 16px; background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid var(--line); box-shadow: var(--shadow); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    max-width: 520px; margin-inline: auto; pointer-events: none;
+}
+.home-mapa .mapa-fundo .mp-mapa:not([hidden]) + .mp-vazio { top: calc(env(safe-area-inset-top, 0px) + 140px); bottom: auto; }
+.home-mapa .mapa-fundo .leaflet-top { top: calc(env(safe-area-inset-top, 0px) + 130px); }
+.home-chip {
+    position: fixed; z-index: 20; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); max-width: 520px; margin-inline: auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 16px;
+    border-radius: 999px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line);
+    box-shadow: var(--shadow); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-weight: 700;
+}
+.home-chip .avatar { width: 38px; height: 38px; }
+
+/* ---------- Bottom sheet do mapa ---------- */
+.sheet-mapa {
+    position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-width: 640px; margin: 0 auto;
+    max-height: 64dvh; display: flex; flex-direction: column;
+    background: var(--bg); border: 1px solid var(--line); border-bottom: 0; border-radius: 26px 26px 0 0;
+    box-shadow: 0 -16px 40px -16px rgba(0, 0, 0, .6);
+    padding-bottom: var(--dock-total);
+    transition: transform .32s cubic-bezier(.2, .8, .2, 1); will-change: transform;
+}
+.sheet-mapa.arrastando { transition: none; }
+.sm-topo { flex: none; touch-action: none; cursor: grab; padding: 8px 18px 4px; }
+.sm-handle { display: block; width: 100%; height: 22px; border: 0; background: none; cursor: inherit; position: relative; }
+.sm-handle i { position: absolute; left: 50%; top: 8px; width: 42px; height: 5px; margin-left: -21px; border-radius: 9px; background: var(--line-strong); }
+.sm-topo h3 { font-size: 17px; margin: 2px 0 10px; }
+.sm-corpo { overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 18px; }
+.sm-passos { list-style: none; display: grid; gap: 10px; margin: 0 0 14px; padding: 0; counter-reset: passo; }
+.sm-passos li { counter-increment: passo; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); font-size: 14.5px; }
+.sm-passos li::before { content: counter(passo); flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold); font-weight: 800; font-size: 14px; }
+.sm-passos li b { color: var(--text); }
+.sm-rodape { margin-top: 12px; font-size: 11px; }
+@media (prefers-reduced-motion: reduce) { .sheet-mapa { transition: none; } }
+
+/* ---------- Pedidos: visões "novo pedido" x "lista" ---------- */
+.vista[hidden] { display: none !important; }
+.seg-pedidos { display: flex; gap: 8px; margin-bottom: 14px; }
+.seg-pedidos .btn { flex: 1; }
+
+/* ---------- Conta: cartão de suporte e envio de documento ---------- */
+.cartao-suporte { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: linear-gradient(180deg, var(--gold-soft), transparent); cursor: pointer; }
+.cartao-suporte .ico { font-size: 24px; }
+.cartao-suporte .grow { flex: 1; min-width: 0; }
+.doc-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.doc-slot { position: relative; display: grid; gap: 4px; place-items: center; text-align: center; min-height: 148px; padding: 12px; border-radius: 18px; border: 2px dashed var(--line-strong); background: var(--surface); cursor: pointer; overflow: hidden; }
+.doc-slot:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+.doc-slot[hidden] { display: none; }
+.doc-slot .doc-prev { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity .2s; }
+.doc-slot.tem-foto { border-style: solid; border-color: var(--green); }
+.doc-slot.tem-foto .doc-prev { opacity: .9; }
+.doc-slot.tem-foto strong, .doc-slot.tem-foto small { position: relative; z-index: 1; padding: 2px 8px; border-radius: 8px; background: rgba(0, 0, 0, .62); color: #fff; }
+.doc-slot .doc-ico { font-size: 28px; position: relative; z-index: 1; }
+.doc-slot.tem-foto .doc-ico { display: none; }
+.doc-dicas { margin: 12px 0 0 18px; line-height: 1.6; }
+.doc-dicas li { margin-bottom: 2px; }
+@media (max-width: 340px) { .doc-slots { grid-template-columns: 1fr; } }

@@ -19,7 +19,10 @@ import { brl, calcularDiaria, calcularTurno, visaoLoja, validarTurno, minutosEnt
 import { iniciar as iniciarJogo, pintarReputacao, abrirLocal, abrirRuptura, abrirAuditoria, temLocal, carregarMarcas } from "./loja-jogo.js";
 import { telaBanido, esconderBanido, animarPerdaVida } from "./gamificacao-ui.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar, baixarCSV } from "./ui.js";
-import { montarMapaPromotores } from "./mapa-promotores.js";   // mapa de promotores online por perto
+import { montarMapaPromotores } from "./mapa-promotores.js";
+import { iniciarDock, iniciarVistaPedidos, iniciarSheetMapa } from "./dock.js";
+import { iniciarDocumento } from "./documento.js";
+import { deArquivo } from "./camera.js";   // mapa de promotores online por perto
 montarMapaPromotores($("mapa-promotores"), { aoDefinirLocal: () => abrirLocal() });
 
 // ---------- estado ----------
@@ -239,7 +242,7 @@ function atualizarSplit() {
 
 function definirPreferido(id, nome) {
     preferido = id || ""; $("banner-preferido").hidden = !preferido; $("nome-preferido").textContent = nome || "";
-    if (preferido) { irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth", block: "start" }); }
+    if (preferido) { abrirNovoPedido(); $("form-pedido").scrollIntoView({ behavior: "smooth", block: "start" }); }
 }
 $("rm-preferido").addEventListener("click", () => definirPreferido(""));
 
@@ -278,7 +281,7 @@ function repetir(p) {
     setorSel = p.foco || setorSel; montarSetores();
     $("p-local").value = p.loja || ""; $("p-entrada").value = p.entrada || "08:00"; $("p-saida").value = p.saida || "12:00";
     $("p-data").value = hojeLocal(); atualizarSplit();
-    irPara("tab-home"); $("form-pedido").scrollIntoView({ behavior: "smooth" }); toast("Dados copiados. Escolha o dia e envie.", "ok");
+    abrirNovoPedido(); $("form-pedido").scrollIntoView({ behavior: "smooth" }); toast("Dados copiados. Escolha o dia e envie.", "ok");
 }
 
 // ============================================================
@@ -496,12 +499,24 @@ $("btn-teste-reset").addEventListener("click", async () => {
 // ============================================================
 // NAVEGAÇÃO E CLIQUES (delegação)
 // ============================================================
-function irPara(id) {
+/** Rota única do portal. `vista` só vale para a aba Pedidos: "novo" (formulário) ou "lista" (padrão). */
+function irPara(id, vista) {
     document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
-    document.querySelectorAll(".nav-item").forEach((i) => i.classList.toggle("active", i.dataset.tab === id));
+    if (id === "tab-pedidos") vistaPedidos.mostrar(vista || "lista");
+    dock.marcar(id);
     window.scrollTo(0, 0);
 }
-$("bottom-nav").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) irPara(b.dataset.tab); });
+const abrirNovoPedido = () => irPara("tab-pedidos", "novo");
+const vistaPedidos = iniciarVistaPedidos($("tab-pedidos"));
+const dock = iniciarDock({
+    dock: $("dock"), irPara, inicio: "tab-home", centro: abrirNovoPedido,
+    aliases: { "tab-agenda": "tab-pedidos", "tab-chat": "tab-pedidos" },       // abas secundárias acendem o ícone de Pedidos
+    centroAtivo: (id) => id === "tab-pedidos" && vistaPedidos.atual() === "novo"
+});
+iniciarSheetMapa($("sheet-mapa"), { dock: $("dock") });
+const documento = iniciarDocumento({ consultar, enviar: chamarFuncao, comprimir: deArquivo, abrir, fechar, ok, erro });
+document.addEventListener("click", (e) => { if (e.target.closest("[data-acao='documento']")) documento.abrir(); });
+dock.marcar("tab-home");
 
 document.addEventListener("click", async (e) => {
     const g = (a) => e.target.closest(`[${a}]`), achar = (id) => pedidos.find((p) => p.id === id);

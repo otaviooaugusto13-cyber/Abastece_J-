@@ -307,7 +307,7 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); p
 .fab-suporte:hover { transform: translateY(-1px); } .fab-suporte:active { transform: scale(.96); }
 .fab-suporte:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
 .fab-suporte .sup-badge { top: -6px; right: -4px; }
-.login-screen ~ .fab-suporte { bottom: 18px; }
+/* (regra `.login-screen ~ .fab-suporte` removida: casava sempre e escondia o botão sob a barra; ver style-dock.css) */
 @media (max-width: 340px) { .fab-suporte-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .fab-suporte { width: 52px; height: 52px; padding: 0; justify-content: center; } }
 
 /* ---------- nota (tela e impressão) ---------- */

@@ -32,6 +32,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style-mapa.css">
     <link rel="stylesheet" href="style-jogo.css">
+    <link rel="stylesheet" href="style-dock.css">
 </head>
 <body>
 
@@ -81,15 +82,14 @@
 <div id="screen-main" class="screen main-app-screen">
 
     <!-- INÍCIO -->
-    <section id="tab-home" class="tab-content active">
-        <div class="page-head">
-            <div><h2>Olá, <span id="nome-home" class="highlight">loja</span> 👋</h2><p>Precisou abastecer? A gente resolve.</p></div>
-            <div class="avatar" id="avatar-home">A</div>
-        </div>
-
-        <div id="mapa-promotores" class="card mapa-card mb" aria-label="Promotores online por perto"></div>
-
-        <div id="aviso-fiscal" class="banner mb" hidden>
+    <!-- INÍCIO: mapa em tela cheia + bottom sheet (estilo Uber). O pedido mora na aba Pedidos. -->
+    <section id="tab-home" class="tab-content active home-mapa">
+        <div id="mapa-promotores" class="mapa-fundo" aria-label="Promotores online por perto"></div>
+        <div class="home-chip"><span>Olá, <span id="nome-home" class="highlight">loja</span> 👋</span><div class="avatar" id="avatar-home">A</div></div>
+        <div class="sheet-mapa" id="sheet-mapa" data-estado="aberto" role="region" aria-label="Como pedir um promotor">
+            <div class="sm-topo"><button type="button" class="sm-handle" aria-expanded="true" aria-controls="sm-corpo" aria-label="Expandir ou recolher"><i></i></button><h3>Como pedir um promotor</h3></div>
+            <div class="sm-corpo" id="sm-corpo">
+                <div id="aviso-fiscal" class="banner mb" hidden>
             <span class="ico">🧾</span>
             <div><strong>Complete os dados da empresa</strong><br><span class="muted small">A nota sai em nome da sua empresa. Falta CNPJ/CPF e razão social.</span><br><a href="#" data-abrir="sheet-fiscal">Completar agora ›</a></div>
         </div>
@@ -103,14 +103,31 @@
             <span class="ico">📍</span>
             <div><strong>Defina a localização da loja</strong><br><span class="muted small">O promotor só faz o check-in a até 100 m dela. Sem isso não dá para pedir promotor.</span><br><a href="#" data-abrir="sheet-local">Definir agora ›</a></div>
         </div>
-
-        <div class="glass-card mb" id="rep-loja-home" role="button" tabindex="0" data-abrir="sheet-rep-loja"></div>
+                <ol class="sm-passos">
+                    <li><span><b>Veja quem está online</b> no mapa, perto da sua loja.</span></li>
+                    <li><span>Toque em <b>+</b> e escolha setor, dia e horário.</span></li>
+                    <li><span><b>Acompanhe o turno</b> em Pedidos e pague só depois, pelo app.</span></li>
+                </ol>
+                <div class="glass-card mb" id="rep-loja-home" role="button" tabindex="0" data-abrir="sheet-rep-loja"></div>
 
         <div id="card-proximo" class="card flat mb" hidden></div>
+                <p class="muted sm-rodape">Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap, © CARTO.</p>
+            </div>
+        </div>
+    </section>
 
-        <button class="btn btn-relampago mb" id="btn-relampago" type="button" style="width:100%;background:linear-gradient(90deg,#ff4d6d,#ff9f43);color:#fff;border:0;font-weight:800">⚡ Gôndola vazia? Chamado relâmpago</button>
-
-        <div class="card gold" id="form-pedido">
+    <!-- PEDIDOS -->
+    <section id="tab-pedidos" class="tab-content">
+        <div class="page-head"><div><h2>Pedidos</h2><p>Peça promotores e acompanhe cada etapa.</p></div></div>
+        <div class="seg-pedidos">
+            <button type="button" class="btn btn-primary btn-sm" data-acao="novo-pedido">➕ Novo pedido</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-ir="tab-agenda">📅 Agenda</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-ir="tab-chat">💬 Conversas</button>
+        </div>
+        <div id="vista-novo" class="vista" hidden>
+            <button type="button" class="btn btn-ghost btn-sm mb" data-acao="ver-pedidos">‹ Voltar aos pedidos</button>
+            <button class="btn btn-relampago mb" id="btn-relampago" type="button" style="width:100%;background:linear-gradient(90deg,#ff4d6d,#ff9f43);color:#fff;border:0;font-weight:800">⚡ Gôndola vazia? Chamado relâmpago</button>
+            <div class="card gold" id="form-pedido">
             <div class="row between mb"><h3>🛒 Solicitar promotor</h3><span class="badge green">Pague só depois</span></div>
 
             <div id="banner-preferido" class="banner mb" hidden><span class="ico">⭐</span><div class="grow">Pedido direcionado a <strong id="nome-preferido"></strong>. Outros promotores também poderão aceitar se ele não puder.</div><button class="icon-btn" id="rm-preferido" aria-label="Remover preferência">✕</button></div>
@@ -141,24 +158,22 @@
             <button class="btn btn-primary" id="btn-enviar">🚀 Solicitar promotores na região</button>
             <p class="muted small center mt">Turnos de até 6 horas. O pagamento é feito depois, pelo app. A nota é gerada automaticamente.</p>
         </div>
-
-        <div class="section-title">Promotores disponíveis</div>
+            <div class="section-title">Promotores disponíveis</div>
         <div id="lista-promotores" class="stack"></div>
-    </section>
-
-    <!-- PEDIDOS -->
-    <section id="tab-pedidos" class="tab-content">
-        <div class="page-head"><div><h2>Meus pedidos</h2><p>Acompanhe cada etapa em tempo real.</p></div></div>
-        <div class="pills mb" id="filtro-pedidos">
+        </div>
+        <div id="vista-lista" class="vista">
+            <div class="pills mb" id="filtro-pedidos">
             <button class="pill sel" data-f="ativos">Em andamento</button>
             <button class="pill" data-f="pagos">Pagos</button>
             <button class="pill" data-f="todos">Todos</button>
         </div>
         <div id="lista-pedidos" class="stack"></div>
+        </div>
     </section>
 
     <!-- AGENDA -->
     <section id="tab-agenda" class="tab-content">
+        <button type="button" class="btn btn-ghost btn-sm mb" data-ir="tab-pedidos">‹ Pedidos</button>
         <div class="page-head"><div><h2>Agenda da loja</h2><p>Dias com turno aparecem marcados.</p></div></div>
         <div class="card mb">
             <div class="cal-head"><button class="btn-cal" id="cal-prev" aria-label="Mês anterior">◀</button><h3 id="cal-titulo"></h3><button class="btn-cal" id="cal-next" aria-label="Próximo mês">▶</button></div>
@@ -184,6 +199,7 @@
 
     <!-- CHAT -->
     <section id="tab-chat" class="tab-content">
+        <button type="button" class="btn btn-ghost btn-sm mb" data-ir="tab-pedidos">‹ Pedidos</button>
         <div class="page-head"><div><h2>Conversas</h2><p>Fale com o promotor do seu pedido.</p></div></div>
         <div id="lista-conversas" class="stack"></div>
     </section>
@@ -194,7 +210,8 @@
             <div class="avatar" style="width:64px;height:64px;font-size:26px" id="avatar-menu">A</div>
             <div><h3 id="nome-menu">Loja</h3><span class="badge green" style="margin-top:6px">Loja ativa ✓</span></div>
         </div>
-        <div class="menu-list mb">
+                <button type="button" class="cartao-suporte mb" data-suporte-plataforma style="position:relative"><span class="ico">💬</span><span class="grow"><strong>Suporte</strong><br><small class="muted">Chat ou WhatsApp com a equipe</small></span><span class="seta">›</span><span class="sup-badge" id="conta-badge" hidden>0</span></button>
+<div class="menu-list mb">
             <button class="menu-item" data-abrir="sheet-cartao"><span class="ico">💳</span><span>Cartão de crédito <small class="muted" id="menu-cartao"></small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-local"><span class="ico">📍</span><span>Localização da loja</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-rep-loja"><span class="ico">❤️</span><span>Vidas e advertências</span><span class="seta">›</span></button>
@@ -202,6 +219,7 @@
             <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">💼</span><span>Preferências de pedido</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Indicar lojas</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-notif"><span class="ico">🔔</span><span>Notificações</span><span class="seta">›</span></button>
+            <button type="button" class="menu-item" data-acao="documento"><span class="ico">🪪</span><span>Verificar identidade (RG/CNH)<br><small class="muted">Envie seu documento para aprovação</small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-ajuda"><span class="ico">🌐</span><span>Ajuda e suporte</span><span class="seta">›</span></button>
         </div>
         <div class="card mb">
@@ -212,13 +230,12 @@
         <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
     </section>
 
-    <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal">
-        <button class="nav-item active" data-tab="tab-home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Início</span></button>
-        <button class="nav-item" data-tab="tab-pedidos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Pedidos</span><b class="dot" id="dot-pedidos" hidden>0</b></button>
-        <button class="nav-item" data-tab="tab-agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Agenda</span></button>
-        <button class="nav-item" data-tab="tab-carteira"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Carteira</span></button>
-        <button class="nav-item" data-tab="tab-chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>Chat</span></button>
-        <button class="nav-item" data-tab="tab-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span>Menu</span></button>
+    <nav class="dock" id="dock" aria-label="Navegação principal">
+        <button type="button" class="dock-item is-active" aria-current="page" data-tab="tab-home"><svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v10H3z"/></svg><svg class="ico-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5 2 11.4h3V21h5.5v-6h3v6H19v-9.6h3z"/></svg><span>Início</span></button>
+        <button type="button" class="dock-item" data-tab="tab-pedidos"><svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5zM9 12l2.5 2.5L16 10"/></svg><svg class="ico-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3h-4.2A3 3 0 0 0 9.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-2 14-4-4 1.4-1.4 2.6 2.6 6.6-6.6L18 9z"/></svg><span>Pedidos</span><b class="dot" id="dot-pedidos" hidden>0</b></button>
+        <div class="dock-fab-slot"><button type="button" class="dock-fab" data-acao="centro" aria-label="Novo pedido de promotor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="dock-fab-rotulo">Pedir</span></button></div>
+        <button type="button" class="dock-item" data-tab="tab-carteira"><svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7V6a2 2 0 0 1 2-2h13v3M16 14h2"/></svg><svg class="ico-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 7H5a1 1 0 0 1 0-2h14V3H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zm-3 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg><span>Financeiro</span></button>
+        <button type="button" class="dock-item" data-tab="tab-menu"><svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg><svg class="ico-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M12 14c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg><span>Conta</span><b class="dot" id="dock-conta-badge" hidden>0</b></button>
     </nav>
 </div>
 
@@ -304,6 +321,24 @@
     <div class="star-input" id="av-stars" role="radiogroup" aria-label="Nota"></div>
     <div class="field"><label for="av-texto">Comentário (opcional)</label><textarea id="av-texto" rows="3" maxlength="300" placeholder="Pontual, caprichoso, organizou tudo…"></textarea></div>
     <button class="btn btn-primary" id="btn-enviar-av">Enviar avaliação</button>
+</div></div>
+
+<!-- ============ ENVIO DE DOCUMENTO (RG/CNH) ============ -->
+<div id="sheet-documento" class="app-overlay" aria-hidden="true"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="doc-titulo"><div class="grab"></div>
+    <div class="sub-head"><h2 id="doc-titulo">Verificar identidade</h2><button type="button" class="icon-btn" data-fechar="sheet-documento" aria-label="Fechar">✕</button></div>
+    <div id="doc-status" class="banner mb" hidden></div>
+    <p class="muted small mb">Envie uma foto nítida do seu RG ou da sua CNH, dentro da validade. Só a equipe de análise vê o documento, e ele é guardado criptografado.</p>
+    <div class="pills mb" role="radiogroup" aria-label="Tipo de documento" id="doc-tipo">
+        <button type="button" class="pill sel" role="radio" aria-checked="true" data-tipo="rg">RG</button>
+        <button type="button" class="pill" role="radio" aria-checked="false" data-tipo="cnh">CNH</button>
+    </div>
+    <div class="doc-slots">
+        <label class="doc-slot" id="slot-frente"><input class="sr-only" type="file" accept="image/*" capture="environment" data-lado="frente"><span class="doc-prev"></span><span class="doc-ico" aria-hidden="true">📷</span><strong>Frente</strong><small>Toque para fotografar</small></label>
+        <label class="doc-slot" id="slot-verso"><input class="sr-only" type="file" accept="image/*" capture="environment" data-lado="verso"><span class="doc-prev"></span><span class="doc-ico" aria-hidden="true">📷</span><strong>Verso</strong><small>Toque para fotografar</small></label>
+    </div>
+    <p class="msg-erro" id="doc-erro" role="alert"></p>
+    <button type="button" class="btn btn-primary" id="doc-enviar" disabled>Enviar para análise</button>
+    <ul class="muted small doc-dicas"><li>Documento inteiro na foto, sem cortar as bordas.</li><li>Sem reflexo e com boa luz; o texto precisa estar legível.</li><li>Não enviamos para lojas nem promotores.</li></ul>
 </div></div>
 
 <script type="module" src="erros-globais.js"></script>
