@@ -9,7 +9,9 @@ import { auth, consultar } from "./firebase.js";
 import { RAIO, EVENTO_RAIO } from "./raio.js";
 
 const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet", A_CADA_MS = 6000;
-const TILES = (escuro) => `https://{s}.basemaps.cartocdn.com/${escuro ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`;
+// CARTO passou a exigir chave de API (os blocos vinham com a marca d'água "API KEY REQUIRED"). Usamos os blocos do OpenStreetMap; no tema escuro o CSS (.mp-escuro) inverte as cores.
+// Para tráfego alto, troque por um provedor com chave (MapTiler, Stadia, Mapbox…) e ajuste o img-src em server/lib/seguranca.js.
+const TILES = () => "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const CARRO = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M7 3.5h10a2 2 0 0 1 2 2V18a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18V5.5a2 2 0 0 1 2-2z" fill="#f5b301" stroke="#1b1b1b" stroke-width="1.2"/><rect x="7" y="6" width="10" height="4" rx="1" fill="#1b1b1b" opacity=".75"/><rect x="7" y="14.5" width="10" height="3" rx="1" fill="#1b1b1b" opacity=".6"/></svg>';
 
 let carregandoLeaflet = null;
@@ -34,7 +36,7 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     const area = el("div", "mp-area"), mapaEl = el("div", "mp-mapa"), vazio = el("div", "mp-vazio"); mapaEl.setAttribute("role", "region"); mapaEl.setAttribute("aria-label", "Mapa dos promotores online por perto");
     const vazioTxt = el("p", "small"), vazioBtn = el("button", "btn btn-primary btn-sm", "Definir localização da loja"); vazioBtn.type = "button"; vazioBtn.hidden = true;
     vazioBtn.addEventListener("click", () => aoDefinirLocal?.()); vazio.append(vazioTxt, vazioBtn); vazio.hidden = true; area.append(mapaEl, vazio);
-    raiz.append(topo, area, el("p", "muted small mp-credito", "Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap, © CARTO."));
+    raiz.append(topo, area, el("p", "muted small mp-credito", "Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap."));
 
     let L = null, mapa = null, circulo = null, lojaPin = null, ultima = null, kmDesenhado = null, timer = null, noAr = false, emVoo = false, falhaMapa = false;
     const pins = new Map();                                            // id público → marcador Leaflet
@@ -52,7 +54,7 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
         if (mapa || falhaMapa) return !!mapa;
         try { L = await carregarLeaflet(); } catch (e) { falhaMapa = true; mapaEl.hidden = true; return false; }
         mapa = L.map(mapaEl, { zoomControl: true, attributionControl: false, scrollWheelZoom: false }).setView([loja.lat, loja.lng], 12);
-        L.tileLayer(TILES(escuro()), { subdomains: "abcd", maxZoom: 19, detectRetina: true }).addTo(mapa);
+        mapaEl.classList.toggle("mp-escuro", !!escuro()); L.tileLayer(TILES(), { maxZoom: 19, crossOrigin: true }).addTo(mapa);
         lojaPin = L.marker([loja.lat, loja.lng], { icon: L.divIcon({ className: "mp-loja", html: "<span>🏪</span>", iconSize: [34, 34], iconAnchor: [17, 17] }), keyboard: false, interactive: false, zIndexOffset: 500 }).addTo(mapa);
         circulo = L.circle([loja.lat, loja.lng], { radius: RAIO.raioKm * 1000, color: "#f5b301", weight: 2, fillColor: "#f5b301", fillOpacity: 0.08 }).addTo(mapa);
         setTimeout(() => mapa?.invalidateSize(), 150);

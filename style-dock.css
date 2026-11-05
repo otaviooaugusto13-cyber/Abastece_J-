@@ -87,8 +87,15 @@ body.home-ativa { overflow: hidden; }
     border: 1px solid var(--line); box-shadow: var(--shadow); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
     max-width: 520px; margin-inline: auto; pointer-events: none;
 }
-.home-mapa .mapa-fundo .mp-mapa:not([hidden]) + .mp-vazio { top: calc(env(safe-area-inset-top, 0px) + 140px); bottom: auto; }
+.home-mapa .mapa-fundo .mp-mapa:not([hidden]) + .mp-vazio {      /* aviso compacto, legível (vidro escuro) e longe dos controles de zoom */
+    top: auto; left: 14px; right: 14px; bottom: calc(var(--dock-total) + 84px); max-width: 520px; margin-inline: auto; padding: 10px 14px; border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); border: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--shadow); font-size: 13px; line-height: 1.35;
+}
+.home-mapa .mapa-fundo .mp-vazio p { margin: 0; color: var(--text); }
 .home-mapa .mapa-fundo .leaflet-top { top: calc(env(safe-area-inset-top, 0px) + 130px); }
+.home-mapa .mapa-fundo .leaflet-top.leaflet-left { left: auto; right: 0; }          /* zoom no canto direito, fora do caminho do aviso */
+.home-mapa .mapa-fundo .leaflet-left .leaflet-control { margin-left: 0; margin-right: 12px; }
 .home-chip {
     position: fixed; z-index: 20; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); max-width: 520px; margin-inline: auto;
     display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 16px;
