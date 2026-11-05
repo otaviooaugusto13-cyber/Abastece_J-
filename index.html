@@ -82,12 +82,13 @@
 <div id="screen-main" class="screen main-app-screen">
 
     <!-- INÍCIO -->
-    <!-- INÍCIO: mapa em tela cheia + bottom sheet (estilo Uber). O pedido mora na aba Pedidos. -->
+    <!-- INÍCIO / PEDIR: abre direto no mapa limpo (tela cheia). O resumo da loja (pendências, reputação, próximo turno) fica recolhido num bottom sheet. -->
     <section id="tab-home" class="tab-content active home-mapa">
         <div id="mapa-promotores" class="mapa-fundo" aria-label="Promotores online por perto"></div>
+        <p class="mapa-credito">© OpenStreetMap · © CARTO</p>
         <div class="home-chip"><span>Olá, <span id="nome-home" class="highlight">loja</span> 👋</span><div class="avatar" id="avatar-home">A</div></div>
-        <div class="sheet-mapa" id="sheet-mapa" data-estado="aberto" role="region" aria-label="Como pedir um promotor">
-            <div class="sm-topo"><button type="button" class="sm-handle" aria-expanded="true" aria-controls="sm-corpo" aria-label="Expandir ou recolher"><i></i></button><h3>Como pedir um promotor</h3></div>
+        <div class="sheet-mapa" id="sheet-mapa" data-estado="recolhido" role="region" aria-label="Resumo da loja">
+            <div class="sm-topo"><button type="button" class="sm-handle" aria-expanded="false" aria-controls="sm-corpo" aria-label="Expandir ou recolher o resumo da loja"><i></i></button><h3>Sua loja <b class="sm-pend" id="sm-pend" hidden>0</b></h3></div>
             <div class="sm-corpo" id="sm-corpo">
                 <div id="aviso-fiscal" class="banner mb" hidden>
             <span class="ico">🧾</span>
@@ -103,11 +104,6 @@
             <span class="ico">📍</span>
             <div><strong>Defina a localização da loja</strong><br><span class="muted small">O promotor só faz o check-in a até 100 m dela. Sem isso não dá para pedir promotor.</span><br><a href="#" data-abrir="sheet-local">Definir agora ›</a></div>
         </div>
-                <ol class="sm-passos">
-                    <li><span><b>Veja quem está online</b> no mapa, perto da sua loja.</span></li>
-                    <li><span>Toque em <b>+</b> e escolha setor, dia e horário.</span></li>
-                    <li><span><b>Acompanhe o turno</b> em Pedidos e pague só depois, pelo app.</span></li>
-                </ol>
                 <div class="glass-card mb" id="rep-loja-home" role="button" tabindex="0" data-abrir="sheet-rep-loja"></div>
 
         <div id="card-proximo" class="card flat mb" hidden></div>

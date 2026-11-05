@@ -2,7 +2,13 @@
    Abastece Já — Dock flutuante, Home em mapa (estilo Uber), bottom sheet e envio de documento
    Carregar DEPOIS de style.css e style-mapa.css.
    ============================================================ */
-:root { --dock-h: 64px; --dock-gap: 12px; --dock-total: calc(var(--dock-h) + var(--dock-gap) + var(--safe-b)); --fab-d: 62px; }
+:root {
+    --dock-h: 66px; --dock-gap: 10px; --dock-total: calc(var(--dock-h) + var(--dock-gap) + var(--safe-b)); --fab-d: 60px;
+    /* vidro escuro translúcido (tema escuro) — no tema claro vira vidro claro */
+    --dock-bg: rgba(10, 14, 24, .62); --dock-line: rgba(255, 255, 255, .10); --dock-inset: rgba(255, 255, 255, .06);
+    --dock-off: rgba(226, 232, 244, .62);
+}
+body.light-theme { --dock-bg: rgba(255, 255, 255, .68); --dock-line: rgba(15, 23, 42, .10); --dock-inset: rgba(255, 255, 255, .8); --dock-off: rgba(15, 23, 42, .56); }
 
 /* ---------- Correção do Suporte invisível no celular ----------
    Antes: `.login-screen ~ .fab-suporte { bottom: 18px }` casava SEMPRE (o #screen-login é irmão anterior do botão mesmo
@@ -16,50 +22,57 @@ body.tem-dock .fab-suporte { display: none; }
 body.tem-dock:has(#screen-login.active) .fab-suporte,
 body.tem-dock:has(#screen-cadastro.active) .fab-suporte { display: inline-flex; }
 
-/* ---------- Dock ---------- */
+/* ---------- Dock (bottom navigation) ---------- */
 body.tem-dock .bottom-nav { display: none; }
 body.tem-dock .main-app-screen { padding-bottom: calc(var(--dock-total) + 28px); }
 .dock {
-    position: fixed; z-index: 60; left: 12px; right: 12px; bottom: calc(var(--dock-gap) + var(--safe-b));
+    position: fixed; z-index: 60; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(var(--dock-gap) + var(--safe-b));                         /* respeita a barra de gestos (iPhone / Android) */
     max-width: 520px; margin: 0 auto; height: var(--dock-h);
-    display: grid; grid-template-columns: 1fr 1fr var(--fab-d) 1fr 1fr; align-items: center; padding: 0 6px;
-    border-radius: 30px; border: 1px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
-    box-shadow: 0 14px 34px -10px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .18);
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) var(--fab-d) repeat(2, minmax(0, 1fr)); align-items: center; padding: 0 4px;
+    border-radius: 28px; border: 1px solid var(--dock-line);
+    background: var(--dock-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+    box-shadow: inset 0 1px 0 var(--dock-inset), 0 18px 40px -14px rgba(0, 0, 0, .65), 0 2px 8px rgba(0, 0, 0, .22);
 }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .dock { background: color-mix(in srgb, var(--surface) 96%, transparent); } }
 .dock-item {
-    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    height: 100%; min-width: 44px; border: 0; background: none; cursor: pointer; color: var(--muted);
-    font-size: 10.5px; font-weight: 600; letter-spacing: .01em; -webkit-tap-highlight-color: transparent;
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    height: 100%; min-width: 0; padding: 8px 2px 10px; border: 0; background: none; cursor: pointer; color: var(--dock-off);
+    font: inherit; font-size: clamp(10px, 2.9vw, 11px); font-weight: 600; letter-spacing: 0; line-height: 1; -webkit-tap-highlight-color: transparent;
     transition: color .18s ease, transform .12s ease;
 }
-.dock-item:active { transform: scale(.92); }
-.dock-item svg { width: 24px; height: 24px; display: block; }
+.dock-item span { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* nunca quebra nem corta o rótulo */
+.dock-item:active { transform: scale(.93); }
+.dock-item svg { width: 23px; height: 23px; display: block; flex: none; }
 .dock-item .ico-on { display: none; }
-.dock-item.is-active { color: var(--gold); }
-.dock-item.is-active .ico-on { display: block; }
+.dock-item.is-active { color: var(--gold); font-weight: 700; }
+.dock-item.is-active .ico-on { display: block; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--gold) 55%, transparent)); }
 .dock-item.is-active .ico-off { display: none; }
-.dock-item.is-active::after { content: ""; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
-.dock-item .dot { position: absolute; top: 9px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--red); color: #fff; font-size: 10px; display: grid; place-items: center; }
-.dock-item:focus-visible { outline: 2px solid var(--gold); outline-offset: -4px; border-radius: 18px; }
+.dock-item.is-active::after { content: ""; position: absolute; bottom: 4px; width: 14px; height: 3px; border-radius: 3px; background: currentColor; opacity: .9; }
+.dock-item .dot { position: absolute; top: 7px; left: calc(50% + 5px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--dock-bg); }
+.dock-item:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; border-radius: 18px; }
 
-/* Botão central elevado: sai do dock e ganha um "recorte" da cor do fundo para parecer encaixado */
-.dock-fab-slot { display: grid; place-items: center; height: 100%; }
+/* Botão central (+): elevado, com brilho dourado sutil e um halo que respira devagar */
+.dock-fab-slot { display: grid; place-items: center; height: 100%; min-width: 0; }
 .dock-fab {
-    position: relative; top: -22px; width: var(--fab-d); height: var(--fab-d); border-radius: 50%; border: 5px solid var(--bg);
-    display: grid; place-items: center; cursor: pointer; color: var(--gold-ink); -webkit-tap-highlight-color: transparent;
-    background: linear-gradient(160deg, var(--gold), color-mix(in srgb, var(--gold) 70%, #000));
-    box-shadow: 0 12px 24px -8px var(--gold), 0 4px 10px rgba(0, 0, 0, .3);
-    transition: transform .15s cubic-bezier(.2, .8, .2, 1), box-shadow .15s ease;
+    position: relative; top: -20px; width: var(--fab-d); height: var(--fab-d); border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    border: 3px solid color-mix(in srgb, var(--bg) 88%, transparent); color: var(--gold-ink); -webkit-tap-highlight-color: transparent;
+    background: radial-gradient(120% 120% at 30% 18%, color-mix(in srgb, var(--gold) 82%, #fff) 0%, var(--gold) 42%, color-mix(in srgb, var(--gold) 66%, #000) 100%);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), inset 0 -3px 6px rgba(0, 0, 0, .18),
+                0 10px 22px -6px color-mix(in srgb, var(--gold) 60%, transparent), 0 0 18px -2px color-mix(in srgb, var(--gold) 38%, transparent);
+    transition: transform .15s cubic-bezier(.2, .8, .2, 1), box-shadow .2s ease;
 }
-.dock-fab svg { width: 28px; height: 28px; transition: transform .25s ease; }
-.dock-fab:active { transform: scale(.93); }
+.dock-fab::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; z-index: -1; pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--gold) 34%, transparent), transparent); animation: dock-glow 3.4s ease-in-out infinite; }
+@keyframes dock-glow { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.06); } }
+.dock-fab svg { width: 26px; height: 26px; transition: transform .25s ease; }
+.dock-fab:active { transform: scale(.92); }
 .dock-fab.is-active svg { transform: rotate(90deg); }
 .dock-fab:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
-.dock-fab-rotulo { position: absolute; bottom: -17px; font-size: 10.5px; font-weight: 700; color: var(--gold); white-space: nowrap; }
-@media (max-width: 360px) { .dock { left: 8px; right: 8px; padding: 0 2px; } .dock-item { font-size: 10px; } }
-@media (prefers-reduced-motion: reduce) { .dock-item, .dock-fab, .dock-fab svg { transition: none; } }
+.dock-fab-rotulo { position: absolute; bottom: -15px; font-size: clamp(10px, 2.9vw, 11px); font-weight: 700; line-height: 1; color: var(--gold); white-space: nowrap; }
+@media (max-width: 360px) { .dock { left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); padding: 0 2px; } :root { --fab-d: 54px; } .dock-item svg { width: 22px; height: 22px; } }
+@media (prefers-reduced-motion: reduce) { .dock-item, .dock-fab, .dock-fab svg { transition: none; } .dock-fab::before { animation: none; opacity: .8; } }
 
 /* ---------- Home em mapa (loja) ---------- */
 body.home-ativa { overflow: hidden; }
@@ -88,21 +101,23 @@ body.home-ativa { overflow: hidden; }
 .sheet-mapa {
     position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-width: 640px; margin: 0 auto;
     max-height: 64dvh; display: flex; flex-direction: column;
-    background: var(--bg); border: 1px solid var(--line); border-bottom: 0; border-radius: 26px 26px 0 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border: 1px solid var(--line); border-bottom: 0; border-radius: 26px 26px 0 0;
     box-shadow: 0 -16px 40px -16px rgba(0, 0, 0, .6);
     padding-bottom: var(--dock-total);
     transition: transform .32s cubic-bezier(.2, .8, .2, 1); will-change: transform;
 }
 .sheet-mapa.arrastando { transition: none; }
+.sheet-mapa { min-height: calc(var(--dock-total) + 64px); }
+.sheet-mapa[data-estado="recolhido"] .sm-corpo { visibility: hidden; }      /* recolhido = só a alça; nenhum texto vaza por trás do dock */
+.mapa-credito { position: fixed; z-index: 25; left: 12px; bottom: calc(var(--dock-total) + 66px); margin: 0; font-size: 9.5px; line-height: 1; color: var(--muted); opacity: .75; pointer-events: none; }
+body:not(.home-ativa) .mapa-credito { display: none; }
 .sm-topo { flex: none; touch-action: none; cursor: grab; padding: 8px 18px 4px; }
 .sm-handle { display: block; width: 100%; height: 22px; border: 0; background: none; cursor: inherit; position: relative; }
 .sm-handle i { position: absolute; left: 50%; top: 8px; width: 42px; height: 5px; margin-left: -21px; border-radius: 9px; background: var(--line-strong); }
-.sm-topo h3 { font-size: 17px; margin: 2px 0 10px; }
+.sm-topo h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin: 0 0 8px; color: var(--muted); }
+.sm-pend { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--red); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 .sm-corpo { overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 18px; }
-.sm-passos { list-style: none; display: grid; gap: 10px; margin: 0 0 14px; padding: 0; counter-reset: passo; }
-.sm-passos li { counter-increment: passo; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); font-size: 14.5px; }
-.sm-passos li::before { content: counter(passo); flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold); font-weight: 800; font-size: 14px; }
-.sm-passos li b { color: var(--text); }
 .sm-rodape { margin-top: 12px; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { .sheet-mapa { transition: none; } }
 

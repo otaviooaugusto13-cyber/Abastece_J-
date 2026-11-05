@@ -54,22 +54,24 @@ export function iniciarVistaPedidos(raiz) {
 
 /**
  * Bottom sheet deslizável (aberto ↔ recolhido). Arrasto por Pointer Events (toque e mouse) na área .sm-topo;
- * o botão .sm-handle também alterna por clique/Enter/Espaço (acessível). Lembra, na sessão, que o convite já foi visto.
+ * o botão .sm-handle também alterna por clique/Enter/Espaço (acessível).
+ * Sempre ABRE recolhido: o mapa fica limpo e em destaque; o usuário puxa a alça quando quiser ver pendências, reputação e próximo turno.
+ * O selo .sm-pend conta os avisos pendentes (dados da empresa, cartão, localização) para que não passem despercebidos.
  */
 export function iniciarSheetMapa(el, { dock } = {}) {
     const topo = el.querySelector(".sm-topo"), handle = el.querySelector(".sm-handle");
-    const CHAVE = "abj-sheet-mapa-visto", MOVEU = 6;
+    const MOVEU = 6;
     let estado = "aberto", y0 = 0, base = 0, t0 = 0, arrastando = false, moveu = false;
-    const peek = () => { const d = dock?.getBoundingClientRect?.(); return (d && d.height ? window.innerHeight - d.top : 76) + 64; };   // sobra uma faixa acima do dock
+    const peek = () => { const d = dock?.getBoundingClientRect?.(); return (d && d.height ? window.innerHeight - d.top : 76) + 60; };   // sobra só a alça (+ rótulo) acima do dock
     const oculto = () => Math.max(0, el.offsetHeight - peek());
-    const lerVisto = () => { try { return sessionStorage.getItem(CHAVE) === "1"; } catch { return false; } };
-    const gravarVisto = () => { try { sessionStorage.setItem(CHAVE, "1"); } catch { /* modo privado */ } };
+    const selo = el.querySelector(".sm-pend"), avisos = [...el.querySelectorAll(".banner[id^='aviso-']")];
+    const contar = () => { if (!selo) return; const n = avisos.filter((a) => !a.hidden).length; selo.textContent = String(n); selo.hidden = n === 0; };
+    if (avisos.length) { const mo = new MutationObserver(contar); avisos.forEach((a) => mo.observe(a, { attributes: true, attributeFilter: ["hidden"] })); contar(); }
 
-    function ir(novo, { lembrar = true } = {}) {
+    function ir(novo) {
         estado = novo; el.dataset.estado = novo;
         el.style.transform = novo === "aberto" ? "translateY(0)" : `translateY(${oculto()}px)`;
         handle.setAttribute("aria-expanded", String(novo === "aberto"));
-        if (lembrar && novo === "recolhido") gravarVisto();
     }
     topo.addEventListener("pointerdown", (e) => {
         if (e.button !== undefined && e.button !== 0) return;
@@ -92,7 +94,7 @@ export function iniciarSheetMapa(el, { dock } = {}) {
     };
     topo.addEventListener("pointerup", soltar); topo.addEventListener("pointercancel", soltar);
     handle.addEventListener("click", () => { if (moveu) { moveu = false; return; } ir(estado === "aberto" ? "recolhido" : "aberto"); });
-    window.addEventListener("resize", () => ir(estado, { lembrar: false }));
-    ir(lerVisto() ? "recolhido" : "aberto", { lembrar: false });
+    window.addEventListener("resize", () => ir(estado));
+    ir("recolhido");
     return { abrir: () => ir("aberto"), recolher: () => ir("recolhido"), estado: () => estado };
 }

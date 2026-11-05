@@ -96,7 +96,7 @@ onAuthStateChanged(auth, async (u) => {
     try { seguiu = await carregarPerfil(u); } catch (e) { console.error(e); resetarLogin(); erro(e.code === "limite-requisicoes" || e.code === "termos-obrigatorios" || e.code === "dados-invalidos" ? e.message : "Não foi possível carregar seu cadastro. Tente novamente."); return; }   // reabilita o botão: antes ficava em "Abrindo o Google…" para sempre
     if (!seguiu) { resetarLogin(); return; }                                    // tela de aviso/falha já está na tela; a sessão continua de pé
     ehTeste = await contaDeTeste(); $("btn-teste-reset").hidden = !ehTeste; $("cartao-teste-dica").hidden = !ehTeste;
-    pintarPerfil(); iniciarFormulario(); tela("screen-main"); escutar(); limparGuarda(); iniciarSuporte(u);
+    pintarPerfil(); iniciarFormulario(); tela("screen-main"); irParaInicio(); escutar(); limparGuarda(); iniciarSuporte(u);
     pintarLocal(); pintarRep(); clearInterval(repTimer); repTimer = setInterval(() => { if (!document.hidden) carregarRep(); }, 120_000);
     carregarMarcas().then((m) => { $("campo-marca").hidden = !m.length; $("p-marca").innerHTML = '<option value="">Nenhuma</option>' + m.map((x) => `<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join(""); });
 });
@@ -507,6 +507,9 @@ function irPara(id, vista) {
     window.scrollTo(0, 0);
 }
 const abrirNovoPedido = () => irPara("tab-pedidos", "novo");
+/** Estado inicial: o app sempre abre no mapa limpo (tela Pedir). Vale só na 1ª entrada da página — não rouba a aba se o usuário já navegou. */
+let abriuInicio = false;
+function irParaInicio() { if (abriuInicio) return; abriuInicio = true; irPara("tab-home"); }
 const vistaPedidos = iniciarVistaPedidos($("tab-pedidos"));
 const dock = iniciarDock({
     dock: $("dock"), irPara, inicio: "tab-home", centro: abrirNovoPedido,
