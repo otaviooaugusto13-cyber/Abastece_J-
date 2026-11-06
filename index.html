@@ -33,6 +33,7 @@
     <link rel="stylesheet" href="style-mapa.css">
     <link rel="stylesheet" href="style-jogo.css">
     <link rel="stylesheet" href="style-dock.css">
+    <link rel="stylesheet" href="style-vagas.css">
 </head>
 <body>
 
@@ -85,6 +86,7 @@
     <!-- INÍCIO / PEDIR: abre direto no mapa limpo (tela cheia). O resumo da loja (pendências, reputação, próximo turno) fica recolhido num bottom sheet. -->
     <section id="tab-home" class="tab-content active home-mapa">
         <div id="mapa-promotores" class="mapa-fundo" aria-label="Promotores online por perto"></div>
+        <p class="mapa-credito">© OpenStreetMap</p>
         <div class="home-chip"><span>Olá, <span id="nome-home" class="highlight">loja</span> 👋</span><div class="avatar" id="avatar-home">A</div></div>
         <div class="sheet-mapa" id="sheet-mapa" data-estado="recolhido" role="region" aria-label="Resumo da loja">
             <div class="sm-topo"><button type="button" class="sm-handle" aria-expanded="false" aria-controls="sm-corpo" aria-label="Expandir ou recolher o resumo da loja"><i></i></button><h3>Sua loja <b class="sm-pend" id="sm-pend" hidden>0</b></h3></div>
@@ -106,7 +108,7 @@
                 <div class="glass-card mb" id="rep-loja-home" role="button" tabindex="0" data-abrir="sheet-rep-loja"></div>
 
         <div id="card-proximo" class="card flat mb" hidden></div>
-                <p class="muted sm-rodape">Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade.</p>
+                <p class="muted sm-rodape">Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap.</p>
             </div>
         </div>
     </section>
@@ -215,6 +217,7 @@
             <button class="menu-item" data-abrir="sheet-indicar"><span class="ico">🎁</span><span>Indicar lojas</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-notif"><span class="ico">🔔</span><span>Notificações</span><span class="seta">›</span></button>
             <button type="button" class="menu-item" data-acao="documento"><span class="ico">🪪</span><span>Verificar identidade (RG/CNH)<br><small class="muted">Envie seu documento para aprovação</small></span><span class="seta">›</span></button>
+            <button type="button" class="menu-item" data-ir="tab-vagas"><span class="ico">💼</span><span>Vagas da minha loja<br><small class="muted">Anuncie vagas e veja os candidatos</small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-ajuda"><span class="ico">🌐</span><span>Ajuda e suporte</span><span class="seta">›</span></button>
         </div>
         <div class="card mb">
@@ -223,6 +226,32 @@
         </div>
         <button class="btn btn-ghost mb" id="btn-teste-reset" hidden>🧪 Zerar dados de teste</button>
         <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
+    </section>
+
+    <!-- ============ VAGAS DA LOJA (módulo loja-vagas.js; API /loja/vagas) ============ -->
+    <section id="tab-vagas" class="tab-content">
+        <button type="button" class="btn btn-ghost btn-sm mb" data-ir="tab-menu">‹ Conta</button>
+        <div class="page-head"><div><h2>Vagas da minha loja</h2><p>Anuncie e receba currículos de profissionais</p></div></div>
+        <div id="vl-plano" class="banner mb" hidden></div>
+        <button type="button" class="btn btn-primary mb" id="vl-novo" data-vl-novo>➕ Nova vaga</button>
+        <div class="card mb" id="vl-form" hidden>
+            <input class="dv-input mb" type="text" id="vl-titulo" maxlength="80" placeholder="Título (ex.: Repositor de mercearia)" aria-label="Título da vaga">
+            <textarea class="dv-input mb" id="vl-descricao" rows="5" maxlength="2000" placeholder="O que a pessoa vai fazer, horário, benefícios…" aria-label="Descrição da vaga"></textarea>
+            <div class="vg-filtros">
+                <input class="dv-input" type="text" id="vl-cidade" maxlength="80" placeholder="Cidade" aria-label="Cidade">
+                <select id="vl-uf" aria-label="Estado (UF)"></select>
+                <select id="vl-tipo" aria-label="Tipo de atuação"></select>
+            </div>
+            <div class="sw-row mb"><span>Só para maiores de 18 anos</span><label class="theme-switch"><input type="checkbox" id="vl-maiores" checked aria-label="Só para maiores de 18 anos"><span class="slider"></span></label></div>
+            <p class="msg-erro" id="vl-erro" role="alert"></p>
+            <div class="dv-acoes">
+                <button type="button" class="btn btn-ghost btn-sm" id="vl-rascunho" data-vl-rascunho>Salvar rascunho</button>
+                <button type="button" class="btn btn-primary btn-sm" id="vl-publicar" data-vl-publicar>Publicar</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-vl-cancelar>Cancelar</button>
+            </div>
+            <small class="muted vg-lgpd">Ao publicar, a vaga passa pela moderação do Abastece Já. Você só vê CPF mascarado e currículo de quem se candidatou à sua vaga e autorizou a divulgação.</small>
+        </div>
+        <div id="vl-lista" aria-live="polite"></div>
     </section>
 
     <nav class="dock" id="dock" aria-label="Navegação principal">

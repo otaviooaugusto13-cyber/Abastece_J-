@@ -4,7 +4,7 @@
 // ============================================================
 import { collection, doc, addDoc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, precisaVerificarEmail } from "./firebase.js";
+import { auth, db, chamarFuncao, consultar, baixarCSVProtegido, abrirPDFProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, precisaVerificarEmail } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaVerificarEmail, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarLoginEmail } from "./login-email.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo, termosAceitos, gravarTermos } from "./entrada.js";
@@ -22,7 +22,8 @@ import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, 
 import { montarMapaPromotores } from "./mapa-promotores.js";
 import { iniciarDock, iniciarVistaPedidos, iniciarSheetMapa } from "./dock.js";
 import { iniciarDocumento } from "./documento.js";
-import { deArquivo } from "./camera.js";   // mapa de promotores online por perto
+import { deArquivo } from "./camera.js";
+import { iniciarVagasLoja } from "./loja-vagas.js";   // vagas da loja (anunciar, candidatos, currículo)
 montarMapaPromotores($("mapa-promotores"), { aoDefinirLocal: () => abrirLocal() });
 
 // ---------- estado ----------
@@ -504,6 +505,7 @@ function irPara(id, vista) {
     document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
     if (id === "tab-pedidos") vistaPedidos.mostrar(vista || "lista");
     dock.marcar(id);
+    if (id === "tab-vagas") vagasLoja.carregar();
     window.scrollTo(0, 0);
 }
 const abrirNovoPedido = () => irPara("tab-pedidos", "novo");
@@ -513,10 +515,11 @@ function irParaInicio() { if (abriuInicio) return; abriuInicio = true; irPara("t
 const vistaPedidos = iniciarVistaPedidos($("tab-pedidos"));
 const dock = iniciarDock({
     dock: $("dock"), irPara, inicio: "tab-home", centro: abrirNovoPedido,
-    aliases: { "tab-agenda": "tab-pedidos", "tab-chat": "tab-pedidos" },       // abas secundárias acendem o ícone de Pedidos
+    aliases: { "tab-agenda": "tab-pedidos", "tab-chat": "tab-pedidos", "tab-vagas": "tab-menu" },       // abas secundárias acendem o ícone de Pedidos
     centroAtivo: (id) => id === "tab-pedidos" && vistaPedidos.atual() === "novo"
 });
 iniciarSheetMapa($("sheet-mapa"), { dock: $("dock") });
+const vagasLoja = iniciarVagasLoja({ consultar, enviar: chamarFuncao, abrirPDF: abrirPDFProtegido, ok, erro, esc, skeleton, vazio });
 const documento = iniciarDocumento({ consultar, enviar: chamarFuncao, comprimir: deArquivo, abrir, fechar, ok, erro });
 document.addEventListener("click", (e) => { if (e.target.closest("[data-acao='documento']")) documento.abrir(); });
 dock.marcar("tab-home");

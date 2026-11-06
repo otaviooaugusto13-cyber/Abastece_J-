@@ -39,7 +39,7 @@ Sem índices compostos novos: as consultas são por um campo e o resto é filtra
 
 **Profissional** (`promotor`): `GET /perfil/vagas` · `PUT /perfil/vagas/consentimento {aceito, versao}` · `PUT|GET|DELETE /perfil/curriculo` · `GET /vagas?cidade=&tipo=&rede=` · `GET /vagas/minhas-candidaturas` · `POST /vagas/:id/candidatar`
 **Admin**: `GET|PUT /admin/vagas/config` · `GET|POST /admin/vagas/empresas` · `PUT /admin/vagas/empresas/:id/plano` · `GET|POST /admin/vagas` · `PUT /admin/vagas/:id` (+`/status`, `/moderacao`) · `POST /admin/vagas/:id/candidaturas` · `PUT …/candidaturas/:id/status` · `GET …/candidaturas/:id/curriculo` · `POST …/candidaturas/:id/cpf`
-**Empresa** (`loja`, **só API — a tela da loja não foi feita**): `GET|POST /loja/vagas` · `PUT /loja/vagas/:id` (+`/status`) · `GET /loja/vagas/:id/candidaturas` · `PUT|GET /loja/vagas/candidaturas/:id/(status|curriculo)`
+**Empresa** (`loja`; tela no app da loja em *Conta › Vagas da minha loja*, arquivo `loja-vagas.js`): `GET|POST /loja/vagas` · `PUT /loja/vagas/:id` (+`/status`) · `GET /loja/vagas/:id/candidaturas` · `PUT|GET /loja/vagas/candidaturas/:id/(status|curriculo)`
 
 Candidatura (`POST /vagas/:id/candidatar`): exige vaga `ativa` + `aprovada` + dentro da validade; nome completo (≥2 palavras), CPF válido, aceite e PDF — senão **409 `perfil-incompleto`** com `detalhe.falta` (o app abre o modal "complete seu perfil"). Duplicada → 409 `ja-candidatou` (transação; cliques simultâneos não duplicam). Conta `bloqueado` não candidata; `pendente` pode.
 
@@ -63,6 +63,7 @@ Regras: o gatilho é **publicar** (rascunho/encerrada → ativa). `gratuita` é 
 ## 6. Telas
 
 * **App do profissional** (`promotor.html`, `vagas.js`, `style-vagas.css`): menu *Conta* → **Mural de vagas** (filtros cidade/tipo/rede, "Candidatar-se", "Minhas candidaturas") e **Divulgação e currículo** (switch de consentimento, escolher PDF → *Confirmar e enviar* com "Conferir", ver/apagar). O preview abre em outra aba (a CSP do app não permite `<iframe>` de blob). Sem aceite/PDF, o clique abre o modal de conclusão.
+* **App da loja** (`index.html`, `loja-vagas.js`): *Conta* → **Vagas da minha loja**: nova vaga (rascunho ou publicar), publicar/encerrar, lista de candidatos por vaga (CPF mascarado), mudar status (em análise/aceitar/recusar) e abrir o currículo em PDF. Regras de plano, moderação e consentimento continuam só no servidor.
 * **Admin** (`admin.html`, `admin-vagas.js`): item **Vagas** com abas Vagas (criar/publicar/moderar), Candidatos (filtros, CPF mascarado, "Abrir PDF"), Empresas e Cobrança.
 
 ## 7. Deploy
@@ -79,4 +80,4 @@ Regras: o gatilho é **publicar** (rascunho/encerrada → ativa). `gratuita` é 
 
 ## 9. Não incluído / próximos passos
 
-Tela da loja (API pronta) · checkout da assinatura/créditos · antivírus no upload · notificação ao profissional quando o status muda (hoje ele vê em *Minhas candidaturas*) · paginação com cursor acima de ~300 vagas · retirada de candidatura pelo profissional · exportação CSV de candidatos.
+checkout da assinatura/créditos · antivírus no upload · notificação ao profissional quando o status muda (hoje ele vê em *Minhas candidaturas*) · paginação com cursor acima de ~300 vagas · retirada de candidatura pelo profissional · exportação CSV de candidatos.

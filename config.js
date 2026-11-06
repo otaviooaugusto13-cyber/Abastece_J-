@@ -86,13 +86,6 @@ export const FIREBASE_CONFIG = {
     measurementId: "G-8XFZ5ZGK4L"
 };
 
-// ---- Google Maps (mapa dark do app) ---------------------------
-// Chave da Maps JavaScript API (Google Cloud › APIs e serviços › Credenciais › Criar chave de API). É pública por natureza, então a SEGURANÇA
-// é a restrição da chave: "Restrições de aplicativo" = Sites (HTTP referrers) com os domínios do app (ex.: https://abastece-ja.onrender.com/*,
-// http://localhost:*/*) e "Restrições de API" = só Maps JavaScript API. Ative também o faturamento no projeto (exigência do Google; há crédito mensal).
-// Vazia ou recusada: o mapa não aparece e a tela mostra só o contador de promotores.
-export const GOOGLE_MAPS_KEY = "";
-
 // ---- Servidor de pagamentos (Render) ------------------------
 // O servidor (server/server.js) também serve o site. Se o app está aberto em *.onrender.com
 // ou em localhost, a API é a MESMA origem — assim nunca dá "Not Found" por URL digitada errada.
@@ -108,6 +101,13 @@ export const FUNCTIONS_BASE = mesmaOrigem ? location.origin : URL_RENDER;
 // Chave PÚBLICA da aplicação no Mercado Pago (Credenciais de produção → Public Key). Pode ficar no código.
 // Sem ela, só o cartão de teste (modo sandbox) funciona. No servidor também é preciso MP_ACCESS_TOKEN.
 export const MP_PUBLIC_KEY = "";
+
+// ---- Mapa do Google (Maps JavaScript API) ----
+// Cole aqui a chave do navegador (Google Cloud › APIs e serviços › Credenciais › Criar chave de API; ative "Maps JavaScript API").
+// É pública por natureza: RESTRINJA ao domínio do app (Restrições de aplicativo › Sites, ex.: https://seu-app.onrender.com/*) e limite à Maps JavaScript API.
+// O Google exige conta de faturamento, mas dá uso gratuito mensal (confira o limite atual em mapsplatform.google.com/pricing); crie um alerta de orçamento.
+// Vazia ("") = continua o mapa OpenStreetMap. Se o Google recusar a chave ou falhar, o app volta sozinho para o OpenStreetMap.
+export const GOOGLE_MAPS_KEY = "";
 
 // ---- Emuladores locais do Firebase (só para testes; ver DEPLOY-RENDER.md) ----
 // Abra o app com ?emulador=1 em localhost para usar Auth/Firestore locais.

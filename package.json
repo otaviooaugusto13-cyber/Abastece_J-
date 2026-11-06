@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/split.test.js && node test/perfil.test.js && node test/backend.test.cjs && node test/ti.test.cjs && node test/jogo.test.cjs && node test/eneagrama.test.js && node test/erros.test.js && node test/bugs.test.js && node test/roteador.test.cjs && node test/mapa.test.cjs && node test/suporte-escalar.test.cjs && node test/painel-suporte.test.js && node test/cs.test.cjs && node test/vagas.test.cjs && node test/vagas-ui.test.js && node test/documento.test.cjs",
+    "test": "node test/split.test.js && node test/perfil.test.js && node test/backend.test.cjs && node test/ti.test.cjs && node test/jogo.test.cjs && node test/eneagrama.test.js && node test/erros.test.js && node test/bugs.test.js && node test/roteador.test.cjs && node test/mapa.test.cjs && node test/suporte-escalar.test.cjs && node test/painel-suporte.test.js && node test/cs.test.cjs && node test/vagas.test.cjs && node test/vagas-ui.test.js && node test/loja-vagas-ui.test.js && node test/google-map.test.js && node test/documento.test.cjs",
     "start": "node server/server.js",
     "dev": "node server/server.js",
     "gerar-chaves": "node scripts/gerar-chaves.js",

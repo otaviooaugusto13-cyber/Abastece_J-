@@ -20,3 +20,12 @@
 .dv-dados { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13.5px; }
 .dv-dados dt { color: var(--muted); }
 .dv-dados dd { margin: 0; font-weight: 600; }
+
+/* Vagas da loja (index.html › Conta › Vagas da minha loja) */
+.vl-cands { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.vl-cands[hidden] { display: none; }
+.vl-cand { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.vl-cand-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+textarea.dv-input { resize: vertical; min-height: 96px; }
+#vl-erro { color: var(--red); font-size: 12.5px; margin: 0 0 10px; }
+#vl-erro:empty { display: none; }
