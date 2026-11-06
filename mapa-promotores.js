@@ -1,5 +1,5 @@
 // Mapa de promotores online (visão da LOJA) — estilo "carrinhos" de app de transporte.
-//   • Leaflet (carregado sob demanda do cdnjs) + blocos do CARTO/OpenStreetMap; círculo = raio de atendimento definido pelo admin.
+//   • DarkMap (dark-map.js: Leaflet sob demanda + tema escuro); círculo = raio de atendimento definido pelo admin.
 //   • Os dados vêm de GET /loja/promotores-proximos (o SERVIDOR filtra por raio e devolve pins anônimos). Atualiza a cada 6 s com a aba visível
 //     e SÓ enquanto o cartão está na tela. Quando o raio muda (raio.js), o círculo e os pins se ajustam na hora e a lista é refeita no servidor.
 //   • Sem promotores no raio: mensagem clara (sem mapa vazio mudo). Sem localização da loja: botão para definir. Sem Leaflet/rede: só o contador.
@@ -7,24 +7,12 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, consultar } from "./firebase.js";
 import { RAIO, EVENTO_RAIO } from "./raio.js";
+import { DarkMap } from "./dark-map.js";
 
-const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet", A_CADA_MS = 6000;
-// CARTO passou a exigir chave de API (os blocos vinham com a marca d'água "API KEY REQUIRED"). Usamos os blocos do OpenStreetMap; no tema escuro o CSS (.mp-escuro) inverte as cores.
-// Para tráfego alto, troque por um provedor com chave (MapTiler, Stadia, Mapbox…) e ajuste o img-src em server/lib/seguranca.js.
-const TILES = () => "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const CARRO = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M7 3.5h10a2 2 0 0 1 2 2V18a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18V5.5a2 2 0 0 1 2-2z" fill="#f5b301" stroke="#1b1b1b" stroke-width="1.2"/><rect x="7" y="6" width="10" height="4" rx="1" fill="#1b1b1b" opacity=".75"/><rect x="7" y="14.5" width="10" height="3" rx="1" fill="#1b1b1b" opacity=".6"/></svg>';
+const A_CADA_MS = 6000;
+// O Leaflet, os blocos do mapa e o tema escuro agora vêm do DarkMap (dark-map.js).
+const CARRO = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M7 3.5h10a2 2 0 0 1 2 2V18a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18V5.5a2 2 0 0 1 2-2z" fill="#FFD13B" stroke="#1b1b1b" stroke-width="1.2"/><rect x="7" y="6" width="10" height="4" rx="1" fill="#1b1b1b" opacity=".75"/><rect x="7" y="14.5" width="10" height="3" rx="1" fill="#1b1b1b" opacity=".6"/></svg>';
 
-let carregandoLeaflet = null;
-function carregarLeaflet() {
-    if (window.L) return Promise.resolve(window.L);
-    carregandoLeaflet ||= new Promise((res, rej) => {
-        const css = document.createElement("link"); css.rel = "stylesheet"; css.href = `${LEAFLET}.min.css`; document.head.appendChild(css);
-        const js = document.createElement("script"); js.src = `${LEAFLET}.min.js`; js.async = true;
-        js.onload = () => (window.L ? res(window.L) : rej(new Error("mapa indisponível"))); js.onerror = () => { carregandoLeaflet = null; rej(new Error("mapa indisponível")); };
-        document.head.appendChild(js);
-    });
-    return carregandoLeaflet;
-}
 const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto != null) e.textContent = texto; return e; };
 const plural = (n) => (n === 1 ? "1 promotor online" : `${n} promotores online`);
 
@@ -38,9 +26,8 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     vazioBtn.addEventListener("click", () => aoDefinirLocal?.()); vazio.append(vazioTxt, vazioBtn); vazio.hidden = true; area.append(mapaEl, vazio);
     raiz.append(topo, area, el("p", "muted small mp-credito", "Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap."));
 
-    let L = null, mapa = null, circulo = null, lojaPin = null, ultima = null, kmDesenhado = null, timer = null, noAr = false, emVoo = false, falhaMapa = false;
+    let L = null, dm = null, mapa = null, circulo = null, lojaPin = null, ultima = null, kmDesenhado = null, timer = null, noAr = false, emVoo = false, falhaMapa = false;
     const pins = new Map();                                            // id público → marcador Leaflet
-    const escuro = () => matchMedia?.("(prefers-color-scheme: dark)").matches || document.documentElement.dataset.tema === "escuro";
 
     function texto(r) {
         const km = r.raioKm;
@@ -52,11 +39,11 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     }
     async function garantirMapa(loja) {
         if (mapa || falhaMapa) return !!mapa;
-        try { L = await carregarLeaflet(); } catch (e) { falhaMapa = true; mapaEl.hidden = true; return false; }
-        mapa = L.map(mapaEl, { zoomControl: true, attributionControl: false, scrollWheelZoom: false }).setView([loja.lat, loja.lng], 12);
-        mapaEl.classList.toggle("mp-escuro", !!escuro()); L.tileLayer(TILES(), { maxZoom: 19, crossOrigin: true }).addTo(mapa);
+        try { dm = await DarkMap.create(mapaEl, { center: [loja.lat, loja.lng], zoom: 12, zoomControl: true, scrollWheelZoom: false, locateButton: false, attributionPosition: "bottomright" }); }
+        catch (e) { falhaMapa = true; mapaEl.hidden = true; return false; }
+        L = dm.L; mapa = dm.map;
         lojaPin = L.marker([loja.lat, loja.lng], { icon: L.divIcon({ className: "mp-loja", html: "<span>🏪</span>", iconSize: [34, 34], iconAnchor: [17, 17] }), keyboard: false, interactive: false, zIndexOffset: 500 }).addTo(mapa);
-        circulo = L.circle([loja.lat, loja.lng], { radius: RAIO.raioKm * 1000, color: "#f5b301", weight: 2, fillColor: "#f5b301", fillOpacity: 0.08 }).addTo(mapa);
+        circulo = L.circle([loja.lat, loja.lng], { radius: RAIO.raioKm * 1000, color: "#FFD13B", weight: 2, fillColor: "#FFD13B", fillOpacity: 0.08 }).addTo(mapa);
         setTimeout(() => mapa?.invalidateSize(), 150);
         return true;
     }

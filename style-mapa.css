@@ -20,6 +20,3 @@
 .online-sw:checked { background: #16a34a; } .online-sw:checked::after { transform: translateX(20px); }
 .online-sw:focus-visible { outline: 3px solid #f5b301; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .mp-pin, .mp-carro, .online-sw, .online-sw::after { transition: none; } }
-
-/* Tema escuro sem provedor de blocos escuros: inverte os blocos claros do OpenStreetMap */
-.mp-escuro .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.7); }
