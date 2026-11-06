@@ -32,6 +32,7 @@
     <link rel="stylesheet" href="style-mapa.css">
     <link rel="stylesheet" href="style-jogo.css">
     <link rel="stylesheet" href="style-dock.css">
+<link rel="stylesheet" href="style-vagas.css">
 </head>
 <body>
 
@@ -212,6 +213,8 @@
             <button class="menu-item" data-abrir="sheet-rep"><span class="ico">🏅</span><span>Nível e vidas<br><small class="muted" id="menu-rep-sub"></small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-alertas"><span class="ico">⚡</span><span>Chamados relâmpago</span><span class="seta">›</span></button>
             <button class="menu-item" data-ir="tab-treino"><span class="ico">🎓</span><span>Treinamento e habilitação</span><span class="seta">›</span></button>
+            <button class="menu-item" data-ir="tab-vagas"><span class="ico">💼</span><span>Mural de vagas<br><small class="muted">Vagas de empresas parceiras</small></span><span class="seta">›</span></button>
+            <button class="menu-item" data-ir="tab-divulgacao"><span class="ico">📄</span><span>Divulgação e currículo<br><small class="muted">Autorização e PDF do currículo</small></span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-perfil"><span class="ico">👤</span><span>Meus dados</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-pix"><span class="ico">💠</span><span>Chave Pix</span><span class="seta">›</span></button>
             <button class="menu-item" data-abrir="sheet-prefs"><span class="ico">⚙️</span><span>Preferências de turno</span><span class="seta">›</span></button>
@@ -226,6 +229,63 @@
         </div>
         <button class="btn btn-ghost mb" id="btn-teste-reset" hidden>🧪 Zerar dados de teste</button>
         <button class="btn btn-danger" id="btn-sair">Sair da conta</button>
+    </section>
+
+    <!-- ============ MURAL DE VAGAS ============ -->
+    <section id="tab-vagas" class="tab-content">
+        <button type="button" class="btn btn-ghost btn-sm mb" data-ir="tab-menu">‹ Conta</button>
+        <div class="page-head"><div><h2>Mural de vagas</h2><p>Oportunidades de empresas parceiras</p></div></div>
+        <div id="vg-aviso" class="banner mb" hidden></div>
+        <div class="seg mb" role="tablist" aria-label="Mural de vagas">
+            <button type="button" class="on" role="tab" aria-selected="true" data-vg-vista="mural">Vagas abertas</button>
+            <button type="button" role="tab" aria-selected="false" data-vg-vista="minhas">Minhas candidaturas</button>
+        </div>
+        <div id="vg-vista-mural">
+            <div class="vg-filtros">
+                <select id="vg-f-cidade" aria-label="Filtrar por cidade"><option value="">Todas as cidades</option></select>
+                <select id="vg-f-tipo" aria-label="Filtrar por tipo de atuação"><option value="">Todos os tipos</option></select>
+                <select id="vg-f-rede" aria-label="Filtrar por rede"><option value="">Todas as redes</option></select>
+            </div>
+            <div id="vg-lista" aria-live="polite"></div>
+        </div>
+        <div id="vg-vista-minhas" hidden><div id="vg-minhas" aria-live="polite"></div></div>
+    </section>
+
+    <!-- ============ DIVULGAÇÃO E CURRÍCULO ============ -->
+    <section id="tab-divulgacao" class="tab-content">
+        <button type="button" class="btn btn-ghost btn-sm mb" data-ir="tab-menu">‹ Conta</button>
+        <div class="page-head"><div><h2>Divulgação e currículo</h2><p>Você decide se as empresas parceiras podem ver seus dados</p></div></div>
+        <div class="card mb">
+            <div class="dv-linha">
+                <div><p id="dv-termo"><strong>Aceito disponibilizar meus dados e currículo para divulgação em vagas de empresas parceiras.</strong></p><small class="muted" id="dv-consent-info"></small></div>
+                <label class="theme-switch"><input type="checkbox" id="dv-consent" aria-label="Aceito disponibilizar meus dados e currículo para divulgação em vagas de empresas parceiras"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="card mb dv-pdf">
+            <h4>Currículo em PDF</h4>
+            <p class="dv-pdf-estado muted" id="dv-pdf-estado">Carregando…</p>
+            <div class="dv-acoes">
+                <label class="btn btn-ghost btn-sm" id="dv-escolher" for="dv-arquivo" role="button">Escolher PDF</label>
+                <input type="file" id="dv-arquivo" class="dv-arquivo-oculto" accept="application/pdf,.pdf">
+                <button type="button" class="btn btn-ghost btn-sm" id="dv-ver" hidden>Ver meu currículo</button>
+                <button type="button" class="btn btn-danger btn-sm" id="dv-apagar" hidden>Apagar</button>
+            </div>
+            <div class="dv-novo" id="dv-novo" hidden>
+                <p class="small"><strong>Confirme o arquivo:</strong> <span id="dv-novo-nome"></span></p>
+                <div class="dv-acoes" style="margin-top:10px">
+                    <button type="button" class="btn btn-ghost btn-sm" id="dv-ver-novo">Conferir</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="dv-enviar">Confirmar e enviar</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="dv-cancelar-novo">Cancelar</button>
+                </div>
+            </div>
+            <span class="msg-erro" id="dv-erro" role="alert"></span>
+            <small class="muted">Só PDF, até 5 MB. PDFs com scripts, anexos ou senha são recusados.</small>
+        </div>
+        <div class="card mb">
+            <h4 class="mb">Dados enviados na candidatura</h4>
+            <dl class="dv-dados"><dt>Nome</dt><dd id="dv-nome">—</dd><dt>CPF</dt><dd id="dv-cpf">—</dd><dt>Currículo</dt><dd>PDF acima</dd></dl>
+            <small class="muted" style="display:block;margin-top:10px">Vêm do seu cadastro. Para corrigir, use “Meus dados” ou fale com o suporte.</small>
+        </div>
     </section>
 
     <nav class="dock" id="dock" aria-label="Navegação principal">

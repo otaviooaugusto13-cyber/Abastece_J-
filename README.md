@@ -20,4 +20,6 @@ MODO_TESTE=1 npm start        # sandbox local: contas fictícias e pagamento sim
 
 **Painel de TI** (`/painel-ti`): operadores, auditoria encadeada, chamados, métricas e usuários online — veja **TI-MODULO.md**.
 
+**Mural de Vagas / Banco de Talentos** (vagas, consentimento LGPD, currículo PDF, candidatura, cobrança futura): veja **MODULO-VAGAS.md**.
+
 Leia **MUDANCAS.md** (decisões e deploy) e **SEGURANCA.md** (modelo de ameaças, OWASP, checklist de pentest).

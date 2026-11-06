@@ -4,7 +4,7 @@
 // ============================================================
 import { collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getRedirectResult, onAuthStateChanged, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth, db, googleProvider, chamarFuncao, consultar, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, aquecerServidor, precisaVerificarEmail } from "./firebase.js";
+import { auth, db, googleProvider, chamarFuncao, consultar, abrirPDFProtegido, baixarCSVProtegido, renovarToken, testeAtivo, loginDeTeste, contaDeTeste, entrarComGoogle, sairDaConta, aquecerServidor, precisaVerificarEmail } from "./firebase.js";
 import { resolverAcesso, telaOutroPerfil, telaFalhaTemporaria, telaBloqueado, telaVerificarEmail, irParaPainel, limparGuarda } from "./acesso.js";
 import { ligarLoginEmail } from "./login-email.js";
 import { ligarSeletorDeModo, modoSalvo, gravarModo } from "./entrada.js";
@@ -25,6 +25,7 @@ import { agruparCursos, statusCurso } from "./cursos.js";
 import { $, dialogo, toast, ok, erro, iniciarTema, alternarTema, ligarMascaras, abrir, fechar, skeleton, vazio, registrarSW, instalarApp, pedirPermissaoNotificacao, notificar } from "./ui.js";
 import { iniciar as iniciarJogo, abrirCheckin, abrirCheckout, abrirFaltaLoja, alertaRelampago, manterPosicao, pararPosicao } from "./promotor-jogo.js";
 import { coracoes, cartaoNivel, listaInfracoes, telaBanido, esconderBanido, animarPerdaVida, chipNivel, medalha, abrirFoto } from "./gamificacao-ui.js";
+import { iniciarVagas } from "./vagas.js";                   // mural de vagas + divulgação (LGPD) + currículo PDF
 import { montarOnline } from "./promotor-online.js";         // "aparecer para lojas próximas" (mapa das lojas)
 montarOnline($("online-promotor"));
 let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
@@ -1039,13 +1040,15 @@ document.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key ==
 function irPara(id) {
     document.querySelectorAll(".tab-content").forEach((t) => t.classList.toggle("active", t.id === id));
     dock.marcar(id); window.scrollTo(0, 0);
+    if (id === "tab-vagas") vagasApp.carregarMural(); else if (id === "tab-divulgacao") vagasApp.carregarDivulgacao();
     if (id === "tab-ofertas") iniciarGeo(); else pararDeAcompanhar();          // GPS só liga enquanto a pessoa está vendo as ofertas
 }
 const dock = iniciarDock({
     dock: $("dock"), irPara, inicio: "", centro: () => irPara("tab-ofertas"),   // inicio vazio: a Home do promotor rola normalmente (sem modo mapa)
-    aliases: { "tab-chat": "tab-agenda", "tab-treino": "tab-menu" },
+    aliases: { "tab-chat": "tab-agenda", "tab-treino": "tab-menu", "tab-vagas": "tab-menu", "tab-divulgacao": "tab-menu" },
     centroAtivo: (id) => id === "tab-ofertas"
 });
+const vagasApp = iniciarVagas({ consultar, enviar: chamarFuncao, abrirPDF: abrirPDFProtegido, dialogo, abrir, irPara, ok, erro, esc, skeleton, vazio });
 const documento = iniciarDocumento({ consultar, enviar: chamarFuncao, comprimir: deArquivo, abrir, fechar, ok, erro });
 document.addEventListener("click", (e) => { if (e.target.closest("[data-acao='documento']")) documento.abrir(); });
 dock.marcar("tab-inicio");

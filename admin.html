@@ -74,6 +74,7 @@
       <button class="ax-nav" data-v="habil"><span class="ic">★</span>Habilitações</button>
       <button class="ax-nav" data-v="infracoes"><span class="ic">⚖</span>Infrações e multas</button>
       <button class="ax-nav" data-v="marcas"><span class="ic">◈</span>Marcas (B2B)</button>
+      <button class="ax-nav" data-v="vagas"><span class="ic">💼</span>Vagas</button>
       <button class="ax-nav" data-v="moderacao"><span class="ic">⚑</span>Moderação e logs<span class="n ax-badge r" id="n-alert" hidden></span></button>
       <button class="ax-nav" data-v="ti"><span class="ic">⌘</span>Equipe de TI</button>
       <button class="ax-nav" data-v="config"><span class="ic">⚙</span>Configurações</button>
@@ -281,6 +282,12 @@
         <div class="ax-card ax-mb"><h2>Nova marca</h2><div class="ax-row ax-mt"><input class="ax-inp ax-grow" id="mk-nome" placeholder="Nome da marca/indústria" maxlength="80"><button class="ax-btn pri" id="mk-criar">Criar</button></div>
           <p class="ax-xs ax-mut ax-mt">Depois de criar, vincule o e-mail Google de quem vai acompanhar o painel (a pessoa precisa ter entrado uma vez em <code>marca.html</code>).</p></div>
         <div class="ax-card"><div class="ax-tw"><table class="ax-tbl"><thead><tr><th>Marca</th><th>Acessos</th><th>Vincular e-mail</th></tr></thead><tbody id="mk-b"></tbody></table></div></div>
+      </section>
+
+      <!-- VAGAS (Mural de Vagas / Banco de Talentos): código em admin-vagas.js -->
+      <section id="v-vagas" hidden>
+        <div class="ax-card ax-mb"><div class="ax-pills" id="vg-abas"><button class="ax-pill sel" data-a="vagas">Vagas</button><button class="ax-pill" data-a="candidatos">Candidatos</button><button class="ax-pill" data-a="empresas">Empresas</button><button class="ax-pill" data-a="cobranca">Cobrança</button></div></div>
+        <div id="vg-painel"></div>
       </section>
 
       <section id="v-config" hidden>

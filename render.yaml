@@ -37,6 +37,8 @@ services:
         sync: false
       - key: CRON_SECRET             # agendador chama POST /interno/liberar com x-cron-secret
         sync: false
+      - key: FIREBASE_STORAGE_BUCKET # bucket PRIVADO do Cloud Storage (Console › Storage), ex.: meu-projeto.firebasestorage.app — guarda os currículos em PDF
+        sync: false
       - key: ADMIN_EXIGE_MFA
         value: "1"
       - key: LIBERACAO_DIAS

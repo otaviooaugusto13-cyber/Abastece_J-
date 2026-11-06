@@ -6,6 +6,7 @@ import { auth, db, googleProvider, entrarComGoogle, concluirLoginGoogle, loginCa
 import { resolverAcesso } from "./acesso.js";
 import { iniciarEquipeTI } from "./admin-ti.js";
 import { iniciarChamados } from "./admin-chamados.js";
+import { iniciarVagasAdmin } from "./admin-vagas.js";
 import { ativarPush, desativarPush } from "./push.js";
 import "./presenca.js";                       // contador de usuários online (painel de TI)
 import { NOME_SUPORTE } from "./config.js";
@@ -16,7 +17,7 @@ const dt = (v) => fmtDataHora(v) || "—";
 const msg = (t = "") => { $("ax-msg").textContent = t; };
 const S = { sup: [], supUid: "", supMsgs: [], supUn: null, vista: "visao", ut: "promotor", us: "pendente", fa: "pag", missoes: [], lojas: [], pend: [], promo: [], mods: [], aud: [], pagos: [], conc: [], ativos: null, totLojas: null };
 const unsubs = [];
-const TITULOS = { visao: "Visão geral", usuarios: "Usuários", chamados: "Chamados", missoes: "Missões", financeiro: "Financeiro", treino: "Treinamento", habil: "Habilitações", infracoes: "Infrações e multas", marcas: "Marcas (B2B)", moderacao: "Moderação e logs", config: "Configurações", ti: "Equipe de TI", suporte: "Suporte" };
+const TITULOS = { visao: "Visão geral", usuarios: "Usuários", chamados: "Chamados", missoes: "Missões", financeiro: "Financeiro", treino: "Treinamento", habil: "Habilitações", infracoes: "Infrações e multas", marcas: "Marcas (B2B)", vagas: "Vagas e candidatos", moderacao: "Moderação e logs", config: "Configurações", ti: "Equipe de TI", suporte: "Suporte" };
 const ST = { aberta: ["Aguardando", "b"], aceita: ["Aceita", "y"], paga: ["Paga", "g"], concluida: ["Concluída", "g"], cancelada: ["Cancelada", "r"] };
 const badge = (s) => { const [t, c] = ST[s] || [s || "—", ""]; return `<span class="ax-badge ${c}">${esc(t)}</span>`; };
 const td = (l, h, c = "") => `<td data-l="${esc(l)}"${c ? ` class="${c}"` : ""}>${h}</td>`;
@@ -82,6 +83,8 @@ function pedir({ titulo, texto = "", rotulo = "", min = 0, ok = "Confirmar", per
 const equipeTI = iniciarEquipeTI({ sensivel, toast, seguro, pedir });
 // Aba "Chamados" (fila de ADM/Financeiro e Suporte, já roteada pelo servidor): código em admin-chamados.js
 const chamados = iniciarChamados({ toast, seguro, pedir });
+// Aba "Vagas" (mural de vagas, moderação, candidatos com currículo em PDF e chave de cobrança): código em admin-vagas.js
+const vagasAdmin = iniciarVagasAdmin({ sensivel, toast, seguro, pedir });
 
 // ---------- exportação client-side (CSV pt-BR p/ Excel; defesa contra formula injection) ----------
 const cel = (v) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -135,7 +138,7 @@ const menu = (o) => { $("ax-side").classList.toggle("open", o); $("ax-veil").hid
 $("ax-burger").addEventListener("click", () => menu(!$("ax-side").classList.contains("open")));
 $("ax-veil").addEventListener("click", () => menu(false));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu(false); });
-const CARGA = { chamados: () => chamados.carregar().then(chamados.abrirPorLink), suporte: () => renderSuporte(), visao: () => renderVisao(), usuarios: () => carregarUsuarios(), missoes: () => renderMissoes(), financeiro: () => finAba(S.fa), treino: () => carregarModulos(), habil: () => carregarHab(), infracoes: () => carregarInfracoes(), marcas: () => carregarMarcas(), moderacao: () => { renderAlertas(); return carregarAuditoria(); }, config: () => carregarConfig(), ti: () => equipeTI.carregar() };
+const CARGA = { chamados: () => chamados.carregar().then(chamados.abrirPorLink), suporte: () => renderSuporte(), visao: () => renderVisao(), usuarios: () => carregarUsuarios(), missoes: () => renderMissoes(), financeiro: () => finAba(S.fa), treino: () => carregarModulos(), habil: () => carregarHab(), infracoes: () => carregarInfracoes(), marcas: () => carregarMarcas(), vagas: () => vagasAdmin.carregar(), moderacao: () => { renderAlertas(); return carregarAuditoria(); }, config: () => carregarConfig(), ti: () => equipeTI.carregar() };
 function ir(v) { if (location.hash === "#" + v) abrir(v); else location.hash = v; }
 function abrir(v) {
     if (!(v in TITULOS)) v = "visao";

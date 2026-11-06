@@ -101,6 +101,22 @@ export async function baixarCSVProtegido(caminho, nomeArquivo) {
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = nomeArquivo; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+/**
+ * Abre um PDF protegido (currículo): GET com o token, vira Blob e abre em outra aba. A aba é aberta JÁ no clique (antes do await):
+ * o iOS bloqueia pop-up aberto depois de uma chamada assíncrona. Sem pop-up, baixa o arquivo. Chame direto do clique.
+ */
+export async function abrirPDFProtegido(caminho) {
+    const aba = window.open("", "_blank");
+    try {
+        const idToken = await tokenAtual();
+        const r = await fetch(`${FUNCTIONS_BASE}/${caminho}`, { headers: { Authorization: `Bearer ${idToken}` } });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.erro || MSG_STATUS[r.status] || `Erro no servidor (${r.status}).`), { code: j.codigo || r.status, status: r.status }); }
+        const url = URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: "application/pdf" }));
+        if (aba) aba.location.href = url; else { const a = document.createElement("a"); a.href = url; a.download = "curriculo.pdf"; a.click(); }
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (e) { try { aba?.close(); } catch (e2) { /* aba já fechada */ } throw e; }
+}
+
 /** Depois de cadastro, treinamento ou mudança de papel o servidor atualiza as claims: pede um token novo. */
 export const renovarToken = () => auth.currentUser?.getIdToken(true);
 /** Papel atual (loja | promotor | admin) lido do token assinado. */

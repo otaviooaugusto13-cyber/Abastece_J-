@@ -39,11 +39,11 @@ module.exports = (app, x) => {
   // ---------- Manutenção agendada (Render Cron, a cada hora): saldos, faltas, rupturas expiradas, inatividade ----------
   app.post("/interno/manutencao", limitar({ janelaMs: 60_000, max: 10, nome: "cron" }), envelope(async (req, res) => {
     if (!CRON_SECRET || !Cripto.igualSeguro(req.get("x-cron-secret") || "", CRON_SECRET)) throw new Falha(401, "não autorizado", "nao-autenticado");
-    const liberacao = await carteira.liberarVencidos({ limite: 500 }), faltas = await reputacao.varrerFaltas(), rupturas = await x.expirarRupturas();
+    const liberacao = await carteira.liberarVencidos({ limite: 500 }), faltas = await reputacao.varrerFaltas(), rupturas = await x.expirarRupturas(), vagasEncerradas = await x.vagas.encerrarExpiradas();
     let rebaixados = 0;
     for (const d of (await db.collection("reputacao").where("papel", "==", "promotor").limit(1000).get()).docs) {
       const r = d.data(); if (r.nivel && r.nivel !== "bronze" && reputacao.calcularInatividade(r).periodos) { await reputacao.avaliarInatividade(d.id); rebaixados++; }
     }
-    res.json({ liberacao, ...faltas, ...rupturas, rebaixados });
+    res.json({ liberacao, ...faltas, ...rupturas, rebaixados, vagasEncerradas });
   }));
 };

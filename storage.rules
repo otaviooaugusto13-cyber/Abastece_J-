@@ -1,0 +1,13 @@
+rules_version = '2';
+// ============================================================
+// ABASTECE JÁ — Regras do Cloud Storage (DENY BY DEFAULT)
+// O bucket guarda arquivos privados (currículos em PDF em curriculos/{uid}/{sha256}.pdf). NENHUM cliente (navegador/app) lê ou grava aqui:
+// o upload e o download passam pelo servidor (Admin SDK ignora estas regras), que confere papel, consentimento LGPD e grava auditoria.
+// É o equivalente às políticas de bucket do Supabase: acesso só por uma camada que decide quem pode, nunca por link público.
+// Publicar:  firebase deploy --only storage
+// ============================================================
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,22 @@
+/* Mural de Vagas e Divulgação (app do promotor). Usa só as variáveis do design system (style.css): funciona nos temas claro e escuro. */
+.vg-filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.vg-filtros select:last-child { grid-column: 1 / -1; }
+.vg-filtros select, .dv-input { width: 100%; padding: 11px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
+.vg-card { margin-bottom: 12px; }
+.vg-card h3 { font-size: 16px; margin: 8px 0 2px; }
+.vg-topo { display: flex; gap: 6px; flex-wrap: wrap; }
+.vg-emp { font-size: 13px; color: var(--muted); }
+.vg-desc { font-size: 13.5px; margin: 10px 0; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.vg-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vg-lgpd { display: block; margin-top: 8px; font-size: 11.5px; }
+.dv-linha { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.dv-linha p { margin: 0; }
+.dv-pdf { display: flex; flex-direction: column; gap: 10px; }
+.dv-pdf-estado { font-size: 13.5px; overflow-wrap: anywhere; }
+.dv-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.dv-acoes .btn { width: auto; }
+.dv-novo { border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); padding: 12px; background: var(--surface-2); }
+.dv-arquivo-oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dv-dados { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13.5px; }
+.dv-dados dt { color: var(--muted); }
+.dv-dados dd { margin: 0; font-weight: 600; }

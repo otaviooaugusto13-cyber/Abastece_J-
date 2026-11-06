@@ -18,6 +18,7 @@
 //   rotas/ruptura.js      chamado relâmpago + alertas por proximidade (push)
 //   rotas/reputacao.js    níveis/vidas/infrações, admin e cron de manutenção
 //   rotas/b2b.js          painel das marcas e administração de marcas
+//   rotas/vagas.js        Mural de Vagas / Banco de Talentos: divulgação (LGPD) + currículo PDF + candidatura; admin (vagas, moderação, cobrança); API da empresa — ver MODULO-VAGAS.md
 //   rotas/teste.js        sandbox (só com MODO_TESTE=1 e fora de produção)
 // ============================================================
 const express = require("express");
@@ -47,6 +48,8 @@ const { criarTI } = require("./lib/ti");
 const { criarDespacho } = require("./lib/ti/despacho");
 const { criarBootstrapAdmin } = require("./lib/bootstrap-admin");
 const { criarAuthProxy } = require("./lib/auth-proxy");
+const { criarArmazenamento } = require("./lib/armazenamento");
+const { criarVagas } = require("./lib/vagas");
 
 // ---------- Ambiente ----------
 const MODO_TESTE = ["1", "true", "sim"].includes(String(process.env.MODO_TESTE || "").trim().toLowerCase());
@@ -116,8 +119,10 @@ const ti = criarTI({ db, admin, FieldValue, Timestamp, V, auth, saudeDeps: { G, 
 const despacho = criarDespacho({ suporte, chamados: ti.chamados, appUrl: () => APP_URL });   // avisa a equipe do departamento (push + webhook de chat) quando o roteador abre um chamado
 const tickets = criarTickets({ db, FieldValue, Timestamp, V, suporte, chamados: ti.chamados, habilitacao, K: ti.K });   // protocolo SP-… e escalamento do chat para a fila de TI/gestão
 const reputacao = criarReputacao({ db, admin, FieldValue, Timestamp, auth, carteira, taxas });   // níveis, vidas, multas e banimento
+const armazenamento = criarArmazenamento({ admin, nomeBucket: process.env.FIREBASE_STORAGE_BUCKET || "" });   // bucket PRIVADO (currículos em PDF); sem a variável, só o upload fica indisponível
+const vagas = criarVagas({ db, FieldValue, Timestamp, V, C, Cripto, Falha, armazenamento: () => ctx.armazenamento });   // Mural de Vagas (getter: os testes trocam o armazenamento)
 const ctx = {
-  db, admin, express, FieldValue, Timestamp, S, C, V, G, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, categorias, habilitacao, taxas, operacao, mapa, root, suporte, tickets, mp, ti, despacho, reputacao,
+  db, admin, express, FieldValue, Timestamp, S, C, V, G, Cripto, Falha, auth, perfisDasClaims: Seg.perfisDasClaims, PERFIS: Seg.PERFIS, limitar, carteira, treinamento, categorias, habilitacao, taxas, operacao, mapa, root, suporte, tickets, mp, ti, despacho, reputacao, armazenamento, vagas,
   envelope: Seg.envelope, MODO_TESTE, MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, CRON_SECRET, APP_URL, getBaseUrl, urlPublicaHttps,
   __reset: () => { limitador._baldes.clear(); ti.limparCaches(); mapa.limparCache(); },   // uso exclusivo dos testes
   hojeSP: V.hojeSP, reais: (c) => Number((c / 100).toFixed(2)),
@@ -133,14 +138,14 @@ app.use(criarAuthProxy({ projectId: process.env.FIREBASE_PROJECT_ID || "abastece
 app.use(Seg.cabecalhos());
 app.use(cors(Seg.opcoesCors(permitidas)));
 const jsonPadrao = express.json({ limit: C.BODY_LIMITE });
-app.use((req, res, next) => (req.path === "/checkout" || /^\/cs\/lojas\/[\w-]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));   // /checkout tem parser próprio (foto da gôndola)
+app.use((req, res, next) => (req.path === "/checkout" || /^\/cs\/lojas\/[\w-]+\/fotos$/.test(req.path) || (req.path === "/perfil/curriculo" && req.method === "PUT") ? next() : jsonPadrao(req, res, next)));   // /checkout e PUT /perfil/curriculo têm parser próprio (foto da gôndola; currículo em PDF)
 app.use(Seg.protecaoCsrf(permitidas, { isentas: ["/webhookMP"] }));
 app.use(limitar({ janelaMs: 60_000, max: 240, nome: "global" }));
-app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|config\/operacao|root\/|ti\/|chamados|presenca|nota\/|turnos|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b|cs\/)/, Seg.semCache);
+app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|criar|aceitar|cancelar|desistir|avaliar|cartao|confirmar|webhook|carteira|loja|admin|interno|aviso|teste|suporte|push|config\/taxas|config\/operacao|root\/|ti\/|vagas|chamados|presenca|nota\/|turnos|checkin|checkout|reportar|auditar|execucao|reputacao|promotor\/|marcas|b2b|cs\/)/, Seg.semCache);
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "root", "mapa", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "root", "mapa", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "vagas", "teste"]) require(`./rotas/${rota}`)(app, ctx);
 ctx.cs = require("./lib/cs/rotas")(app, { ...ctx, Img: require("./lib/imagem") });   // CS & B2B (compilado de ../cs/*.ts); depois de pedidos/b2b: usa ctx.exigirCartao, localDaLoja, marcaDoPedido
 
 
