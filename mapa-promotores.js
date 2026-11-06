@@ -7,7 +7,6 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, consultar } from "./firebase.js";
 import { RAIO, EVENTO_RAIO } from "./raio.js";
-import { DarkMap } from "./dark-map.js";
 import { criarMapaGoogle } from "./google-map.js";
 import { GOOGLE_MAPS_KEY } from "./config.js";
 
@@ -40,6 +39,7 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     }
     /** Mapa OpenStreetMap (Leaflet via dark-map.js): reserva quando não há chave do Google ou quando o Google falha. */
     async function adaptadorLeaflet(loja) {
+        const { DarkMap } = await import("./dark-map.js");   // sob demanda: se o arquivo não existir, só o mapa de reserva falha (falhaMapa) — o login e o painel não dependem dele
         const dm = await DarkMap.create(mapaEl, { center: [loja.lat, loja.lng], zoom: 12, zoomControl: true, scrollWheelZoom: false, locateButton: false, attributionPosition: "bottomright" });
         const L = dm.L, mapa = dm.map, pins = new Map(); let kmDesenhado = null;
         L.marker([loja.lat, loja.lng], { icon: L.divIcon({ className: "mp-loja", html: "<span>🏪</span>", iconSize: [34, 34], iconAnchor: [17, 17] }), keyboard: false, interactive: false, zIndexOffset: 500 }).addTo(mapa);

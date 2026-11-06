@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="login-cena.css">
 <link rel="stylesheet" href="ti.css">
+<link rel="stylesheet" href="mobile.css">
 </head>
 <body class="ax-body">
 
@@ -56,7 +57,7 @@
   <p class="ax-mut ax-sm ax-mb">Acesso restrito à equipe de TI. Todas as ações são registradas.</p>
   <form id="ti-login-f" autocomplete="on" style="text-align:left">
     <label class="ax-lbl" for="ti-email">E-mail corporativo</label>
-    <input class="ax-in" id="ti-email" type="email" autocomplete="username" required maxlength="120">
+    <input class="ax-in" id="ti-email" type="email" autocomplete="username" required maxlength="120" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email">
     <label class="ax-lbl ax-mt" for="ti-senha">Senha</label>
     <input class="ax-in" id="ti-senha" type="password" autocomplete="current-password" required maxlength="128">
     <button class="ax-btn pri ax-mt" style="width:100%" id="ti-entrar">Entrar</button>

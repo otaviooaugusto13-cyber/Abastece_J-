@@ -24,7 +24,7 @@ import { iniciarDock, iniciarVistaPedidos, iniciarSheetMapa } from "./dock.js";
 import { iniciarDocumento } from "./documento.js";
 import { deArquivo } from "./camera.js";
 import { iniciarVagasLoja } from "./loja-vagas.js";   // vagas da loja (anunciar, candidatos, currículo)
-montarMapaPromotores($("mapa-promotores"), { aoDefinirLocal: () => abrirLocal() });
+try { montarMapaPromotores($("mapa-promotores"), { aoDefinirLocal: () => abrirLocal() }); } catch (e) { console.error("mapa de promotores:", e); }   // o mapa nunca pode impedir o login de ligar
 
 // ---------- estado ----------
 let rep = null, repTimer = null;

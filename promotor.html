@@ -33,13 +33,14 @@
     <link rel="stylesheet" href="style-jogo.css">
     <link rel="stylesheet" href="style-dock.css">
 <link rel="stylesheet" href="style-vagas.css">
+<link rel="stylesheet" href="mobile.css">
 </head>
 <body>
 
 <!-- ============ LOGIN ============ -->
 <div id="screen-login" class="screen active login-screen">
     <div class="auth-card">
-        <div class="auth-brand"><img class="auth-logo" src="assets/brand/logo-escudo.png" alt="Abastece Já" width="92" height="103"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
+        <div class="auth-brand"><img class="auth-logo" decoding="async" fetchpriority="high" src="assets/brand/logo-escudo.png" alt="Abastece Já" width="92" height="103"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
         <div class="auth-switch"><a href="index.html">Sou loja</a><a href="promotor.html" class="on">Sou promotor</a></div>
         <div class="auth-modo" role="tablist" aria-label="Como você quer continuar?">
             <button type="button" role="tab" id="modo-entrar" aria-selected="true">Entrar na minha conta</button>
@@ -57,7 +58,7 @@
         </div>
         <form id="form-email" class="auth-email" novalidate>
             <div class="field" id="em-nome-wrap" hidden><label for="em-nome">Seu nome</label><input id="em-nome" type="text" maxlength="100" autocomplete="name" placeholder="Nome completo"></div>
-            <div class="field"><label for="em-email">E-mail</label><input id="em-email" type="email" inputmode="email" autocomplete="username" maxlength="120" placeholder="voce@email.com"></div>
+            <div class="field"><label for="em-email">E-mail</label><input id="em-email" type="email" inputmode="email" autocomplete="username" maxlength="120" placeholder="voce@email.com" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
             <div class="field"><label for="em-senha">Senha</label><div class="senha-wrap"><input id="em-senha" type="password" autocomplete="current-password" maxlength="128" placeholder="Sua senha"><button type="button" id="em-ver" aria-pressed="false" aria-label="Mostrar ou ocultar a senha">Mostrar</button></div></div>
             <div class="field" id="em-senha2-wrap" hidden><label for="em-senha2">Repita a senha</label><input id="em-senha2" type="password" autocomplete="new-password" maxlength="128"></div>
             <p class="msg-erro" id="em-erro" role="alert"></p>
@@ -85,14 +86,14 @@
         <p class="auth-sub">Precisamos destes dados para liberar sua conta. Eles ficam guardados cifrados e não aparecem para as lojas.</p>
         <div class="field"><label for="c-nasc">Data de nascimento</label><input id="c-nasc" type="date" autocomplete="bday"><span class="muted small" id="c-nasc-dica"></span><span class="msg-erro" id="e-c-nasc"></span></div>
         <div class="field"><label for="c-cpf">CPF</label><input id="c-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="msg-erro" id="e-c-cpf"></span></div>
-        <div class="field"><label for="c-tel">WhatsApp</label><input id="c-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="tel"><span class="msg-erro" id="e-c-tel"></span></div>
+        <div class="field"><label for="c-tel">WhatsApp</label><input id="c-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="tel" inputmode="tel"><span class="msg-erro" id="e-c-tel"></span></div>
         <div id="bloco-resp" class="card gold mb" hidden>
             <h4>Autorização do responsável legal</h4>
             <p class="small muted mb">De 16 a 17 anos é obrigatório informar um responsável (mãe, pai ou responsável legal) que autoriza o trabalho. O horário é só diurno e alguns setores não ficam disponíveis.</p>
             <div class="field"><label for="c-resp-nome">Nome completo do responsável</label><input id="c-resp-nome" type="text" maxlength="100" autocomplete="off"><span class="msg-erro" id="e-c-resp-nome"></span></div>
             <div class="grid-2">
                 <div class="field"><label for="c-resp-cpf">CPF do responsável</label><input id="c-resp-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="msg-erro" id="e-c-resp-cpf"></span></div>
-                <div class="field"><label for="c-resp-tel">Telefone</label><input id="c-resp-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="off"><span class="msg-erro" id="e-c-resp-tel"></span></div>
+                <div class="field"><label for="c-resp-tel">Telefone</label><input id="c-resp-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" autocomplete="off" inputmode="tel"><span class="msg-erro" id="e-c-resp-tel"></span></div>
             </div>
             <div class="field"><label for="c-resp-par">Parentesco</label><select id="c-resp-par"><option>Mãe</option><option>Pai</option><option>Responsável legal</option></select></div>
             <label class="check-line"><input type="checkbox" id="c-resp-ok"><span>Declaro que o responsável acima conhece e autoriza este cadastro e o trabalho nas condições dos Termos.</span></label>
@@ -302,13 +303,13 @@
 <!-- ============ SHEETS ============ -->
 <div id="sheet-perfil" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
     <div class="sub-head"><h2>Meus dados</h2><button class="icon-btn" data-fechar="sheet-perfil" aria-label="Fechar">✕</button></div>
-    <div class="field"><label for="d-nome">Nome completo</label><input id="d-nome" type="text" maxlength="100"></div>
+    <div class="field"><label for="d-nome">Nome completo</label><input id="d-nome" type="text" maxlength="100" autocomplete="name"></div>
     <div class="field"><label for="d-cpf">CPF</label><input id="d-cpf" type="text" data-mask="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><span class="muted small" id="d-cpf-dica"></span><span class="msg-erro" id="e-cpf"></span></div>
     <div class="grid-2">
-        <div class="field"><label for="d-nasc">Nascimento</label><input id="d-nasc" type="date"><span class="muted small" id="d-nasc-dica"></span></div>
-        <div class="field"><label for="d-tel">WhatsApp</label><input id="d-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
+        <div class="field"><label for="d-nasc">Nascimento</label><input id="d-nasc" type="date" autocomplete="bday"><span class="muted small" id="d-nasc-dica"></span></div>
+        <div class="field"><label for="d-tel">WhatsApp</label><input id="d-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" inputmode="tel" autocomplete="tel"></div>
     </div>
-    <div class="field"><label for="d-cidade">Cidade</label><input id="d-cidade" type="text" placeholder="Ex: Itapira - SP" maxlength="80"></div>
+    <div class="field"><label for="d-cidade">Cidade</label><input id="d-cidade" type="text" placeholder="Ex: Itapira - SP" maxlength="80" autocomplete="address-level2"></div>
 
     <div class="section-title">Experiência profissional</div>
     <p class="muted small mb">Conte onde você já trabalhou (mercearia, prevenção de perdas, estoque…). Isso melhora as vagas sugeridas e a sua bio.</p>
@@ -347,7 +348,7 @@
     <div class="sub-head"><h2>Chave Pix</h2><button class="icon-btn" data-fechar="sheet-pix" aria-label="Fechar">✕</button></div>
     <p class="muted small mb">É para esta chave que enviamos seus saques. Por segurança, depois de trocar a chave os saques ficam bloqueados por 24 horas.</p>
     <div class="field"><label for="x-tipo">Tipo</label><select id="x-tipo"><option>CPF</option><option>E-mail</option><option>Celular</option><option>Aleatória</option></select></div>
-    <div class="field"><label for="x-chave">Chave Pix</label><input id="x-chave" type="text" placeholder="Sua chave Pix" maxlength="80" autocomplete="off"><span class="muted small" id="x-atual"></span></div>
+    <div class="field"><label for="x-chave">Chave Pix</label><input id="x-chave" type="text" placeholder="Sua chave Pix" maxlength="80" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><span class="muted small" id="x-atual"></span></div>
     <button class="btn btn-primary" id="btn-salvar-pix">Salvar</button>
 </div></div>
 
@@ -472,7 +473,7 @@
 <div id="sheet-chat" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
     <div class="sub-head"><h2 id="chat-titulo">Conversa</h2><button class="icon-btn" data-fechar="sheet-chat" aria-label="Fechar">✕</button></div>
     <div class="chat-box" id="chat-box" aria-live="polite"></div>
-    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
+    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off" enterkeyhint="send"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>

@@ -1,0 +1,63 @@
+/* ============================================================
+   ABASTECE JÁ — endurecimento MOBILE (carregar POR ÚLTIMO em todas as páginas)
+   - iOS/Android: fonte >= 16px nos campos (sem zoom automático ao tocar), alvos de toque >= 44-48px
+   - sem atraso de 300 ms / flash de toque; sheets sem "vazar" a rolagem para a página de trás
+   - telas sem rolagem horizontal; mídia e tabelas contidas; listas longas renderizadas sob demanda
+   - aparelhos fracos / "economizar dados": sem blur caro e sem animações
+   :where() mantém especificidade 0 → não briga com as regras existentes (que continuam valendo quando mais específicas).
+   ============================================================ */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-wrap: anywhere; }
+img, svg, video, canvas, iframe { max-width: 100%; }
+img, video { height: auto; }
+:where(a, button, input, select, textarea, summary, label, [role="button"], [role="tab"], .btn, .chip, .pill, .nav-item, .menu-item, .todo) { touch-action: manipulation; }
+
+/* campos: 16px evita o zoom do Safari/iOS ao focar; altura confortável para o polegar.
+   "html" + :where() sobe a especificidade só o suficiente para vencer "input{font-size:15px}" sem derrubar regras de classe (ex.: .input-money input). */
+html input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="hidden"], [type="color"])), html select, html textarea, html .ax-in, html .dv-input { font-size: 16px; min-height: 48px; }
+html textarea { min-height: 96px; }
+html input:where([type="date"], [type="time"], [type="datetime-local"]) { min-height: 48px; -webkit-appearance: none; appearance: none; }
+html input:where([type="checkbox"], [type="radio"]) { min-width: 22px; min-height: 22px; }
+html :where(.check-line, .sw-row, label.check) { min-height: 44px; }
+
+/* alvos de toque (>= 44 px) */
+html .btn { min-height: 48px; }
+html :where(.btn-sm, .pill, .icon-btn, .link-esqueci, #em-ver) { min-height: 44px; min-width: 44px; }
+html .icon-btn { width: 44px; height: 44px; }
+html :where(.link-esqueci, #em-ver, .auth-links a, .dica-modo button, [data-modo], .pular, .auth-switch a, .nav-in .logo, .axl-foot a, p.small a, nav a, footer a, .rodape a, .links a) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding-block: 8px; }
+html .pill { display: inline-flex; align-items: center; }
+html .nav-item { min-height: 56px; }
+
+/* rolagem e fixos */
+:where(.sheet, .chat-box, .tabela-rolar) { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.tabela-rolar { overflow-x: auto; max-width: 100%; }
+body.no-scroll { overscroll-behavior: none; touch-action: none; }
+:where(.dock, .nav, nav.bottom, #nav) { padding-bottom: max(var(--safe-b, 0px), env(safe-area-inset-bottom, 0px)); }
+:where(.screen, .main-app-screen) { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* listas longas: o navegador só pinta o que aparece (menos DOM pintado em celular fraco; sem mudança visual) */
+:where(.pedido, .oferta, .menu-item, .lancamento) { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+
+/* celular pequeno */
+@media (max-width: 380px) {
+  body { font-size: 14px; }
+  :where(.main-app-screen) { padding-left: 12px; padding-right: 12px; }
+  :where(.sheet) { padding-left: 14px; padding-right: 14px; }
+}
+/* paisagem baixa (teclado aberto / celular deitado): sheets e modais cabem na altura */
+@media (max-height: 480px) and (orientation: landscape) {
+  :where(.sheet) { max-height: 100dvh; border-radius: 0; }
+  :where(.auth-brand) { display: none; }
+}
+/* aparelho fraco, economia de dados ou preferência do usuário: sem blur (caro na GPU) e sem animações */
+@media (prefers-reduced-motion: reduce), (prefers-reduced-data: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
+@media (max-width: 480px) and (hover: none) {
+  :where(.glass-card, .sheet, .dock, header, nav, .toast, [class*="glass"]) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+
+/* Botão flutuante de Suporte na tela de login: só o ícone (48 px) e espaço extra no fim da página, para NUNCA cobrir o "Entrar com Google" nem bloquear o toque */
+body:has(#screen-login.active) .fab-suporte,
+body:has(#screen-cadastro.active) .fab-suporte { width: 48px; padding: 0; gap: 0; font-size: 0; justify-content: center; right: max(12px, env(safe-area-inset-right, 0px)); }
+html #screen-login, html #screen-cadastro { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }

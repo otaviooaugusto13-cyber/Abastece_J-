@@ -133,13 +133,15 @@ module.exports = (app, x) => {
     if (!MP_WEBHOOK_SECRET) return false;
     const partes = Object.fromEntries(String(req.get("x-signature") || "").split(",").map((p) => p.trim().split("=")).filter((p) => p.length === 2));
     if (!partes.ts || !partes.v1 || !req.get("x-request-id")) return false;
+    const tol = Number(process.env.MP_WEBHOOK_TOLERANCIA_MS || 0);   // opcional: rejeita assinaturas antigas (anti-replay); 0 = desligado
+    if (tol > 0) { let ts = Number(partes.ts); if (ts < 1e12) ts *= 1000; if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > tol) return false; }
     const manifesto = `id:${String(dataId).toLowerCase()};request-id:${req.get("x-request-id")};ts:${partes.ts};`;
     const esperado = crypto.createHmac("sha256", MP_WEBHOOK_SECRET).update(manifesto).digest("hex");
     return Cripto.igualSeguro(esperado, partes.v1);
   }
   app.post("/webhookMP", limitar({ janelaMs: 60_000, max: 120, nome: "webhook" }), (req, res, next) => { try { res.on("finish", () => { try { x.ti.saude.registrarWebhook({ status: res.statusCode }); } catch { /* telemetria nunca derruba o webhook */ } }); } catch { /* idem */ } next(); }, async (req, res) => {
+    const dataId = String(req.query?.["data.id"] || req.body?.data?.id || "");
     try {
-      const dataId = String(req.query?.["data.id"] || req.body?.data?.id || "");
       if (!MP_WEBHOOK_SECRET) return res.status(503).json({ erro: "webhook não configurado", codigo: "webhook-nao-configurado" });
       if (!/^\d{3,20}$/.test(dataId) || !assinaturaValida(req, dataId)) return res.status(401).json({ erro: "assinatura inválida", codigo: "assinatura-invalida" });
       const tipo = req.query?.type || req.body?.type || req.query?.topic;
@@ -147,12 +149,23 @@ module.exports = (app, x) => {
       const pg = await mp(`/v1/payments/${encodeURIComponent(dataId)}`);
       const sid = pg.external_reference;
       if (typeof sid !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(sid)) return res.json({ ok: true, ignorado: true });
-      if (pg.status === "approved" && !(Number(pg.transaction_amount_refunded) > 0)) await processarPagamento(sid, dataId);
-      else if (["refunded", "charged_back"].includes(pg.status)) await estornarPagamento({ pedidoId: sid, motivo: pg.status === "charged_back" ? "Chargeback" : "Reembolso no Mercado Pago", ator: "mercadopago", origem: "mercadopago" });
+      if (pg.status === "approved") {
+        // Estorno parcial não impede a finalização (transaction_amount continua sendo o valor cobrado; processarPagamento confere ao centavo).
+        await processarPagamento(sid, dataId);
+        if (Number(pg.transaction_amount_refunded) > 0) await db.collection("pagamentos_internos").doc(sid).set({ estornoParcialCentavos: Math.round(Number(pg.transaction_amount_refunded) * 100) }, { merge: true });
+      } else if (["refunded", "charged_back"].includes(pg.status)) await estornarPagamento({ pedidoId: sid, motivo: pg.status === "charged_back" ? "Chargeback" : "Reembolso no Mercado Pago", ator: "mercadopago", origem: "mercadopago" });
       else if (Number(pg.transaction_amount_refunded) > 0) await db.collection("pagamentos_internos").doc(sid).set({ estornoParcialCentavos: Math.round(Number(pg.transaction_amount_refunded) * 100) }, { merge: true });  // aparece na conciliação
       res.json({ ok: true });
     } catch (e) {
-      if (e instanceof Falha && e.status < 500) { console.warn("webhook ignorado:", e.codigo); return res.json({ ok: true, ignorado: true }); }
+      if (e instanceof Falha && e.status < 500) {
+        console.warn("webhook ignorado:", e.codigo);
+        // Cobrança aprovada que NÃO casa com o pedido (valor/referência) precisa de revisão humana: registra de forma auditável (o MP não tenta de novo após o 200).
+        if (["valor-divergente", "pagamento-invalido"].includes(e.codigo) && /^\d{3,20}$/.test(dataId)) {
+          console.error("🛑 pagamento retido para revisão:", dataId, e.codigo);
+          try { await db.collection("pagamentos_revisao").doc(dataId).set({ paymentId: dataId, codigo: e.codigo, mensagem: String(e.message || "").slice(0, 300), status: "pendente", ultimaVezEm: FieldValue.serverTimestamp() }, { merge: true }); } catch (e2) { console.error("falha ao registrar revisão:", e2?.message); }
+        }
+        return res.json({ ok: true, ignorado: true });
+      }
       console.error("webhook erro:", e?.message); res.status(500).json({ erro: "erro interno", codigo: "interno" });     // MP tenta de novo
     }
   });

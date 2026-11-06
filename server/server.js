@@ -167,7 +167,7 @@ app.use((req, res, next) => {
   if (p !== "/" && !/\.(html|css|js|png|svg|ico|webp|woff2)$/i.test(p) && p !== "/manifest.json") return res.status(404).send("Not Found");
   next();
 });
-app.use(express.static(RAIZ, { dotfiles: "ignore", index: ["index.html"], maxAge: 0, setHeaders: (res, f) => { if (f.endsWith("sw.js")) res.setHeader("Cache-Control", "no-cache"); } }));
+app.use(express.static(RAIZ, { dotfiles: "ignore", index: ["index.html"], maxAge: 0, setHeaders: (res, f) => { if (f.endsWith("sw.js")) res.setHeader("Cache-Control", "no-cache"); else if (/\.(png|webp|svg|ico|woff2)$/i.test(f)) res.setHeader("Cache-Control", "public, max-age=604800"); } }));   // imagens/ícones/fontes: 7 dias em cache (menos dados e menos requisições em rede móvel); JS/CSS/HTML seguem revalidando
 app.use((req, res) => res.status(404).json({ erro: "não encontrado", codigo: "rota-inexistente" }));
 app.use(Seg.tratadorErros);
 

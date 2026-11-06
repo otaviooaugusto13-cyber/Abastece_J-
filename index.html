@@ -34,13 +34,14 @@
     <link rel="stylesheet" href="style-jogo.css">
     <link rel="stylesheet" href="style-dock.css">
     <link rel="stylesheet" href="style-vagas.css">
+    <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
 
 <!-- ============ LOGIN ============ -->
 <div id="screen-login" class="screen active login-screen">
     <div class="auth-card">
-        <div class="auth-brand"><img class="auth-logo" src="assets/brand/logo-escudo.png" alt="Abastece Já" width="92" height="103"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
+        <div class="auth-brand"><img class="auth-logo" decoding="async" fetchpriority="high" src="assets/brand/logo-escudo.png" alt="Abastece Já" width="92" height="103"><h1>ABASTECE<span class="highlight">JÁ</span></h1><p>Reposição sob demanda para o varejo</p></div>
         <div class="auth-switch"><a href="index.html" class="on">Sou loja</a><a href="promotor.html">Sou promotor</a></div>
         <div class="auth-modo" role="tablist" aria-label="Como você quer continuar?">
             <button type="button" role="tab" id="modo-entrar" aria-selected="true">Entrar na minha conta</button>
@@ -58,7 +59,7 @@
         </div>
         <form id="form-email" class="auth-email" novalidate>
             <div class="field" id="em-nome-wrap" hidden><label for="em-nome">Seu nome</label><input id="em-nome" type="text" maxlength="100" autocomplete="name" placeholder="Nome completo"></div>
-            <div class="field"><label for="em-email">E-mail</label><input id="em-email" type="email" inputmode="email" autocomplete="username" maxlength="120" placeholder="voce@email.com"></div>
+            <div class="field"><label for="em-email">E-mail</label><input id="em-email" type="email" inputmode="email" autocomplete="username" maxlength="120" placeholder="voce@email.com" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
             <div class="field"><label for="em-senha">Senha</label><div class="senha-wrap"><input id="em-senha" type="password" autocomplete="current-password" maxlength="128" placeholder="Sua senha"><button type="button" id="em-ver" aria-pressed="false" aria-label="Mostrar ou ocultar a senha">Mostrar</button></div></div>
             <div class="field" id="em-senha2-wrap" hidden><label for="em-senha2">Repita a senha</label><input id="em-senha2" type="password" autocomplete="new-password" maxlength="128"></div>
             <p class="msg-erro" id="em-erro" role="alert"></p>
@@ -133,7 +134,7 @@
             <div class="chips mt" id="setor-grid" role="radiogroup" aria-label="Setor"></div>
 
             <div class="field mt"><label for="p-local">2. Onde? <small>(nome e endereço da loja)</small></label>
-                <input id="p-local" type="text" placeholder="Ex: Mercado Central — Rua das Flores, 120" autocomplete="street-address" maxlength="160">
+                <input id="p-local" type="text" placeholder="Ex: Mercado Central — Rua das Flores, 120" autocomplete="street-address" maxlength="160" enterkeyhint="next">
                 <span class="msg-erro" id="e-local"></span></div>
             <div class="row between small" style="margin:-4px 0 10px"><span class="muted" id="loc-status">📍 Localização não definida</span><a href="#" data-abrir="sheet-local">Alterar</a></div>
             <div class="field" id="campo-marca" hidden><label for="p-marca">Marca/indústria atendida <small>(opcional)</small></label><select id="p-marca"><option value="">Nenhuma</option></select></div>
@@ -269,11 +270,11 @@
 <div id="sheet-fiscal" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
     <div class="sub-head"><h2>Dados da empresa</h2><button class="icon-btn" data-fechar="sheet-fiscal" aria-label="Fechar">✕</button></div>
     <p class="muted small mb">Estes dados saem na nota de cada pagamento.</p>
-    <div class="field"><label for="f-razao">Razão social / nome</label><input id="f-razao" type="text" placeholder="Mercado Central Ltda" maxlength="120"></div>
-    <div class="field"><label for="f-doc">CNPJ ou CPF</label><input id="f-doc" type="text" data-mask="doc" inputmode="numeric" placeholder="00.000.000/0000-00"><span class="msg-erro" id="e-doc"></span></div>
-    <div class="field"><label for="f-end">Endereço</label><input id="f-end" type="text" placeholder="Rua, número, bairro, cidade" maxlength="200"></div>
-    <div class="field"><label for="f-email">E-mail para receber a nota</label><input id="f-email" type="email" placeholder="financeiro@suaempresa.com.br"></div>
-    <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999"></div>
+    <div class="field"><label for="f-razao">Razão social / nome</label><input id="f-razao" type="text" placeholder="Mercado Central Ltda" maxlength="120" autocomplete="organization"></div>
+    <div class="field"><label for="f-doc">CNPJ ou CPF</label><input id="f-doc" type="text" data-mask="doc" inputmode="numeric" placeholder="00.000.000/0000-00" autocomplete="off"><span class="msg-erro" id="e-doc"></span></div>
+    <div class="field"><label for="f-end">Endereço</label><input id="f-end" type="text" placeholder="Rua, número, bairro, cidade" maxlength="200" autocomplete="street-address"></div>
+    <div class="field"><label for="f-email">E-mail para receber a nota</label><input id="f-email" type="email" placeholder="financeiro@suaempresa.com.br" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" autocomplete="email"></div>
+    <div class="field"><label for="f-tel">WhatsApp da loja</label><input id="f-tel" type="tel" data-mask="tel" placeholder="(19) 99999-9999" inputmode="tel" autocomplete="tel"></div>
     <div class="field"><label for="f-ramo">Ramo</label><select id="f-ramo"><option>Supermercado</option><option>Atacarejo</option><option>Distribuidora</option><option>Loja de conveniência</option><option>Indústria / marca</option></select></div>
     <button class="btn btn-primary" id="btn-salvar-fiscal">Salvar dados</button>
 </div></div>
@@ -283,8 +284,8 @@
     <div id="cartao-atual" class="card mb" hidden></div>
     <p class="muted small mb" id="cartao-aviso">Obrigatório para solicitar e pagar serviços. O número completo não é guardado por nós.</p>
     <div id="cartao-teste-dica" class="banner mb" hidden><span class="ico">🧪</span><div class="small">Sandbox: use o cartão de teste <strong>4509 9535 6623 3704</strong>, validade futura, CVV <strong>123</strong>. Nada é cobrado.</div></div>
-    <div class="field"><label for="k-nome">Nome impresso no cartão</label><input id="k-nome" type="text" autocomplete="cc-name" maxlength="60" placeholder="MARIA S SILVA"></div>
-    <div class="field"><label for="k-num">Número do cartão</label><input id="k-num" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23"><span class="msg-erro" id="e-k-num"></span></div>
+    <div class="field"><label for="k-nome">Nome impresso no cartão</label><input id="k-nome" type="text" autocomplete="cc-name" maxlength="60" placeholder="MARIA S SILVA" autocapitalize="characters" autocorrect="off" spellcheck="false"></div>
+    <div class="field"><label for="k-num">Número do cartão</label><input id="k-num" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23" autocorrect="off"><span class="msg-erro" id="e-k-num"></span></div>
     <div class="grid-2">
         <div class="field"><label for="k-val">Validade</label><input id="k-val" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5"><span class="msg-erro" id="e-k-val"></span></div>
         <div class="field"><label for="k-cvv">CVV</label><input id="k-cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"><span class="msg-erro" id="e-k-cvv"></span></div>
@@ -336,7 +337,7 @@
 <div id="sheet-chat" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>
     <div class="sub-head"><h2 id="chat-titulo">Conversa</h2><button class="icon-btn" data-fechar="sheet-chat" aria-label="Fechar">✕</button></div>
     <div class="chat-box" id="chat-box" aria-live="polite"></div>
-    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
+    <form class="chat-send" id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Escreva uma mensagem…" autocomplete="off" enterkeyhint="send"><button class="btn btn-primary" aria-label="Enviar">➤</button></form>
 </div></div>
 
 <div id="sheet-avaliar" class="app-overlay" aria-hidden="true"><div class="sheet"><div class="grab"></div>

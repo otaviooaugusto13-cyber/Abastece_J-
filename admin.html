@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="admin-login.css">
+<link rel="stylesheet" href="mobile.css">
 </head>
 <body class="ax-body">
 
@@ -42,7 +43,7 @@
         <p class="axl-sub">Acesso restrito à equipe. Todas as ações são registradas.</p>
         <form id="ax-login-f" autocomplete="on" style="text-align:left">
           <label class="ax-lbl" for="ax-email">E-mail corporativo</label>
-          <input class="ax-in" id="ax-email" type="email" autocomplete="username" required maxlength="120">
+          <input class="ax-in" id="ax-email" type="email" autocomplete="username" required maxlength="120" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email">
           <label class="ax-lbl ax-mt" for="ax-senha">Senha</label>
           <input class="ax-in" id="ax-senha" type="password" autocomplete="current-password" required maxlength="128">
           <button class="ax-btn pri ax-mt" style="width:100%" id="ax-entrar">Entrar</button>

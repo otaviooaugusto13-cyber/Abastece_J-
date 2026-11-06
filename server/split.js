@@ -176,7 +176,6 @@ function vezesNaSemana(historico, lojaUid, dataIso, ignorarId = "") {
 module.exports = {
   PADRAO, LIMITES, validarTaxas,
   CHAMADOS_PARA_SUBIR, NIVEIS, nivelPorId, indiceNivel, nivelPorConcluidos, comissaoDoNivel, cfgDoSplit,
-  CHAMADOS_PARA_SUBIR, NIVEIS, nivelPorId, indiceNivel, nivelPorConcluidos, comissaoDoNivel,
   VALOR_DIARIA_CENTAVOS, COMISSAO_PLATAFORMA_CENTAVOS, REPASSE_PROFISSIONAL_CENTAVOS, TAXA_FIXA_CENTAVOS,
   HORAS_MIN_TURNO, HORAS_MAX_TURNO, MAX_VEZES_SEMANA_LOJA, STATUS_QUE_CONTAM, PCT_REPASSE, PCT_COMISSAO,
   minutosEntre, calcularDiaria, calcularTurno, validarTurno, limitesSemana, vezesNaSemana

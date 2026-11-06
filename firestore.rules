@@ -104,6 +104,7 @@ service cloud.firestore {
 
     // ---------- dinheiro: nada pelo cliente (o app usa GET /carteira) ----------
     match /pagamentos_internos/{id} { allow read, write: if false; }
+    match /pagamentos_revisao/{id}  { allow read, write: if false; }   // pagamentos aprovados no MP que não casam com o pedido (revisão humana)
     match /carteiras/{id}           { allow read, write: if false; }
     match /lancamentos/{id}         { allow read, write: if false; }
     match /saques/{id}              { allow read, write: if false; }
