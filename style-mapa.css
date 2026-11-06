@@ -3,14 +3,13 @@
 .mp-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .mp-tit { display: flex; align-items: center; gap: 8px; font-size: 1.02rem; }
 .mp-area { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--line, #ddd); min-height: 120px; }
-.mp-mapa { height: 260px; width: 100%; background: var(--card, #f4f4f4); }
+.mp-mapa { height: 260px; width: 100%; background: #1e1e24; }
 .mp-mapa[hidden] { display: none; }
 .mp-vazio { position: relative; padding: 14px; text-align: center; }
 .mp-mapa:not([hidden]) + .mp-vazio { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 500; background: var(--card, #fff); color: var(--text, #111); border: 1px solid var(--line, #ddd); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
 .mp-credito { margin: 8px 0 0; }
 .mp-pin, .mp-loja { background: none; border: 0; }
-.mp-pin { transition: transform 5s linear; }                      /* o carrinho "anda" até a nova posição em vez de pular */
-.leaflet-zoom-anim .mp-pin { transition: none; }
+/* o carrinho "anda" até a nova posição: a transição de posição é feita pelo próprio GoogleDarkMap (moveMs); aqui só a rotação (.mp-carro) */
 .mp-carro { display: block; width: 30px; height: 30px; transition: transform .6s ease; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 .mp-loja span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #1d4ed8; box-shadow: 0 0 0 4px rgba(29,78,216,.25); font-size: 18px; }
 .online-card { display: flex; align-items: center; gap: 12px; padding: 14px; }

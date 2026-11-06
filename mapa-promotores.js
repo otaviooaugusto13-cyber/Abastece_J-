@@ -1,16 +1,17 @@
 // Mapa de promotores online (visão da LOJA) — estilo "carrinhos" de app de transporte.
-//   • DarkMap (dark-map.js: Leaflet sob demanda + tema escuro); círculo = raio de atendimento definido pelo admin.
+//   • GoogleDarkMap (google-dark-map.js: Google Maps + tema dark minimalista); círculo = raio de atendimento definido pelo admin.
 //   • Os dados vêm de GET /loja/promotores-proximos (o SERVIDOR filtra por raio e devolve pins anônimos). Atualiza a cada 6 s com a aba visível
 //     e SÓ enquanto o cartão está na tela. Quando o raio muda (raio.js), o círculo e os pins se ajustam na hora e a lista é refeita no servidor.
-//   • Sem promotores no raio: mensagem clara (sem mapa vazio mudo). Sem localização da loja: botão para definir. Sem Leaflet/rede: só o contador.
+//   • Sem promotores no raio: mensagem clara (sem mapa vazio mudo). Sem localização da loja: botão para definir. Sem chave do Google Maps/rede: só o contador.
 //   • Todo texto entra por textContent: nada vindo do servidor vira HTML.
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth, consultar } from "./firebase.js";
 import { RAIO, EVENTO_RAIO } from "./raio.js";
-import { DarkMap } from "./dark-map.js";
+import { GoogleDarkMap } from "./google-dark-map.js";
+import { GOOGLE_MAPS_KEY } from "./config.js";
 
 const A_CADA_MS = 6000;
-// O Leaflet, os blocos do mapa e o tema escuro agora vêm do DarkMap (dark-map.js).
+// O mapa, os marcadores e o tema escuro vêm do GoogleDarkMap (google-dark-map.js). A chave está em config.js (GOOGLE_MAPS_KEY).
 const CARRO = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M7 3.5h10a2 2 0 0 1 2 2V18a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18V5.5a2 2 0 0 1 2-2z" fill="#FFD13B" stroke="#1b1b1b" stroke-width="1.2"/><rect x="7" y="6" width="10" height="4" rx="1" fill="#1b1b1b" opacity=".75"/><rect x="7" y="14.5" width="10" height="3" rx="1" fill="#1b1b1b" opacity=".6"/></svg>';
 
 const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto != null) e.textContent = texto; return e; };
@@ -24,10 +25,10 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     const area = el("div", "mp-area"), mapaEl = el("div", "mp-mapa"), vazio = el("div", "mp-vazio"); mapaEl.setAttribute("role", "region"); mapaEl.setAttribute("aria-label", "Mapa dos promotores online por perto");
     const vazioTxt = el("p", "small"), vazioBtn = el("button", "btn btn-primary btn-sm", "Definir localização da loja"); vazioBtn.type = "button"; vazioBtn.hidden = true;
     vazioBtn.addEventListener("click", () => aoDefinirLocal?.()); vazio.append(vazioTxt, vazioBtn); vazio.hidden = true; area.append(mapaEl, vazio);
-    raiz.append(topo, area, el("p", "muted small mp-credito", "Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade. Mapa © OpenStreetMap."));
+    raiz.append(topo, area, el("p", "muted small mp-credito", "Posições aproximadas (cerca de 100 m) e sem identificação, por privacidade."));
 
-    let L = null, dm = null, mapa = null, circulo = null, lojaPin = null, ultima = null, kmDesenhado = null, timer = null, noAr = false, emVoo = false, falhaMapa = false;
-    const pins = new Map();                                            // id público → marcador Leaflet
+    let dm = null, lojaPin = null, ultima = null, kmDesenhado = null, timer = null, noAr = false, emVoo = false, falhaMapa = false;
+    const pins = new Map();                                            // id público → marcador do mapa
 
     function texto(r) {
         const km = r.raioKm;
@@ -37,32 +38,31 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
         if (r.total === 0) { conta.textContent = `Nenhum promotor online em até ${km} km agora`; vazioTxt.textContent = "Seu pedido continua valendo: ele fica aberto e os promotores habilitados são avisados assim que entrarem online."; vazio.hidden = false; }
         else { conta.textContent = `${plural(r.total)} em até ${km} km`; vazio.hidden = true; }
     }
+    /** Chave ausente/recusada ou sem rede: some o mapa e ficam só o contador e os avisos. */
+    function semMapa() { falhaMapa = true; mapaEl.hidden = true; pins.clear(); dm?.destroy(); dm = null; lojaPin = null; }
     async function garantirMapa(loja) {
-        if (mapa || falhaMapa) return !!mapa;
-        try { dm = await DarkMap.create(mapaEl, { center: [loja.lat, loja.lng], zoom: 12, zoomControl: true, scrollWheelZoom: false, locateButton: false, attributionPosition: "bottomright" }); }
-        catch (e) { falhaMapa = true; mapaEl.hidden = true; return false; }
-        L = dm.L; mapa = dm.map;
-        lojaPin = L.marker([loja.lat, loja.lng], { icon: L.divIcon({ className: "mp-loja", html: "<span>🏪</span>", iconSize: [34, 34], iconAnchor: [17, 17] }), keyboard: false, interactive: false, zIndexOffset: 500 }).addTo(mapa);
-        circulo = L.circle([loja.lat, loja.lng], { radius: RAIO.raioKm * 1000, color: "#FFD13B", weight: 2, fillColor: "#FFD13B", fillOpacity: 0.08 }).addTo(mapa);
-        setTimeout(() => mapa?.invalidateSize(), 150);
+        if (dm || falhaMapa) return !!dm;
+        try { dm = await GoogleDarkMap.create(mapaEl, { apiKey: GOOGLE_MAPS_KEY, center: [loja.lat, loja.lng], zoom: 12, zoomControl: true, scrollWheelZoom: false, locateButton: false, onError: semMapa }); }
+        catch (e) { semMapa(); return false; }
+        lojaPin = dm.addHtmlMarker({ lat: loja.lat, lng: loja.lng, className: "mp-loja", html: "<span>🏪</span>", size: [34, 34], anchor: [17, 17], interactive: false, zIndex: 500 });
         return true;
     }
     function ajustarRaio(km, loja) {
-        if (!circulo || kmDesenhado === km) return;
-        circulo.setRadius(km * 1000); kmDesenhado = km;
-        mapa.fitBounds(circulo.getBounds(), { padding: [10, 10], animate: true });
+        if (!dm || kmDesenhado === km) return;
+        dm.setRadius(km, [loja.lat, loja.lng], { fit: true, padding: 10 }); kmDesenhado = km;
     }
     function desenharPins(lista) {
-        if (!mapa) return;
+        if (!dm) return;
         const vivos = new Set();
         for (const p of lista) {
-            vivos.add(p.pin); const pos = [p.lat, p.lng]; let m = pins.get(p.pin);
+            vivos.add(p.pin); let m = pins.get(p.pin); const rumo = Number.isFinite(p.rumo) ? p.rumo : 0;
             if (!m) {
-                const html = `<span class="mp-carro" style="transform:rotate(${p.rumo ?? 0}deg)">${CARRO}</span>`;
-                m = L.marker(pos, { icon: L.divIcon({ className: "mp-pin", html, iconSize: [30, 30], iconAnchor: [15, 15] }), keyboard: false, title: `Promotor a ${String(p.distKm).replace(".", ",")} km` }).addTo(mapa); pins.set(p.pin, m);
+                const carro = el("span", "mp-carro"); carro.innerHTML = CARRO; carro.style.transform = `rotate(${rumo}deg)`;   // CARRO é constante do app; o ângulo é sempre número
+                m = dm.addHtmlMarker({ lat: p.lat, lng: p.lng, className: "mp-pin", element: carro, size: [30, 30], anchor: [15, 15], interactive: false, moveMs: A_CADA_MS - 1000 });
+                m.element.title = `Promotor a ${String(p.distKm).replace(".", ",")} km`; pins.set(p.pin, m);
             } else {
-                m.setLatLng(pos);                                    // o CSS anima o deslocamento (transition em transform)
-                const c = m.getElement()?.querySelector(".mp-carro"); if (c && p.rumo != null) c.style.transform = `rotate(${p.rumo}deg)`;
+                m.setPosition(p.lat, p.lng);                         // o marcador "anda" até a nova posição (transition em transform)
+                const c = m.element.querySelector(".mp-carro"); if (c && Number.isFinite(p.rumo)) c.style.transform = `rotate(${p.rumo}deg)`;
             }
         }
         for (const [id, m] of pins) if (!vivos.has(id)) { m.remove(); pins.delete(id); }
@@ -87,7 +87,7 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
     }
     function ligar() { if (timer) return; atualizar(); timer = setInterval(atualizar, A_CADA_MS); }
     function parar() { clearInterval(timer); timer = null; }
-    const obs = typeof IntersectionObserver === "function" ? new IntersectionObserver((es) => { noAr = es.some((x) => x.isIntersecting); if (noAr && auth.currentUser) { ligar(); setTimeout(() => mapa?.invalidateSize(), 100); } else parar(); }) : null;
+    const obs = typeof IntersectionObserver === "function" ? new IntersectionObserver((es) => { noAr = es.some((x) => x.isIntersecting); if (noAr && auth.currentUser) { ligar(); setTimeout(() => dm?.invalidateSize(), 100); } else parar(); }) : null;
     if (obs) obs.observe(raiz); else noAr = true;
     window.addEventListener(EVENTO_RAIO, aoMudarRaio);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizar(); });

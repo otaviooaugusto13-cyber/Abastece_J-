@@ -86,6 +86,13 @@ export const FIREBASE_CONFIG = {
     measurementId: "G-8XFZ5ZGK4L"
 };
 
+// ---- Google Maps (mapa dark do app) ---------------------------
+// Chave da Maps JavaScript API (Google Cloud › APIs e serviços › Credenciais › Criar chave de API). É pública por natureza, então a SEGURANÇA
+// é a restrição da chave: "Restrições de aplicativo" = Sites (HTTP referrers) com os domínios do app (ex.: https://abastece-ja.onrender.com/*,
+// http://localhost:*/*) e "Restrições de API" = só Maps JavaScript API. Ative também o faturamento no projeto (exigência do Google; há crédito mensal).
+// Vazia ou recusada: o mapa não aparece e a tela mostra só o contador de promotores.
+export const GOOGLE_MAPS_KEY = "";
+
 // ---- Servidor de pagamentos (Render) ------------------------
 // O servidor (server/server.js) também serve o site. Se o app está aberto em *.onrender.com
 // ou em localhost, a API é a MESMA origem — assim nunca dá "Not Found" por URL digitada errada.

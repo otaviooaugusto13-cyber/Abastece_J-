@@ -14,12 +14,13 @@ function cabecalhos({ extraConnect = [] } = {}) {
     "frame-ancestors 'none'",
     "form-action 'self'",
     // sem 'unsafe-inline' em scripts: todo JS do app é arquivo externo
-    "script-src 'self' https://www.gstatic.com https://apis.google.com https://cdnjs.cloudflare.com https://sdk.mercadopago.com https://www.youtube.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",   // + CSS do Leaflet (mapa)
+    "script-src 'self' https://www.gstatic.com https://apis.google.com https://cdnjs.cloudflare.com https://sdk.mercadopago.com https://www.youtube.com https://maps.googleapis.com https://maps.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com https://*.basemaps.cartocdn.com https://tile.openstreetmap.org",   // + blocos do mapa (OpenStreetMap; CARTO mantido por compatibilidade)
+    "img-src 'self' data: blob: https://*.googleusercontent.com https://i.ytimg.com https://*.googleapis.com https://*.gstatic.com https://*.ggpht.com",   // + blocos e logotipo do Google Maps
     "media-src 'self' https: blob:",
-    `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
+    "worker-src 'self' blob:",                                   // o Google Maps vetorial renderiza em Web Worker
+    `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.gstatic.com https://api.mercadopago.com ${extraConnect.join(" ")}`.trim(),
     `frame-src 'self' https://accounts.google.com https://apis.google.com https://content.googleapis.com https://*.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://*.mercadopago.com https://*.mercadopago.com.br ${origemTesteEneagrama()}`.trim(),
     "upgrade-insecure-requests"
   ].join("; ");
