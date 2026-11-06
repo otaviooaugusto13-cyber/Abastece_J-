@@ -94,6 +94,11 @@ body.home-ativa { overflow: hidden; }
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--shadow); font-size: 13px; line-height: 1.35;
 }
 .home-mapa .mapa-fundo .mp-vazio p { margin: 0; color: var(--text); }
+/* Sem mapa (chave ausente/recusada, rede): fundo escuro liso + avisos em cartão, em vez de texto solto no topo */
+.mp-sem-mapa { background: #1e1e24; }
+.mp-sem-mapa .mp-aviso-mapa { position: absolute; left: 0; right: 0; top: 46%; text-align: center; margin: 0; }
+.home-mapa .mapa-fundo .mp-sem-mapa .mp-vazio { position: absolute; left: 14px; right: 14px; bottom: 16px; max-width: 520px; margin-inline: auto; padding: 10px 14px; border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 13px; line-height: 1.35; }
 .home-mapa .mapa-fundo .mp-mapa { --gdm-zoom-top: calc(env(safe-area-inset-top, 0px) + 130px); }   /* zoom no canto direito, abaixo do chip/aviso */
 .home-chip {
     position: fixed; z-index: 20; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); max-width: 520px; margin-inline: auto;

@@ -39,11 +39,15 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
         else { conta.textContent = `${plural(r.total)} em até ${km} km`; vazio.hidden = true; }
     }
     /** Chave ausente/recusada ou sem rede: some o mapa e ficam só o contador e os avisos. */
-    function semMapa() { falhaMapa = true; mapaEl.hidden = true; pins.clear(); dm?.destroy(); dm = null; lojaPin = null; }
+    function semMapa(e) {
+        console.warn("[Mapa] indisponível:", e?.message || e);          // o motivo real (chave vazia/recusada, CSP, rede) aparece no console do navegador
+        falhaMapa = true; mapaEl.hidden = true; pins.clear(); dm?.destroy(); dm = null; lojaPin = null;
+        area.classList.add("mp-sem-mapa"); if (!area.querySelector(".mp-aviso-mapa")) area.prepend(el("p", "small muted mp-aviso-mapa", "Mapa indisponível no momento."));
+    }
     async function garantirMapa(loja) {
         if (dm || falhaMapa) return !!dm;
         try { dm = await GoogleDarkMap.create(mapaEl, { apiKey: GOOGLE_MAPS_KEY, center: [loja.lat, loja.lng], zoom: 12, zoomControl: true, scrollWheelZoom: false, locateButton: false, onError: semMapa }); }
-        catch (e) { semMapa(); return false; }
+        catch (e) { semMapa(e); return false; }
         lojaPin = dm.addHtmlMarker({ lat: loja.lat, lng: loja.lng, className: "mp-loja", html: "<span>🏪</span>", size: [34, 34], anchor: [17, 17], interactive: false, zIndex: 500 });
         return true;
     }
