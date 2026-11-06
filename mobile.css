@@ -22,7 +22,7 @@ html :where(.check-line, .sw-row, label.check) { min-height: 44px; }
 
 /* alvos de toque (>= 44 px) */
 html .btn { min-height: 48px; }
-html :where(.btn-sm, .pill, .icon-btn, .link-esqueci, #em-ver) { min-height: 44px; min-width: 44px; }
+html :where(.btn-sm, .pill, .icon-btn, .link-esqueci, #em-ver) { min-height: 44px; }
 html .icon-btn { width: 44px; height: 44px; }
 html :where(.link-esqueci, #em-ver, .auth-links a, .dica-modo button, [data-modo], .pular, .auth-switch a, .nav-in .logo, .axl-foot a, p.small a, nav a, footer a, .rodape a, .links a) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding-block: 8px; }
 html .pill { display: inline-flex; align-items: center; }
@@ -54,10 +54,18 @@ body.no-scroll { overscroll-behavior: none; touch-action: none; }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
 @media (max-width: 480px) and (hover: none) {
-  :where(.glass-card, .sheet, .dock, header, nav, .toast, [class*="glass"]) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  :where(.glass-card, .sheet, .toast) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }   /* o dock mantém o blur: sem ele o conteúdo apareceria através da barra */
 }
 
 /* Botão flutuante de Suporte na tela de login: só o ícone (48 px) e espaço extra no fim da página, para NUNCA cobrir o "Entrar com Google" nem bloquear o toque */
 body:has(#screen-login.active) .fab-suporte,
 body:has(#screen-cadastro.active) .fab-suporte { width: 48px; padding: 0; gap: 0; font-size: 0; justify-content: center; right: max(12px, env(safe-area-inset-right, 0px)); }
 html #screen-login, html #screen-cadastro { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+
+/* Chips/pílulas (setores, cidades): nunca encolhem nem quebram — rolam na horizontal */
+html .pills { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+html .pills > .pill, html .pill { flex: 0 0 auto; width: auto; white-space: nowrap; }
+html .seg > button { min-height: 44px; }
+/* selo de ofertas no botão central do dock */
+.dock-fab .dot { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--red, #ff6b6b); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--bg, #0a0c12); }
+.dock-fab .dot[hidden] { display: none; }

@@ -42,8 +42,8 @@ body.light-theme { --glass: rgba(255, 255, 255, .72); --glass-line: rgba(15, 23,
 .nivel-sub { font-size: 12.5px; color: var(--muted); }
 .barra-nivel { height: 10px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: 12px 0 6px; position: relative; }
 .barra-nivel i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--nivel-cor, var(--gold)), #fff9); transition: width 1.1s cubic-bezier(.2, .8, .2, 1); position: relative; }
-.barra-nivel i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, #fff7 50%, transparent 70%); animation: brilho 2.6s infinite; }
-@keyframes brilho { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.barra-nivel i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, #fff7 50%, transparent 70%); animation: brilho-barra 2.6s infinite; }
+@keyframes brilho-barra { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @keyframes subir { 0% { transform: scale(.2) rotate(-120deg); opacity: 0; } 60% { transform: scale(1.25) rotate(8deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
 .trilha { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
 .trilha .etapa { text-align: center; font-size: 11px; color: var(--muted); padding: 10px 4px; border-radius: var(--radius-sm); border: 1px solid var(--glass-line); background: var(--glass); }
@@ -86,8 +86,8 @@ body.light-theme { --glass: rgba(255, 255, 255, .72); --glass-line: rgba(15, 23,
 
 /* ---------- Chamado relâmpago ---------- */
 .card.ruptura { border-color: rgba(255, 107, 107, .55); background: linear-gradient(180deg, var(--red-soft), var(--surface) 70%); position: relative; overflow: hidden; }
-.card.ruptura::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 0 rgba(255, 107, 107, .5); animation: pulso 2s infinite; pointer-events: none; }
-@keyframes pulso { 70% { box-shadow: 0 0 0 12px rgba(255, 107, 107, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); } }
+.card.ruptura::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 0 rgba(255, 107, 107, .5); animation: pulso-ruptura 2s infinite; pointer-events: none; }
+@keyframes pulso-ruptura { 70% { box-shadow: 0 0 0 12px rgba(255, 107, 107, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); } }
 .badge-raio { background: linear-gradient(90deg, #ff4d6d, #ff9f43); color: #fff; }
 .bonus-tag { font-size: 12px; font-weight: 800; color: var(--gold); }
 .contagem { font-variant-numeric: tabular-nums; font-weight: 800; }

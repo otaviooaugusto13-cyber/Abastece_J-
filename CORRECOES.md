@@ -23,3 +23,12 @@ Medido em Chromium com 320, 360, 390 e 412 px (telas de login/entrada; telas int
 ## Não verificado
 - `test/backend.test.cjs` e demais testes do servidor (exigem `npm install`, sem rede aqui). Rode: `cd server && npm i && node ../test/backend.test.cjs`.
 - Telas internas (pós-login) em celular real; a auditoria automática só alcança as telas de entrada.
+
+## Painel do promotor (revisão especial)
+Testado em Chromium (360 px, tema escuro) com Firebase e API simulados, em dois cenários: cadastro aprovado e cadastro pendente.
+- **Ofertas "carregando" para sempre / calendário em branco / "Próximos turnos" vazio:** `renderOfertas` usava o elemento `#dot-ofertas`, que não existia no `promotor.html`; o erro abortava a função antes de desenhar a lista. Agora o selo existe no botão central do dock e o código não quebra se ele faltar. `renderTudo` passou a desenhar cada seção isoladamente (uma falha não apaga as outras).
+- **Cards fantasmas deslizando para fora da tela:** dois `@keyframes` com o mesmo nome (`brilho`, `pulso`) em arquivos CSS diferentes; o último sobrescrevia o primeiro. Renomeados (`brilho-barra`, `pulso-ruptura`, `pulso-hab`).
+- **Chips de categoria sobrepostos:** corrigido (não encolhem mais; rolam na horizontal).
+- **"Aparecer para lojas próximas" removido.** O promotor agora fica online automaticamente ao abrir o app (`promotor-online.js`): envia a posição a cada ~10 s com o app aberto; só aparece quem está habilitado (se ainda não estiver, tenta de novo a cada 60 s); se o GPS estiver bloqueado, não mostra nada. O servidor tira o promotor do mapa 45 s após o último sinal.
+- Filtros de setor ficam ocultos enquanto as ofertas estão bloqueadas (cadastro pendente).
+- Carteira e selos toleram resposta incompleta do servidor.

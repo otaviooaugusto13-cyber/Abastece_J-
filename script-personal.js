@@ -27,7 +27,7 @@ import { iniciar as iniciarJogo, abrirCheckin, abrirCheckout, abrirFaltaLoja, al
 import { coracoes, cartaoNivel, listaInfracoes, telaBanido, esconderBanido, animarPerdaVida, chipNivel, medalha, abrirFoto } from "./gamificacao-ui.js";
 import { iniciarVagas } from "./vagas.js";                   // mural de vagas + divulgação (LGPD) + currículo PDF
 import { montarOnline } from "./promotor-online.js";         // "aparecer para lojas próximas" (mapa das lojas)
-montarOnline($("online-promotor"));
+montarOnline();   // online AUTOMÁTICO ao abrir o app (sem interruptor)
 let usuario = null, pub = {}, priv = {}, hab = { habilitado: false, pendencias: [], treinamento: { concluidos: 0, total: 0, completo: false } }, treino = null, carteiraDados = null;
 let ofertas = [], turnos = [], filtroSetor = "", ordem = "match";
 let perfilIA = { experiencias: [], eneagrama: null, palavrasChave: [], bioAuto: true };
@@ -312,7 +312,10 @@ const valorFiltro = (x) => valorOferta(x) >= (pub.valorMin || 0);
 const podeVer = (x) => !priv.menor || (x.entrada >= MENOR_JANELA_INICIO && x.saida <= MENOR_JANELA_FIM && !MENOR_SETORES_VEDADOS.includes(x.foco));
 const valorOferta = (x) => rep?.nivel ? calcularDiaria(rep.nivel.id, x.bonusCentavos || 0).promotor : valorPromotor(x);   // oferta aberta: pelo nível de quem vai aceitar
 const meu = (t) => valorPromotor(t);   // líquido do promotor: único valor exibido neste portal
-function renderTudo() { renderProximos(); renderAgenda(); renderCarteira(); renderCalendario(); renderConversas(); if (diaSel) renderDia(); }
+/** Cada seção se desenha sozinha: se uma falhar (ex.: dado ausente), as outras continuam (antes o calendário e "Próximos turnos" ficavam em branco/carregando). */
+function renderTudo() {
+    for (const f of [renderProximos, renderAgenda, renderCarteira, renderCalendario, renderConversas, () => { if (diaSel) renderDia(); }]) { try { f(); } catch (e) { console.error("renderTudo:", f.name || "", e); } }
+}
 
 // ---------- ofertas: geolocalização em tempo real, contadores por cidade, raio de 20 km e ranking ----------
 const CHAVE_CIDADE = "abastece_cidade_manual";
@@ -378,15 +381,17 @@ function cartaoOferta(x, compacto = false) {
         <div class="ganho"><span>Você recebe<br><small class="muted">diária${x.minutos ? ` · ${String(Math.round(x.minutos / 6) / 10).replace(".", ",")} h` : ""}${x.bonusCentavos ? ` · <span class="bonus-tag">inclui bônus ${brl(x.bonusCentavos)}</span>` : ""}${rel ? ` · expira em <span class="contagem" data-expira="${x.expiraEm?.toMillis?.() || 0}">${Math.ceil(resta / 60000)} min</span>` : ""}</small></span><strong>${brl(valorOferta(x))}</strong></div>
         ${rodape}</article>`;
 }
+/** Selo com o nº de ofertas liberadas no botão central do dock. Nunca lança: um elemento ausente não pode impedir a lista de aparecer (era o que deixava as ofertas "carregando" para sempre). */
+function dotOfertas(n) { const d = $("dot-ofertas"); if (!d) return; d.hidden = !n; d.textContent = n || ""; }
 function renderOfertas() {
     const el = $("lista-ofertas");
     if (!usuario) return;
     if (!habilitado()) {
-        $("dot-ofertas").hidden = true; $("sugestoes").hidden = true; $("chips-cidades").innerHTML = ""; $("geo-status").hidden = true; $("seg-modo").hidden = true;
+        dotOfertas(0); $("sugestoes").hidden = true; $("chips-cidades").innerHTML = ""; $("filtro-setor").hidden = true; $("geo-status").hidden = true; $("seg-modo").hidden = true;
         el.innerHTML = vazio("🔒", "Ofertas liberadas após os requisitos", `Falta: ${textoPendencias() || "concluir seu cadastro"}.`, !hab.treinamento?.completo ? '<button class="btn btn-primary mt" data-ir="tab-treino">Ir para o treinamento</button>' : "");
         return;
     }
-    $("geo-status").hidden = false; $("seg-modo").hidden = false; atualizarSeg();
+    $("geo-status").hidden = false; $("seg-modo").hidden = false; $("filtro-setor").hidden = false; atualizarSeg();
     const base = ofertasBase(); desenharChips(base); desenharGeo();
     let l = base.filter((x) => !filtroSetor || x.foco === filtroSetor);
     if (modo === "perto") l = pos ? filtrarPorRaio(l, pos) : [];
@@ -404,7 +409,7 @@ function renderOfertas() {
     rk = [...rk.filter(liberada), ...rk.filter((x) => !liberada(x))];
     const nLib = rk.filter(liberada).length;
     ofertasVistas = new Map(rk.map((o) => [o.id, o]));
-    $("dot-ofertas").hidden = !nLib; $("dot-ofertas").textContent = nLib;
+    dotOfertas(nLib);
     // "Sugeridas para você": as melhores do ranking (só com pelo menos 2 sinais conhecidos, senão o score não diz nada)
     const top = ordem === "match" ? rk.filter((o) => liberada(o) && o.match.nivel === "alto" && o.match.conhecidos >= 2).slice(0, 3) : [];
     $("sugestoes").hidden = !top.length || rk.length < 2;
@@ -528,10 +533,10 @@ function renderCarteira() {
     $("c-carencia").textContent = `Cada pagamento fica ${d.liberacaoDias} dia(s) em carência antes de ficar disponível para saque.`;
     $("btn-sacar").disabled = d.disponivelCentavos < (d.saqueMinimoCentavos || 1);
     const ico = { credito_diaria: "💸", liberacao: "🔓", saque: "🏦", saque_devolvido: "↩️", estorno: "⚠️" };
-    $("c-extrato").innerHTML = d.extrato.length ? d.extrato.map((l) => { const net = l.dPendente + l.dDisponivel, v = net || Math.abs(l.dDisponivel);
+    $("c-extrato").innerHTML = (d.extrato || []).length ? d.extrato.map((l) => { const net = l.dPendente + l.dDisponivel, v = net || Math.abs(l.dDisponivel);
         return `<div class="item"><div class="ico">${ico[l.tipo] || "•"}</div><div class="grow"><strong>${esc(l.rotulo)}</strong><div class="muted small">${esc(l.descricao || "")} · ${fmtDataHora(l.em)}</div></div><div class="val" style="color:${net > 0 ? "var(--green)" : net < 0 ? "var(--red)" : "var(--muted)"}">${net > 0 ? "+ " : net < 0 ? "− " : "↔ "}${brl(Math.abs(v))}</div></div>`; }).join("") : '<p class="muted small center">Seus ganhos aparecem aqui depois do primeiro pagamento.</p>';
     const rot = { solicitado: "Em análise", pago: "Pago", rejeitado: "Devolvido" };
-    $("c-saques").innerHTML = d.saques.length ? d.saques.map((s) => `<div class="item"><div class="ico">🏦</div><div class="grow"><strong>Saque ${esc(rot[s.status] || s.status)}</strong><div class="muted small">${fmtDataHora(s.em)}</div></div><div class="val">${brl(s.valorCentavos)}</div></div>`).join("") : '<p class="muted small center">Nenhum saque ainda.</p>';
+    $("c-saques").innerHTML = (d.saques || []).length ? d.saques.map((s) => `<div class="item"><div class="ico">🏦</div><div class="grow"><strong>Saque ${esc(rot[s.status] || s.status)}</strong><div class="muted small">${fmtDataHora(s.em)}</div></div><div class="val">${brl(s.valorCentavos)}</div></div>`).join("") : '<p class="muted small center">Nenhum saque ainda.</p>';
 }
 $("btn-csv").addEventListener("click", async () => { try { await baixarCSVProtegido("carteira/exportar.csv", "abastece-ja-carteira.csv"); } catch (e) { erro(e.code === "limite-requisicoes" ? "Aguarde um instante e tente de novo." : "Não foi possível exportar agora."); } });
 
@@ -631,7 +636,7 @@ let habCats = null, hb = null, leitorHab = null, quiz = null;
 const ANEL = 2 * Math.PI * 52;
 const fmtTempo = (ms) => { const s = Math.ceil(ms / 1000); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
 const catsOk = () => new Set(habCats ? habCats.categorias.filter((c) => c.habilitado).map((c) => c.id) : Object.keys(pub.habilitacoes || {}));
-const selosAtuais = () => habCats ? habCats.selos : Object.entries(pub.habilitacoes || {}).filter(([id]) => CATEGORIAS[id]).map(([id, h]) => ({ categoria: id, titulo: CATEGORIAS[id].titulo, ico: CATEGORIAS[id].ico, elite: h?.elite === true }));
+const selosAtuais = () => habCats?.selos ? habCats.selos : Object.entries(pub.habilitacoes || {}).filter(([id]) => CATEGORIAS[id]).map(([id, h]) => ({ categoria: id, titulo: CATEGORIAS[id].titulo, ico: CATEGORIAS[id].ico, elite: h?.elite === true }));
 const seloHtml = (s) => `<span class="selo${s.elite ? " elite" : ""}"><span class="selo-ico">${s.elite ? "⭐" : s.ico || "✔"}</span><span>${s.elite ? "Selo de Elite" : "Habilitado"}: ${esc(s.titulo)}</span></span>`;
 
 /** Selos na bio/perfil: vêm do campo gravado pelo SERVIDOR (nunca do texto da bio, que o próprio usuário edita). */
