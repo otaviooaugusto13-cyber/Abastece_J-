@@ -214,8 +214,10 @@ function renderTudo() { renderHome(); renderPedidos(); renderCalendario(); diaSe
 // ============================================================
 // NOVO PEDIDO
 // ============================================================
+// Setores que continuam existindo no sistema (servidor, pedidos antigos, perfil do promotor), mas não aparecem como card no novo pedido.
+const SETORES_OCULTOS_NO_PEDIDO = ["Bebidas", "Montagem de ilhas"];
 function montarSetores() {
-    $("setor-grid").innerHTML = SETORES.map((s) => `<button type="button" class="chip${s.v === setorSel ? " sel" : ""}" role="radio" aria-checked="${s.v === setorSel}" data-setor="${esc(s.v)}"><span class="ico">${s.ico}</span>${esc(s.label)}</button>`).join("");
+    $("setor-grid").innerHTML = SETORES.filter((s) => !SETORES_OCULTOS_NO_PEDIDO.includes(s.v)).map((s) => `<button type="button" class="chip${s.v === setorSel ? " sel" : ""}" role="radio" aria-checked="${s.v === setorSel}" data-setor="${esc(s.v)}"><span class="ico">${s.ico}</span>${esc(s.label)}</button>`).join("");
 }
 function iniciarFormulario() {
     $("p-data").min = hojeLocal(); if (!$("p-data").value || $("p-data").value < hojeLocal()) $("p-data").value = hojeLocal();

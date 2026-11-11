@@ -78,9 +78,9 @@ export function montarMapaPromotores(raiz, { aoDefinirLocal } = {}) {
         criando ||= (async () => {
             if (usarGoogle) {
                 try { mp = await criarMapaGoogle(mapaEl, { chave: GOOGLE_MAPS_KEY, centro: loja, carroSvg: CARRO, aoFalhar: voltarParaReserva }); document.querySelectorAll(".mapa-credito, .sm-rodape").forEach((e) => { e.textContent = e.textContent.replace("OpenStreetMap", "Google"); }); return; }
-                catch (e) { usarGoogle = false; }                                   // sem rede/CSP/chave: cai para o OpenStreetMap
+                catch (e) { console.warn("[mapa] Google Maps indisponível, usando o mapa de reserva:", e?.message || e); usarGoogle = false; }                                   // sem rede/CSP/chave: cai para o OpenStreetMap
             }
-            try { mp = await adaptadorLeaflet(loja); } catch (e) { falhaMapa = true; mapaEl.hidden = true; }
+            try { mp = await adaptadorLeaflet(loja); } catch (e) { console.error("[mapa] o mapa de reserva também falhou:", e?.message || e); falhaMapa = true; mapaEl.hidden = true; sub.textContent = "Mapa indisponível agora (veja o console do navegador)"; }
         })();
         await criando; criando = null;
         if (mp) setTimeout(() => mp?.invalidar(), 150);
