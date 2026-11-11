@@ -107,7 +107,7 @@ export const MP_PUBLIC_KEY = "";
 // É pública por natureza: RESTRINJA ao domínio do app (Restrições de aplicativo › Sites, ex.: https://seu-app.onrender.com/*) e limite à Maps JavaScript API.
 // O Google exige conta de faturamento, mas dá uso gratuito mensal (confira o limite atual em mapsplatform.google.com/pricing); crie um alerta de orçamento.
 // Vazia ("") = continua o mapa OpenStreetMap. Se o Google recusar a chave ou falhar, o app volta sozinho para o OpenStreetMap.
-export const GOOGLE_MAPS_KEY = "";
+export const GOOGLE_MAPS_KEY = "AIzaSyDG2aReivoDbcLokpzeeopNxZJo_XQf4w8";
 
 // ---- Emuladores locais do Firebase (só para testes; ver DEPLOY-RENDER.md) ----
 // Abra o app com ?emulador=1 em localhost para usar Auth/Firestore locais.
