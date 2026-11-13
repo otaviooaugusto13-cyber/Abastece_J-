@@ -102,6 +102,10 @@ export const FUNCTIONS_BASE = mesmaOrigem ? location.origin : URL_RENDER;
 // Sem ela, só o cartão de teste (modo sandbox) funciona. No servidor também é preciso MP_ACCESS_TOKEN.
 export const MP_PUBLIC_KEY = "APP_USR-547767e1-3fd4-410e-8a88-73184027d3ca";
 
+// Deixa disponível globalmente caso o app procure direto na janela do navegador
+if (typeof window !== 'undefined') {
+  window.MP_PUBLIC_KEY = MP_PUBLIC_KEY;
+}
 // ---- Mapa do Google (Maps JavaScript API) ----
 // Cole aqui a chave do navegador (Google Cloud › APIs e serviços › Credenciais › Criar chave de API; ative "Maps JavaScript API").
 // É pública por natureza: RESTRINJA ao domínio do app (Restrições de aplicativo › Sites, ex.: https://seu-app.onrender.com/*) e limite à Maps JavaScript API.
