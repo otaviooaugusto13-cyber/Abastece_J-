@@ -8,7 +8,8 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/fi
 import { auth, consultar } from "./firebase.js";
 import { RAIO, EVENTO_RAIO } from "./raio.js";
 import { criarMapaGoogle } from "./google-map.js";
-import { GOOGLE_MAPS_KEY } from "./config.js";
+import { GOOGLE_MAPS_KEY as CHAVE_GOOGLE, MAPA_PROVEDOR } from "./config.js";
+const GOOGLE_MAPS_KEY = MAPA_PROVEDOR === "google" ? CHAVE_GOOGLE : "";   // "osm" (padrão) ignora a chave: evita o Google em modo de desenvolvimento (sem faturamento)
 
 const A_CADA_MS = 6000;
 // O Leaflet, os blocos do mapa e o tema escuro agora vêm do DarkMap (dark-map.js).

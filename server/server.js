@@ -145,7 +145,7 @@ app.use(/^\/(saude|cadastro|perfil|habilitacao|habilitacoes|sessao|treinamento|c
 
 app.get("/saude", (req, res) => res.json({ ok: true }));
 
-for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "root", "mapa", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "vagas", "teste"]) require(`./rotas/${rota}`)(app, ctx);
+for (const rota of ["conta", "treinamento", "categorias", "pedidos", "pagamentos", "nota", "carteira", "taxas", "root", "mapa", "admin", "suporte", "ti", "execucao", "ruptura", "reputacao", "b2b", "vagas", "documento", "teste"]) require(`./rotas/${rota}`)(app, ctx);
 ctx.cs = require("./lib/cs/rotas")(app, { ...ctx, Img: require("./lib/imagem") });   // CS & B2B (compilado de ../cs/*.ts); depois de pedidos/b2b: usa ctx.exigirCartao, localDaLoja, marcaDoPedido
 
 
