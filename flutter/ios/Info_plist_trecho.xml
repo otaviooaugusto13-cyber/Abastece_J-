@@ -1,0 +1,10 @@
+<!-- ios/Runner/Info.plist — dentro do <dict> principal -->
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key>
+    <string>abastecejapay</string>
+    <key>CFBundleURLSchemes</key>
+    <array><string>abastecejapay</string></array>
+  </dict>
+</array>

@@ -1,0 +1,6 @@
+# Acrescente em dependencies: do seu pubspec.yaml
+dependencies:
+  flutter_custom_tabs: ^2.0.0   # abre o Checkout Pro em Chrome Custom Tabs (Android) / SFSafariViewController (iOS)
+  app_links: ^6.3.0             # recebe o deep link abastecejapay://pagamento?... ao voltar do Mercado Pago
+  http: ^1.2.0
+  firebase_auth: ^5.0.0         # já deve existir: usado para o ID token (Authorization: Bearer)

@@ -1,0 +1,75 @@
+# Blueprint do Render: servidor Node (API + site). Static Site NÃO serve: não roda Node.
+services:
+  - type: web
+    name: abastece-j
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && cd ../cs/web && npm install --include=dev && npm run build   # painel de CS & B2B (React) → ../cs-app, servido em /painel-cs
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /saude
+    envVars:
+      - key: AMBIENTE
+        value: producao              # liga as travas de produção (chaves obrigatórias, MODO_TESTE proibido)
+      - key: APP_URL
+        sync: false                  # domínio HTTPS de produção, ex.: https://abastece-ja.onrender.com (usado nas back_urls do Checkout Pro; nunca localhost)
+      - key: APP_DEEP_LINK_SCHEME    # esquema do deep link que devolve o usuário ao app Flutter após o Checkout Pro (igual ao do AndroidManifest/Info.plist)
+        value: abastecejapay
+      - key: EXIGE_CARTAO_CADASTRADO # "1" volta a exigir cartão pré-cadastrado (tokenização). Com o Checkout Pro o cartão é digitado no Mercado Pago: deixe desligado.
+        value: "0"
+      - key: ORIGENS_PERMITIDAS
+        sync: false                  # opcional: outros domínios do front (separados por vírgula)
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: ADMIN_BOOTSTRAP_EMAIL   # opcional: e-mail(s) da conta Google que vira ADMIN ao reiniciar (sem terminal). Remova depois de entrar.
+        sync: false
+      - key: TI_BOOTSTRAP_EMAIL      # opcional: cria o 1º gestor de TI (use um e-mail NOVO, sem conta anterior)
+        sync: false
+      - key: TI_BOOTSTRAP_NOME
+        sync: false
+      - key: TI_BOOTSTRAP_SENHA      # uso único (troca obrigatória no 1º login) — REMOVA depois de entrar
+        sync: false
+      - key: MP_ACCESS_TOKEN         # conta Mercado Pago da PLATAFORMA (todo pagamento entra aqui)
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: DATA_ENCRYPTION_KEYS    # npm run gerar-chaves
+        sync: false
+      - key: DATA_ENCRYPTION_KEY_ID
+        sync: false
+      - key: BLIND_INDEX_KEY
+        sync: false
+      - key: CRON_SECRET             # agendador chama POST /interno/liberar com x-cron-secret
+        sync: false
+      - key: FIREBASE_STORAGE_BUCKET # bucket PRIVADO do Cloud Storage (Console › Storage), ex.: meu-projeto.firebasestorage.app — guarda os currículos em PDF
+        sync: false
+      - key: ADMIN_EXIGE_MFA
+        value: "1"
+      - key: LIBERACAO_DIAS
+        value: "2"
+
+  # Manutenção horária: libera carência, detecta faltas, expira chamados relâmpago e aplica inatividade de nível.
+  - type: cron
+    name: abastece-manutencao
+    runtime: node
+    schedule: "0 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$APP_URL/interno/manutencao"'
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+
+  # Sucesso do Cliente: alertas de vaga sem promotor, churn, disparo de NPS e geração das recorrências das lojas.
+  - type: cron
+    name: abastece-cs
+    runtime: node
+    schedule: "*/15 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$APP_URL/interno/cs-manutencao"'
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false

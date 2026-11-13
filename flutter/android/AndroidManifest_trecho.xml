@@ -1,0 +1,16 @@
+<!-- android/app/src/main/AndroidManifest.xml
+     Dentro de <activity android:name=".MainActivity" ...> (a MESMA activity do app), ao lado do intent-filter MAIN/LAUNCHER.
+     launchMode deve ser singleTop (padrão do Flutter) para o deep link chegar com o app aberto. -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="abastecejapay" android:host="pagamento" />
+</intent-filter>
+
+<!-- Fora de <application>, para o Android 11+ enxergar um navegador com Custom Tabs: -->
+<queries>
+    <intent>
+        <action android:name="android.support.customtabs.action.CustomTabsService" />
+    </intent>
+</queries>
