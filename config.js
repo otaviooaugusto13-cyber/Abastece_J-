@@ -100,7 +100,7 @@ export const FUNCTIONS_BASE = mesmaOrigem ? location.origin : URL_RENDER;
 // ---- Cadastro de cartão (produção) ---------------------------
 // Chave PÚBLICA da aplicação no Mercado Pago (Credenciais de produção → Public Key). Pode ficar no código.
 // Sem ela, só o cartão de teste (modo sandbox) funciona. No servidor também é preciso MP_ACCESS_TOKEN.
-export const MP_PUBLIC_KEY = "";
+export const MP_PUBLIC_KEY = "APP_USR-547767e1-3fd4-410e-8a88-73184027d3ca";
 
 // ---- Mapa do Google (Maps JavaScript API) ----
 // Cole aqui a chave do navegador (Google Cloud › APIs e serviços › Credenciais › Criar chave de API; ative "Maps JavaScript API").
